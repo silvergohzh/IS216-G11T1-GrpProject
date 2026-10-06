@@ -1,0 +1,35 @@
+[
+  {
+    "id": "albert-centre",
+    "name": "Albert Centre Market & Food Centre",
+    "cuisine": "Hawker",
+    "address": "270 Queen St, Singapore 180270",
+    "lat": 1.3016, "lng": 103.8529,
+    "priceMin": 3, "priceMax": 8,
+    "dietary": ["halal", "vegetarian"],
+    "serviceModes": ["dine-in", "takeaway"],
+    "latestWaitMins": 12
+  },
+  {
+    "id": "bras-basah-complex",
+    "name": "Bras Basah Complex food court",
+    "cuisine": "Food court",
+    "address": "231 Bain St, Singapore 180231",
+    "lat": 1.2967, "lng": 103.8537,
+    "priceMin": 4, "priceMax": 7,
+    "dietary": ["vegetarian"],
+    "serviceModes": ["dine-in", "takeaway"],
+    "latestWaitMins": 4
+  },
+  {
+    "id": "waterloo-centre",
+    "name": "Waterloo Centre",
+    "cuisine": "Hawker",
+    "address": "261 Waterloo St, Singapore 180261",
+    "lat": 1.2996, "lng": 103.8530,
+    "priceMin": 3, "priceMax": 6,
+    "dietary": [],
+    "serviceModes": ["dine-in", "takeaway"],
+    "latestWaitMins": 8
+  }
+]
