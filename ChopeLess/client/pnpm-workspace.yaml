@@ -1,5 +1,0 @@
-allowBuilds:
-  esbuild: false
-  protobufjs: true
-  re2: true
-  vue-demi: true
