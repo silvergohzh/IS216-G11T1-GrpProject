@@ -13,13 +13,25 @@ onUnmounted(() => store.stop())
 
 const winner = computed(() => store.session?.winner)
 const from = computed(() => store.session?.meetingPoint)
+// Opens Google Maps with walking directions (from the meeting point if the host set one)
+const directionsUrl = computed(() => {
+  const w = winner.value
+  if (!w) return '#'
+  let url = `https://www.google.com/maps/dir/?api=1&destination=${w.lat},${w.lng}&travelmode=walking`
+  if (from.value) url += `&origin=${from.value.lat},${from.value.lng}`
+  return url
+})
 </script>
 
 <template>
   <div v-if="winner" class="space-y-4">
     <p class="label">It's a match</p>
-    <h1 class="text-3xl font-extrabold text-brand" data-testid="winner-name">{{ winner.name }}</h1>
-    <PlaceCard :place="winner" />
+    <h1 class="animate-pop text-3xl font-extrabold text-brand" data-testid="winner-name">🎉 {{ winner.name }}</h1>
+  <PlaceCard :place="winner" />
+  <div class="flex flex-wrap gap-3">
+  <a :href="directionsUrl" target="_blank" rel="noopener" class="btn-primary">Get walking directions</a>
+  <RouterLink to="/sessions" class="btn">Start another session</RouterLink>
+  </div>
     <!-- TODO (M2): replace this straight line with the OSRM walking route -->
     <MapView :center="[winner.lat, winner.lng]"
              :markers="[{ lat: winner.lat, lng: winner.lng, label: winner.name }, ...(from ? [{ ...from, label: 'Meeting point' }] : [])]"

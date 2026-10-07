@@ -22,10 +22,13 @@ test('two members join, vote yes on the same place, and both see the winner', as
   await expect(host).toHaveURL(/\/vote$/)
   await expect(guest).toHaveURL(/\/vote$/)
 
-  // Both say yes to the first card (shortest walk + wait, from the seed data)
-  await host.getByTestId('vote-yes').click()
-  await guest.getByTestId('vote-yes').click()
 
-  await expect(host.getByTestId('winner-name')).toHaveText('Bras Basah Complex food court')
-  await expect(guest.getByTestId('winner-name')).toHaveText('Bras Basah Complex food court')
+  // Both say yes to the first card (shortest walk + wait, from the seed data)
+  await host.getByTestId('vote-yes').click()      // host taps the ✓ button
+  await guest.keyboard.press('ArrowRight')         // guest uses the keyboard shortcut
+
+  await expect(host.getByTestId('winner-name')).toContainText('Bras Basah Complex food court')
+  await expect(guest.getByTestId('winner-name')).toContainText('Bras Basah Complex food court')
+  await expect(host.getByRole('link', { name: 'Get walking directions' })).toBeVisible()
 })
+ 

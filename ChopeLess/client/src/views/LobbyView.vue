@@ -4,7 +4,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSessionStore } from '../stores/session'
 import { useAuthStore } from '../stores/auth'
-import { updateSettings, startVoting } from '../services/sessions'
+import { updateSettings, startVoting, leaveSession, endSession } from '../services/sessions'
 import MapView from '../components/MapView.vue'
 
 const route = useRoute()
@@ -14,6 +14,31 @@ const auth = useAuthStore()
 const code = route.params.code
 const error = ref('')
 const starting = ref(false)
+
+const copied = ref(false)
+const shareLink = `${location.origin}/sessions?join=${code}`
+
+// Copy the invite link so friends can tap it in the group chat
+async function copyLink() {
+  try {
+    await navigator.clipboard.writeText(shareLink)
+    copied.value = true
+    setTimeout(() => (copied.value = false), 2000)
+  } catch {
+    error.value = 'Could not copy. Share this link instead: ' + shareLink
+  }
+}
+
+async function leave() {
+  if (!confirm('Leave this session?')) return
+  await leaveSession(code)
+  router.push('/sessions')
+}
+async function end() {
+  if (!confirm('End the session for everyone?')) return
+  await endSession(code)
+  router.push('/sessions')
+}
 
 const isHost = computed(() => store.session?.hostUid === auth.user?.uid)
 const members = computed(() => Object.entries(store.session?.members || {}))
@@ -39,14 +64,20 @@ async function start() {
 <template>
   <div v-if="store.session">
     <h1 class="page-title">Lobby · code <span class="font-mono text-brand" data-testid="session-code">{{ code }}</span></h1>
-    <p class="mb-4 text-slate-600">Share the code. Voting starts when the host is ready.</p>
+    <div class="mb-4 flex flex-wrap items-center gap-2">
+      <p class="text-slate-600">Share the code. Voting starts when the host is ready.</p>
+      <button class="btn text-sm" data-testid="copy-link" @click="copyLink">{{ copied ? 'Link copied ✓' : 'Copy invite link' }}</button>
+    </div>
 
     <div class="grid gap-4 md:grid-cols-2">
       <div class="card">
         <h2 class="mb-2 font-bold">Members ({{ members.length }})</h2>
         <ul class="divide-y divide-slate-100" data-testid="member-list">
           <li v-for="[uid, m] in members" :key="uid" class="py-2">
-            <b>{{ m.name }}</b> <span class="text-sm text-slate-500">· ${{ m.budget }} · {{ m.dietary.join(', ') || 'no restrictions' }}</span>
+            <b>{{ m.name }}</b> 
+            <span v-if="uid === store.session.hostUid" class="ml-1 rounded-full bg-brand-light px-2 py-0.5 text-xs font-bold text-brand">Host</span>
+            <span v-if="uid === auth.user?.uid" class="ml-1 text-xs text-slate-400">(you)</span>
+            <span class="text-sm text-slate-500">· ${{ m.budget }} · {{ m.dietary.join(', ') || 'no restrictions' }}</span>
           </li>
         </ul>
       </div>
@@ -65,6 +96,8 @@ async function start() {
         <p v-if="error" class="error">{{ error }}</p>
         <button v-if="isHost" class="btn-primary w-full" :disabled="starting" @click="start">{{ starting ? 'Building shortlist…' : 'Start voting' }}</button>
         <p v-else class="text-sm text-slate-500">Waiting for the host to start…</p>
+        <button v-if="isHost" class="w-full text-sm text-red-600" @click="end">End session for everyone</button>
+        <button v-else class="w-full text-sm text-red-600" @click="leave">Leave session</button>
       </div>
     </div>
   </div>

@@ -8,6 +8,13 @@
   --color-brand-light: #dcefe3;
   --color-accent: #e0a526;
   --color-ink: #1e2140;
+    /* used as class="animate-pop" on the winner screen */
+  --animate-pop: pop 0.6s ease-out;
+  @keyframes pop {
+    0% { transform: scale(0.6); opacity: 0; }
+    70% { transform: scale(1.08); opacity: 1; }
+    100% { transform: scale(1); }
+  }
 }
 
 body { @apply bg-slate-50 text-ink; }
