@@ -6,12 +6,21 @@ import { collection, doc, getDoc, getDocs } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { api } from '../lib/api'
 
+
+// List all places
+// Input: none
+// Output: [{ id, name, cuisine, address, lat, lng, priceMin, priceMax, dietary, serviceModes,
+//            latest: { peopleInQueue, waitMins, seatOccupancy, confidence, at } }, ...]
 export async function listPlaces() {
-  const snap = await getDocs(collection(db, 'places'))
+  const snap = await getDocs(collection(db, 'places')) 
   return snap.docs.map(d => ({ id: d.id, ...d.data() }))
 }
 
 // One place plus the average wait for each hour (for the chart)
+// Input: id
+// Output: { id, name, cuisine, address, lat, lng, priceMin, priceMax, dietary, serviceModes,
+//           latest: { peopleInQueue, waitMins, seatOccupancy, confidence, at },
+//           trend: [{ hour, avgWait }, ...] }
 export async function getPlace(id) {
   const snap = await getDoc(doc(db, 'places', id))
   if (!snap.exists()) throw new Error('Place not found')
@@ -32,6 +41,8 @@ export async function getPlace(id) {
 
 // Shrink a photo to at most 1024px and turn it into base64 JPEG.
 // Phone photos are often 5MB+, which is too big to send and slower for the AI.
+// Input: file (from <input type="file">), maxSize (default 1024)
+// Output: Promise<string> (data URL)
 export function shrinkPhoto(file, maxSize = 1024) {
   return new Promise((resolve, reject) => {
     const img = new Image()
@@ -50,5 +61,7 @@ export function shrinkPhoto(file, maxSize = 1024) {
 }
 
 // The OpenAI key is secret, so photos go through our server
+// Input: id (place ID), dataUrl (from shrinkPhoto)
+// Output: Promise<{ peopleInQueue, waitMins, seatOccupancy, confidence }>
 export const analysePhoto = (id, dataUrl) =>
   api(`/places/${id}/analyse`, { method: 'POST', body: { imageBase64: dataUrl.split(',')[1], mimeType: 'image/jpeg' } })

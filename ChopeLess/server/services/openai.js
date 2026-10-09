@@ -25,11 +25,13 @@ const prompt = `You estimate how busy a food place in Singapore (hawker centre, 
 5. confidence: "high" if queues and seating are clearly visible, "medium" if partly visible or far away, "low" if blurry, dark, or it is not a food place.`
 
 export async function analyseImage(imageBase64, mimeType = 'image/jpeg') {
+  // If the OpenAI key is not set, return a random sample result for the rest
   if (!process.env.OPENAI_API_KEY || !imageBase64) {
     const people = 5 + Math.floor(Math.random() * 20)
     return { peopleInQueue: people, waitMins: Math.round(people * 0.8), seatOccupancy: 40 + Math.floor(Math.random() * 50), confidence: 'low' }
   }
 
+  // Ask OpenAI to analyse the photo. The model returns a JSON string, which we parse.
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
@@ -45,15 +47,19 @@ export async function analyseImage(imageBase64, mimeType = 'image/jpeg') {
       response_format: { type: 'json_schema', json_schema: { name: 'queue_estimate', strict: true, schema } }
     })
   })
+  // If the request failed, try to get the error message from the body
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
     throw new Error('OpenAI request failed: ' + (body.error?.message || res.status))
   }
+  // The model returns a JSON string in data.choices[0].message.content, which we parse into an object
   const data = await res.json()
   const r = JSON.parse(data.choices[0].message.content)
-  console.log('[OpenAI]', r) // handy for checking why an estimate looks off
+  console.log('[OpenAI]', r) // to check the model is returning sensible numbers and not hallucinating wildly
 
   // Keep numbers in a sensible range in case the model guesses wildly
+  // (e.g. 1000 people in queue, 200% seat occupancy, 500 minutes wait)
+  // Safeguard Function
   const clamp = (n, max) => Math.max(0, Math.min(max, Math.round(n)))
   return {
     peopleInQueue: clamp(r.peopleInQueue, 200),
