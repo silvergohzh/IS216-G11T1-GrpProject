@@ -23,12 +23,12 @@ Every file starts with a comment that says who owns it. Search the code for `TOD
 
 | # | Member | Part | Your files |
 |---|---|---|---|
-| M1 | _fill in_ | Session and voting back-end | `server/routes/sessions.js`, the `sessions` block in `firestore.rules` |
-| M2 | _fill in_ | Shortlist engine and maps | `server/services/shortlist.js`, `server/services/osrm.js`, `server/routes/shortlist.js`, `client/src/components/MapView.vue` |
+| M1 | Janani | Session and voting back-end | `server/routes/sessions.js`, the `sessions` block in `firestore.rules` |
+| M2 | Nawaz | Shortlist engine and maps | `server/services/shortlist.js`, `server/services/osrm.js`, `server/routes/shortlist.js`, `client/src/components/MapView.vue` |
 | M3 | Silver | Session front-end | `client/src/services/sessions.js`, `client/src/stores/session.js`, `client/src/views/SessionsView.vue`, `LobbyView.vue`, `VoteView.vue`, `WinnerView.vue`, `client/src/components/PlaceCard.vue` |
 | M4 | Jonathan | QueueLess | `client/src/services/places.js`, `server/routes/places.js`, `server/services/gemini.js`, `client/src/views/QueueLessView.vue`, `PlaceDetailView.vue` |
 | M5 | Jan | Hidden Gems and data | `client/src/services/gems.js`, `client/src/views/GemsView.vue`, `server/seed/`, the `gems` and `places` blocks in `firestore.rules` |
-| M6 | _fill in_ | Foundation, testing, delivery | `client/src/lib/`, `client/src/stores/auth.js`, `client/src/services/users.js`, `client/src/router/`, `App.vue`, `NavBar.vue`, `HomeView.vue`, `LoginView.vue`, `ProfileView.vue`, `server/index.js`, `server/firebase.js`, `server/middleware/auth.js`, `firebase.json`, `playwright.config.js`, this README |
+| M6 | Myat | Foundation, testing, delivery | `client/src/lib/`, `client/src/stores/auth.js`, `client/src/services/users.js`, `client/src/router/`, `App.vue`, `NavBar.vue`, `HomeView.vue`, `LoginView.vue`, `ProfileView.vue`, `server/index.js`, `server/firebase.js`, `server/middleware/auth.js`, `firebase.json`, `playwright.config.js`, this README |
 
 **Shared files.** If you need to change a file someone else owns (for example, adding your route to `client/src/router/index.js`), tell them in the group chat first.
 
