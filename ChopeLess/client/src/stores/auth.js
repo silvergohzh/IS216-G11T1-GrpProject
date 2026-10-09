@@ -1,9 +1,12 @@
 // Who is logged in. Owner: M6
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth'
+import {
+  signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged,
+  EmailAuthProvider, reauthenticateWithCredential, deleteUser
+} from 'firebase/auth'
 import { auth } from '../lib/firebase'
-import { saveProfile } from '../services/users'
+import { saveProfile, deleteProfile } from '../services/users'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null) // { uid, email, name }
@@ -42,5 +45,15 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
   }
 
-  return { user, ready, isLoggedIn, init, login, register, logout }
+  // Firebase only lets you delete an account you logged in to recently, so check the password again first.
+  // The profile goes before the login, because firestore.rules needs you logged in to delete it.
+  async function deleteAccount(password) {
+    const fbUser = auth.currentUser
+    await reauthenticateWithCredential(fbUser, EmailAuthProvider.credential(fbUser.email, password))
+    await deleteProfile(fbUser.uid)
+    await deleteUser(fbUser)
+    user.value = null
+  }
+
+  return { user, ready, isLoggedIn, init, login, register, logout, deleteAccount }
 })
