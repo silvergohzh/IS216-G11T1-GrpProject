@@ -39,7 +39,7 @@ service cloud.firestore {
     }
 
     // ---------- places (M5 seeds, M4 analyses) ----------
-    // Everyone can read. Only the server writes.
+    // Everyone can read. Only the server (seed script, photo analysis route) writes.
     match /places/{placeId} {
       allow read: if true;
       allow write: if false;

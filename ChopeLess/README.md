@@ -26,7 +26,7 @@ Every file starts with a comment that says who owns it. Search the code for `TOD
 | M1 | Janani | Session and voting back-end | `server/routes/sessions.js`, the `sessions` block in `firestore.rules` |
 | M2 | Nawaz | Shortlist engine and maps | `server/services/shortlist.js`, `server/services/osrm.js`, `server/routes/shortlist.js`, `client/src/components/MapView.vue` |
 | M3 | Silver | Session front-end | `client/src/services/sessions.js`, `client/src/stores/session.js`, `client/src/views/SessionsView.vue`, `LobbyView.vue`, `VoteView.vue`, `WinnerView.vue`, `client/src/components/PlaceCard.vue` |
-| M4 | Jonathan | QueueLess | `client/src/services/places.js`, `server/routes/places.js`, `server/services/gemini.js`, `client/src/views/QueueLessView.vue`, `PlaceDetailView.vue` |
+| M4 | Jonathan | QueueLess | `client/src/services/places.js`, `server/routes/places.js`, `server/services/openai.js`, `client/src/views/QueueLessView.vue`, `PlaceDetailView.vue` |
 | M5 | Jan | Hidden Gems and data | `client/src/services/gems.js`, `client/src/views/GemsView.vue`, `server/seed/`, the `gems` and `places` blocks in `firestore.rules` |
 | M6 | Myat | Foundation, testing, delivery | `client/src/lib/`, `client/src/stores/auth.js`, `client/src/services/users.js`, `client/src/router/`, `App.vue`, `NavBar.vue`, `HomeView.vue`, `LoginView.vue`, `ProfileView.vue`, `server/index.js`, `server/firebase.js`, `server/middleware/auth.js`, `firebase.json`, `playwright.config.js`, this README |
 
@@ -44,7 +44,7 @@ Browser (Vue)  ──── reads/writes directly ────▶  Firestore  (p
 - **Most data goes straight from the browser to Firestore.** Profiles, sessions, gems and places are read and written in `client/src/services/`.
 - **Live updates.** The lobby, vote tally and gems board use Firestore's `onSnapshot`, so every phone updates the moment anything changes. No refreshing or polling.
 - **`firestore.rules` is our security.** Because the browser talks to the database directly, the rules decide who can do what. For example, only the host can change settings, you can only edit your own gem, and you can only upvote once.
-- **The Express server does the jobs the browser can't be trusted with.** It builds the shortlist, records votes and picks the winner (so nobody can fake a result), and calls Gemini (so the API key stays secret).
+- **The Express server does the jobs the browser can't be trusted with.** It builds the shortlist, records votes and picks the winner (so nobody can fake a result), and calls OpenAI (so the API key stays secret).
 
 ## Tech stack
 
@@ -55,7 +55,7 @@ Browser (Vue)  ──── reads/writes directly ────▶  Firestore  (p
 | Data store | **Cloud Firestore** (Firebase). Collections: `users`, `sessions`, `places` (+ `analyses`), `gems` |
 | Login | **Firebase Authentication** (email + password) |
 | Back-end | Node.js + **Express**, using the Firebase Admin SDK |
-| APIs | Firebase Auth + Firestore, OSRM (walking time), OpenStreetMap tiles via Leaflet, Google Gemini (queue photos) |
+| APIs | Firebase Auth + Firestore, OSRM (walking time), OpenStreetMap tiles via Leaflet, OpenAI vision (queue photos) |
 | Testing | **Playwright** end-to-end tests, run against the Firebase emulators |
 
 ## Firestore data
@@ -83,6 +83,8 @@ cd ../client && cp .env.example .env && npm install
 ```
 
 The `.env` files are already set up for the **local emulators**, so you don't need a real Firebase project to start building.
+
+QueueLess photo analysis uses OpenAI. Add `OPENAI_API_KEY=sk-...` to `server/.env` (optionally `OPENAI_MODEL`, default `gpt-4o`). Without a key the server returns a random sample estimate, so the page still works.
 
 ## Running the app locally
 
@@ -141,7 +143,7 @@ Rules: never commit `.env` files. Don't push straight to `main`. Pull before you
 
 ## API reference (Express)
 
-Everything else goes through Firestore directly. All routes need a logged-in user.
+Everything else goes through Firestore directly. All routes need a logged-in user, except photo analysis.
 
 | Method | Route | Owner | What it does |
 |---|---|---|---|
@@ -149,7 +151,7 @@ Everything else goes through Firestore directly. All routes need a logged-in use
 | POST | `/api/sessions/:code/start` | M1 + M2 | Host only. Builds the shortlist and opens voting |
 | POST | `/api/sessions/:code/vote` | M1 | Vote `{ placeId, yes }`. The first place with all yes wins |
 | GET | `/api/shortlist/:code` | M2 | Preview the shortlist without starting voting |
-| POST | `/api/places/:id/analyse` | M4 | Send `{ imageBase64 }`; Gemini estimates the queue |
+| POST | `/api/places/:id/analyse` | M4 | No login needed (10 photos per 10 min per visitor). Send `{ imageBase64, mimeType }`; OpenAI estimates queue length, wait, seats taken and confidence |
 
 ## Deployment (M6, Week 11)
 
