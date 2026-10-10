@@ -1,6 +1,6 @@
 // Connects the server to Firebase with full admin access. Owner: M6
 // The server is trusted, so it skips the Security Rules. Only do things here that
-// the browser must NOT be allowed to do itself (start voting, decide the winner, call Gemini).
+// the browser must NOT be allowed to do itself (start voting, decide the winner, call OpenAI).
 import 'dotenv/config'
 import { initializeApp, cert } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
