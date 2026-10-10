@@ -17,7 +17,10 @@ let map, layer
 function draw() {
   layer.clearLayers()
   props.markers.forEach(m => L.circleMarker([m.lat, m.lng], { radius: 8, color: '#237a4b' }).bindPopup(m.label || '').addTo(layer))
-  if (props.route.length) L.polyline(props.route, { color: '#e0a526', weight: 5 }).addTo(layer)
+  if (props.route.length) {
+    const line = L.polyline(props.route, { color: '#e0a526', weight: 5 }).addTo(layer)
+    map.fitBounds(line.getBounds(), { padding: [24, 24] }) // show the whole walk, not just the destination
+  }
 }
 
 onMounted(() => {
@@ -31,8 +34,6 @@ onMounted(() => {
 })
 watch(() => [props.markers, props.route], draw, { deep: true })
 onBeforeUnmount(() => map?.remove())
-
-// TODO (M2): get the real walking route from OSRM for the winner screen
 </script>
 
 <template>
