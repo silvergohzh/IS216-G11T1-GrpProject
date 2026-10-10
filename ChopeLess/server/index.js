@@ -8,6 +8,7 @@ import cors from 'cors'
 import sessionsRouter from './routes/sessions.js'   // M1
 import shortlistRouter from './routes/shortlist.js' // M2
 import placesRouter from './routes/places.js'       // M4
+import gemsRouter from './routes/gems.js'          // M5
 
 const app = express()
 app.use(cors({ origin: (process.env.CLIENT_URL || 'http://localhost:5173').split(',') }))
@@ -20,6 +21,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/sessions', sessionsRouter)
 app.use('/api/shortlist', shortlistRouter)
 app.use('/api/places', placesRouter)
+app.use('/api/gems', gemsRouter) 
 
 // One place to turn thrown errors into JSON
 app.use((err, req, res, next) => {
