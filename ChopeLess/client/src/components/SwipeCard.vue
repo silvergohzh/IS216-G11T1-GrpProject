@@ -36,11 +36,12 @@ function fling(yes) {
 const style = computed(() => {
   const x = leaving.value ? leaving.value * 600 : dx.value
   return {
-    transform: `translateX(${x}px) rotate(${x / 20}deg)`,
+    transform: `translateX(${x}px) rotate(${x / 20}deg)`, // translateX(130px) moves the card 130px right. 
+                                // rotate(130 / 20 = 6.5deg) tilts it slightly, like a Tinder card. The further you drag, the more it tilts.
     transition: dragging.value ? 'none' : 'transform 0.25s ease'
   }
 })
-const hint = computed(() => (dx.value > 40 ? 'yes' : dx.value < -40 ? 'no' : ''))
+const hint = computed(() => (dx.value > 40 ? 'yes' : dx.value < -40 ? 'no' : '')) // dx refers to distance
 
 defineExpose({ fling }) // lets the parent's ✓ / ✕ buttons trigger the same animation
 </script>
