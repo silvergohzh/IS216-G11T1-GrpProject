@@ -6,7 +6,8 @@
 //     shortlist: [place, ...]            <- written by the server when voting starts
 //     votes: { [placeId]: { [uid]: true/false } }   <- written by the server
 //     winner: place | null, createdAt, expiresAt }
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp, Timestamp } from 'firebase/firestore'
+
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, onSnapshot, serverTimestamp, Timestamp } from 'firebase/firestore'
 import { db, auth } from '../lib/firebase'
 import { api } from '../lib/api'
 
@@ -58,6 +59,11 @@ export function watchSession(code, onChange, onError) {
 // UPDATE: host changes settings in the lobby
 export function updateSettings(code, changes) {
   return updateDoc(doc(db, 'sessions', code), changes)
+}
+
+// LEAVE: a member removes themselves (only allowed in the lobby)
+export function leaveSession(code) {
+  return updateDoc(doc(db, 'sessions', code), { [`members.${auth.currentUser.uid}`]: deleteField() })
 }
 
 // DELETE: host ends the session

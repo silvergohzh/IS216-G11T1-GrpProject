@@ -6,3 +6,9 @@ test-results/
 playwright-report/
 *-debug.log
 .firebase/
+
+*firebase-adminsdk*.json
+serviceAccount*.json
+pnpm-lock.yaml
+pnpm-workspace.yaml
+.DS_Store
