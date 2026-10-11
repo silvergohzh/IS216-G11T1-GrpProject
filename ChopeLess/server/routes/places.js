@@ -36,6 +36,11 @@ router.post('/:id/analyse', async (req, res, next) => {
     if (!snap.exists) return res.status(404).json({ error: 'Place not found' })
 
     const result = await analyseImage(imageBase64, mimeType)
+    // Reject photos the AI is sure are not of a food place, before anything is saved
+    if (result.isFoodPlace === false) {
+      return res.status(422).json({ error: "This doesn't look like a food place. Please upload a photo of the queue or seating area." })
+    }
+    delete result.isFoodPlace // don't store it in Firestore
     const at = new Date().toISOString()
     // Singapore hour, so the chart lines up even when the server runs in another time zone
     const hour = Number(new Date().toLocaleString('en-SG', { hour: 'numeric', hour12: false, timeZone: 'Asia/Singapore' })) % 24

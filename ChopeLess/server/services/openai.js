@@ -7,17 +7,19 @@
 const schema = {
   type: 'object',
   properties: {
+    isFoodPlace: { type: 'boolean', description: 'true only if the photo shows a hawker centre, food court, restaurant, cafe or food stall' },
     observations: { type: 'string', description: 'One or two sentences on what the photo shows: queues at stalls, people seated, empty tables' },
     peopleInQueue: { type: 'integer', description: 'People standing in line at food stalls' },
     seatOccupancy: { type: 'integer', description: 'Percent of visible seats or tables in use, 0-100' },
     waitMins: { type: 'integer', description: 'Estimated minutes to reach the front of a typical queue' },
     confidence: { type: 'string', enum: ['low', 'medium', 'high'] }
   },
-  required: ['observations', 'peopleInQueue', 'seatOccupancy', 'waitMins', 'confidence'],
+  required: ['isFoodPlace', 'observations', 'peopleInQueue', 'seatOccupancy', 'waitMins', 'confidence'],
   additionalProperties: false
 }
 
 const prompt = `You estimate how busy a food place in Singapore (hawker centre, food court or restaurant) is from one photo.
+0. isFoodPlace: set to false if the photo clearly is not a food place (e.g. a selfie, a classroom, a screenshot, a pet, a street with no eatery). If unsure, set true.
 1. Look at the whole photo, including the background. People seated at tables count towards seat occupancy even if nobody is queuing.
 2. peopleInQueue: count people standing in line at stalls or counters. Give your best estimate; do not return 0 unless you clearly see no queue.
 3. seatOccupancy: estimate what percent of the visible seats or tables are in use.
@@ -65,6 +67,7 @@ export async function analyseImage(imageBase64, mimeType = 'image/jpeg') {
     peopleInQueue: clamp(r.peopleInQueue, 200),
     seatOccupancy: clamp(r.seatOccupancy, 100),
     waitMins: clamp(r.waitMins, 120),
-    confidence: r.confidence
+    confidence: r.confidence,
+    isFoodPlace: r.isFoodPlace // the route rejects the photo when this is false
   }
 }

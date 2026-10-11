@@ -6,6 +6,7 @@ import { getPlace, analysePhoto, shrinkPhoto } from '../services/places'
 
 const route = useRoute()
 const place = ref(null)
+const photoName = ref('') // name of the chosen file, shown on the button
 const photo = ref('')      // the shrunk photo as a data URL, used for the preview and the upload
 const result = ref(null)
 const loading = ref(false)
@@ -18,6 +19,7 @@ onMounted(load)
 
 async function choosePhoto(e) {
   const file = e.target.files[0]
+  photoName.value = file?.name || ''
   result.value = null
   error.value = ''
   if (!file) return (photo.value = '')
@@ -99,7 +101,13 @@ const hourLabel = h => `${h % 12 || 12}${h < 12 ? 'am' : 'pm'}`
     <div class="card space-y-3">
       <h2 class="font-bold">Update with a photo</h2>
       <p class="text-sm text-slate-600">Snap the queue and seating area. AI estimates how busy it is and everyone sees the update.</p>
-      <input type="file" accept="image/*" @change="choosePhoto" data-testid="photo-input" />
+      <!-- The real file input is hidden; the label is the big, clear button people tap -->
+      <label class="flex cursor-pointer flex-col items-center gap-1 rounded-xl border-2 border-dashed border-brand bg-brand-light/40 px-4 py-6 text-center hover:bg-brand-light focus-within:ring-2 focus-within:ring-brand">
+        <span class="text-3xl" aria-hidden="true">📷</span>
+        <span class="font-bold text-brand">{{ photo ? 'Change photo' : 'Take or choose a photo' }}</span>
+        <span class="text-xs text-slate-500">{{ photoName || 'JPG, PNG or WebP from your camera or gallery' }}</span>
+        <input type="file" accept="image/*" class="sr-only" @change="choosePhoto" data-testid="photo-input" />
+      </label>
       <img v-if="photo" :src="photo" alt="Your photo" class="max-h-64 rounded-lg" />
       <button class="btn-primary" :disabled="!photo || loading" @click="analyse" data-testid="analyse-btn">
         {{ loading ? 'Analysing…' : 'Analyse photo' }}
