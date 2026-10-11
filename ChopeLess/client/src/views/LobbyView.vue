@@ -23,14 +23,14 @@ const starting = ref(false);
 const copied = ref(false);
 const shareLink = `${location.origin}/sessions?join=${code}`;
 
-// Copy the invite link so friends can tap it in the group chat
-async function copyLink() {
+// Copy just the 6-letter code so friends can type it on the Makan Session page
+async function copyCode() {
   try {
-    await navigator.clipboard.writeText(shareLink);
+    await navigator.clipboard.writeText(code);
     copied.value = true;
     setTimeout(() => (copied.value = false), 2000);
   } catch {
-    error.value = "Could not copy. Share this link instead: " + shareLink;
+    error.value = "Could not copy. The code is " + code;
   }
 }
 
@@ -104,10 +104,10 @@ async function start() {
     </h1>
     <div class="mb-4 flex flex-wrap items-center gap-2">
       <p class="text-slate-600">
-        Share the code. Voting starts when the host is ready.
+        Share the code with friends. Voting starts when the host is ready.
       </p>
-      <button class="btn text-sm" data-testid="copy-link" @click="copyLink">
-        {{ copied ? "Link copied ✓" : "Copy invite link" }}
+      <button class="btn text-sm" data-testid="copy-code" @click="copyCode">
+        {{ copied ? "Code copied ✓" : "Copy code" }}
       </button>
     </div>
 
