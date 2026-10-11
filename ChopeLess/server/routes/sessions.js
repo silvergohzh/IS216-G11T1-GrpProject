@@ -131,26 +131,31 @@ if (typeof yes !== 'boolean') {
 
   if (everyoneFinished) {
     let highestYes = -1
-    let bestPlace = null
+let tiedPlaces = []
 
-    // Find the place with the most YES votes
-    for (const p of session.shortlist) {
-      let yesCount = 0
+// Count YES votes and collect tied restaurants
+for (const p of session.shortlist) {
+  let yesCount = 0
 
-      for (const uid of memberIds) {
-        if (votes[p.id][uid] === true) {
-          yesCount++
-        }
-      }
-
-      if (yesCount > highestYes) {
-        highestYes = yesCount
-        bestPlace = p
-      }
+  for (const uid of memberIds) {
+    if (votes[p.id][uid] === true) {
+      yesCount++
     }
+  }
 
-    update.winner = bestPlace
-    update.status = 'done'
+  if (yesCount > highestYes) {
+    highestYes = yesCount
+    tiedPlaces = [p]
+  } else if (yesCount === highestYes) {
+    tiedPlaces.push(p)
+  }
+}
+
+// Randomly choose from restaurants with the highest votes
+const randomIndex = Math.floor(Math.random() * tiedPlaces.length)
+
+update.winner = tiedPlaces[randomIndex]
+update.status = 'done'
   }
 }
             tx.update(ref, update)
