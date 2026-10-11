@@ -21,7 +21,12 @@ const error = ref("");
 const starting = ref(false);
 
 const copied = ref(false);
-const shareLink = `${location.origin}/sessions?join=${code}`;
+// const shareLink = `${location.origin}/sessions?join=${code}`;
+
+// True once the session has loaded and I'm not one of its members
+const notMember = computed(
+  () => store.session && !store.session.members?.[auth.user?.uid],
+);
 
 // Copy just the 6-letter code so friends can type it on the Makan Session page
 async function copyCode() {
@@ -80,7 +85,14 @@ async function start() {
 </script>
 
 <template>
-  <div v-if="store.session">
+  <!-- Outsiders see this instead of the lobby -->
+  <div v-if="notMember" class="card text-center">
+    <p class="mb-3">You're not part of this session.</p>
+    <RouterLink to="/sessions" class="btn-primary"
+      >Back to Makan Session</RouterLink
+    >
+  </div>
+  <div v-else-if="store.session">
     <h1 class="page-title">
       Lobby · code
       <span class="font-mono text-brand" data-testid="session-code">{{
