@@ -69,10 +69,25 @@ async function update(changes) {
 async function start() {
   error.value = "";
   starting.value = true;
+
   try {
     await startVoting(code);
   } catch (err) {
-    error.value = err.message;
+    const status = err.status ?? err.response?.status;
+
+    if (status === 403) {
+      error.value = "403 Forbidden: Only the host can start voting.";
+    } else if (status === 404) {
+      error.value = "404: Session not found.";
+    } else if (status === 409) {
+      error.value = "409 Conflict: Voting has already started.";
+    } else if (status === 410) {
+      error.value = "410: Session has expired.";
+    } else if (status === 422) {
+      error.value = "422: No restaurants fit the group's preferences.";
+    } else {
+      error.value = err.message || "Unable to start voting.";
+    }
   } finally {
     starting.value = false;
   }
@@ -183,7 +198,13 @@ async function start() {
             "
           />
         </div>
-        <p v-if="error" class="error">{{ error }}</p>
+        <div
+        v-if="error"
+        role="alert"
+        class="rounded-lg border border-red-300 bg-red-50 p-3 text-sm font-medium text-red-700"
+        >
+        {{ error }}
+      </div>
         <p
           v-if="isHost && !store.session.meetingPoint"
           class="text-sm text-amber-700"
