@@ -4,10 +4,10 @@
 
 /* Shared brand colours, used as bg-brand, text-brand, etc. */
 @theme {
-  --color-brand: #237a4b;
-  --color-brand-light: #dcefe3;
-  --color-accent: #e0a526;
-  --color-ink: #1e2140;
+  --color-brand: #237a4b;        /* green: main brand, buttons, links  */
+  --color-brand-light: #dcefe3;  /* pale green: "Host" badge           */
+  --color-accent: #e0a526;       /* gold: highlights                   */
+  --color-ink: #1e2140;          /* dark navy: main text colour        */
     /* used as class="animate-pop" on the winner screen */
   --animate-pop: pop 0.6s ease-out;
   @keyframes pop {
