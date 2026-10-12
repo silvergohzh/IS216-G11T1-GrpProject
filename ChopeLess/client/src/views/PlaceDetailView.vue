@@ -16,6 +16,8 @@ async function load() {
 }
 onMounted(load)
 
+
+// Shrink the photo and show a preview. If it fails, show an error message
 async function choosePhoto(e) {
   const file = e.target.files[0]
   result.value = null
@@ -33,11 +35,12 @@ async function analyse() {
     await load()
   } catch (err) {
     error.value = err.message
-  } finally {
+  } finally { // always run, even if the try block throws an error
     loading.value = false
   }
 }
 
+// Colours for the confidence badge
 const confidenceColours = { high: 'bg-green-100 text-green-800', medium: 'bg-amber-100 text-amber-800', low: 'bg-slate-200 text-slate-700' }
 
 // How long ago the latest estimate was made, e.g. "5 min ago"
