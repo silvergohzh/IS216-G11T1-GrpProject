@@ -14,6 +14,9 @@ const routes = [
   { path: '/sessions/:code', name: 'lobby', component: () => import('../views/LobbyView.vue'), meta: { requiresAuth: true, title: 'Lobby' } },
   { path: '/sessions/:code/vote', name: 'vote', component: () => import('../views/VoteView.vue'), meta: { requiresAuth: true, title: 'Vote' } },
   { path: '/sessions/:code/winner', name: 'winner', component: () => import('../views/WinnerView.vue'), meta: { requiresAuth: true, title: 'Winner' } },
+  { path: '/groups', name: 'groups', component: () => import('../views/GroupsView.vue'), meta: { requiresAuth: true, title: 'Makan Kakis' } },
+  { path: '/groups/:code', name: 'group', component: () => import('../views/GroupDetailView.vue'), meta: { requiresAuth: true, title: 'Group' } },
+  { path: '/history', name: 'history', component: () => import('../views/HistoryView.vue'), meta: { requiresAuth: true, title: 'Makan History' } },
 
   // M4: QueueLess
   { path: '/queueless', name: 'queueless', component: () => import('../views/QueueLessView.vue'), meta: { title: 'QueueLess' } },

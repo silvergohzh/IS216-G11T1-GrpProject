@@ -6,6 +6,7 @@ import { useAuthStore } from '../stores/auth'
 import { createSession, joinSession } from '../services/sessions'
 import { getProfile } from '../services/users'
 
+
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
@@ -47,6 +48,11 @@ async function join() {
 <template>
   <h1 class="page-title">Makan Session</h1>
   <p class="mb-4 text-slate-600">Start a session and share the code, or join a friend's.</p>
+    <div class="mb-4 flex flex-wrap gap-2">
+    <RouterLink to="/groups" class="btn text-sm">👥 Makan Kakis</RouterLink>
+    
+  </div>
+
 
   <div class="grid gap-4 md:grid-cols-2">
     <div class="card space-y-3">

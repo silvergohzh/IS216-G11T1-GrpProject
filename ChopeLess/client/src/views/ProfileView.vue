@@ -78,6 +78,7 @@ async function deleteAccount() {
         <p v-if="error" class="error">{{ error }}</p>
         <div class="flex items-center gap-3">
           <button class="btn-primary" type="submit">Save</button>
+          <RouterLink to="/history" class="btn text-sm">🕘 Meal history</RouterLink>
           <span v-if="message" class="text-sm font-semibold text-brand">{{ message }}</span>
         </div>
       </fieldset>
