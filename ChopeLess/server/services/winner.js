@@ -40,11 +40,22 @@ export function decide(session) {
   }
 }
 
-// Last resort after round 2: the place with the most yes votes (or the first one)
+// Last resort after round 2: the most-liked places (ignoring "no" blocks) go on the wheel.
+// If nobody liked anything, every place that wasn't vetoed goes on the wheel.
 export function mostLiked(session) {
   const votes = session.votes || {}
-  const ranked = session.shortlist
-    .map(p => ({ place: p, yes: Object.values(votes[p.id] || {}).filter(v => v === true).length }))
-    .sort((a, b) => b.yes - a.yes)
-  return { winner: ranked[0].place, status: 'done', tieBreak: null }
+  const vetoed = Object.values(session.vetoes || {})
+  let pool = session.shortlist.filter(p => !vetoed.includes(p.id))
+  if (!pool.length) pool = session.shortlist          // everything vetoed: use the full list
+  const yesOf = p => Object.values(votes[p.id] || {}).filter(v => v === true).length
+  const best = Math.max(...pool.map(yesOf))
+  const tied = pool.filter(p => yesOf(p) === best)
+  const winner = tied[Math.floor(Math.random() * tied.length)]
+  return {
+    winner,
+    status: 'done',
+    tieBreak: tied.length > 1
+      ? { candidates: tied.map(p => ({ id: p.id, name: p.name })), winnerId: winner.id }
+      : null
+  }
 }
