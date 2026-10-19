@@ -209,24 +209,6 @@ export async function awardSessionPoints(session) {
 }
 
 
-  // Additional +5 points for the host.
-  if (memberIds.includes(session.hostUid)) {
-    results.push(
-      await awardPoints({
-        uid: session.hostUid,
-        eventId: `host_${session.code}`,
-        points: POINT_RULES.HOST_BONUS,
-        reason: "HOST_BONUS",
-        sessionCode: session.code
-      })
-    );
-  }
-
-  return {
-    awarded: true,
-    results
-  };
-
 
 // =====================================================
 // CROWD REPORT REWARDS
