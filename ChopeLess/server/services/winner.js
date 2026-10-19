@@ -6,56 +6,109 @@
 //   - Score = yes votes + 1 extra for each Super Like.
 //   - Highest score wins; places with the same score tie, and a random spin picks one.
 
+
+// Voting winner selection — M1 (Janani)
+// Vetoed restaurants are never eligible to win.
+// Super Like adds one extra point to a YES vote.
+// Ties are resolved randomly for the spin wheel.
+
 export function rankPlaces(session) {
-  const votes = session.votes || {}
-  const vetoed = Object.values(session.vetoes || {})
-  const supers = Object.values(session.superLikes || {})
-  return session.shortlist
+  const votes = session.votes || {};
+  const vetoed = Object.values(session.vetoes || {});
+  const supers = Object.values(session.superLikes || {});
+
+  return (session.shortlist || [])
     .filter(p => !vetoed.includes(p.id))
     .map(p => {
-      const v = Object.values(votes[p.id] || {})
-      const yes = v.filter(x => x === true).length
-      const no = v.filter(x => x === false).length
-      const bonus = supers.filter(id => id === p.id).length
-      return { place: p, yes, no, score: yes + bonus, time: (p.walkMins || 0) + (p.waitMins || 0) }
+      const placeVotes = Object.values(votes[p.id] || {});
+
+      const yes = placeVotes.filter(v => v === true).length;
+      const no = placeVotes.filter(v => v === false).length;
+
+      const bonus = supers.filter(id => id === p.id).length;
+
+      return {
+        place: p,
+        yes,
+        no,
+        score: yes + bonus,
+        time: (p.walkMins || 0) + (p.waitMins || 0)
+      };
     })
     .filter(r => r.no === 0 && r.yes > 0)
-    .sort((a, b) => b.score - a.score || a.time - b.time)
+    .sort((a, b) => b.score - a.score || a.time - b.time);
 }
 
-// Returns the Firestore update for a finished session, or null if nobody agreed on anything
+// Normal winner selection
 export function decide(session) {
-  const ranked = rankPlaces(session)
-  if (!ranked.length) return null
-  const best = ranked[0]
-  // Any places with the same score tie, and the spin wheel picks one of them
-  const tied = ranked.filter(r => r.score === best.score)
-  const winner = tied[Math.floor(Math.random() * tied.length)].place
+  const ranked = rankPlaces(session);
+
+  if (!ranked.length) return null;
+
+  const best = ranked[0];
+  const tied = ranked.filter(r => r.score === best.score);
+
+  const winner = tied[Math.floor(Math.random() * tied.length)].place;
+
   return {
     winner,
     status: 'done',
     tieBreak: tied.length > 1
-      ? { candidates: tied.map(r => ({ id: r.place.id, name: r.place.name })), winnerId: winner.id }
+      ? {
+          candidates: tied.map(r => ({
+            id: r.place.id,
+            name: r.place.name
+          })),
+          winnerId: winner.id
+        }
       : null
-  }
+  };
 }
 
-// Last resort after round 2: the most-liked places (ignoring "no" blocks) go on the wheel.
-// If nobody liked anything, every place that wasn't vetoed goes on the wheel.
+// Final fallback after Round 2
 export function mostLiked(session) {
-  const votes = session.votes || {}
-  const vetoed = Object.values(session.vetoes || {})
-  let pool = session.shortlist.filter(p => !vetoed.includes(p.id))
-  if (!pool.length) pool = session.shortlist          // everything vetoed: use the full list
-  const yesOf = p => Object.values(votes[p.id] || {}).filter(v => v === true).length
-  const best = Math.max(...pool.map(yesOf))
-  const tied = pool.filter(p => yesOf(p) === best)
-  const winner = tied[Math.floor(Math.random() * tied.length)]
+  const votes = session.votes || {};
+  const vetoed = Object.values(session.vetoes || {});
+  const supers = Object.values(session.superLikes || {});
+
+  // Never restore vetoed restaurants.
+  const pool = (session.shortlist || [])
+    .filter(p => !vetoed.includes(p.id));
+
+  // No safe candidate: do not force a winner.
+  if (!pool.length) {
+    return {
+      winner: null,
+      status: 'done',
+      tieBreak: null
+    };
+  }
+
+  const scoreOf = p => {
+    const yes = Object.values(votes[p.id] || {})
+      .filter(v => v === true).length;
+
+    const bonus = supers.filter(id => id === p.id).length;
+
+    return yes + bonus;
+  };
+
+  const best = Math.max(...pool.map(scoreOf));
+  const tied = pool.filter(p => scoreOf(p) === best);
+
+  const winner = tied[Math.floor(Math.random() * tied.length)];
+
   return {
     winner,
     status: 'done',
     tieBreak: tied.length > 1
-      ? { candidates: tied.map(p => ({ id: p.id, name: p.name })), winnerId: winner.id }
+      ? {
+          candidates: tied.map(p => ({
+            id: p.id,
+            name: p.name
+          })),
+          winnerId: winner.id
+        }
       : null
-  }
+  };
 }

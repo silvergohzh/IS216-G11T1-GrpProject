@@ -202,9 +202,34 @@ service cloud.firestore {
           )
         );
 
+      
       // DELETE: Only the host can delete the session
       allow delete: if signedIn()
         && resource.data.hostUid == request.auth.uid;
     }
+
+    // ---------- Makan Points ----------
+    // Points are managed by the trusted Express backend.
+    // Users cannot directly change balances or ledger entries.
+
+    match /pointsAccounts/{uid} {
+      allow read, write: if false;
+    }
+
+    match /pointsLedger/{entryId} {
+      allow read, write: if false;
+    }
+
+    // ---------- Crowd report verification ----------
+// Trusted backend manages reports and verification results.
+match /crowdReports/{reportId} {
+  allow read, write: if false;
+}
+
+match /crowdReportCooldowns/{uid}/places/{placeId} {
+  allow read, write: if false;
+}
+
   }
 }
+
