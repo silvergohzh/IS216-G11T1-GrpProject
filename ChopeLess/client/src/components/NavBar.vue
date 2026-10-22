@@ -11,6 +11,7 @@ const open = ref(false) // mobile menu
 
 const links = [
   { to: '/sessions', label: 'Makan Session' },
+  { to: '/groups', label: 'Makan Kakis' }, 
   { to: '/queueless', label: 'QueueLess' },
   { to: '/gems', label: 'Hidden Gems' }
 ]
@@ -36,7 +37,9 @@ async function logout() {
         <RouterLink v-for="l in links" :key="l.to" :to="l.to" class="font-semibold text-slate-600 hover:text-brand"
                     active-class="text-brand" @click="open = false">{{ l.label }}</RouterLink>
         <template v-if="auth.isLoggedIn">
-          <RouterLink to="/profile" class="font-semibold text-slate-600" @click="open = false">{{ auth.user.name }}</RouterLink>
+          <RouterLink to="/profile" class="font-semibold text-slate-600 hover:text-brand" active-class="text-brand" @click="open = false">
+          Profile ({{ auth.user.name }})
+        </RouterLink>
           <button class="btn" @click="logout">Log out</button>
         </template>
         <RouterLink v-else to="/login" class="btn-primary text-center" @click="open = false">Log in</RouterLink>

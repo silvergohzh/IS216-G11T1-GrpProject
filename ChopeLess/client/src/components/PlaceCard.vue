@@ -14,7 +14,11 @@ defineProps({
       <div class="rounded-lg bg-slate-100 p-2"><b class="block">{{ place.walkMins ?? '–' }} min</b>walk</div>
       <div class="rounded-lg bg-slate-100 p-2"><b class="block">{{ place.waitMins ?? place.latest?.waitMins ?? '–' }} min</b>queue</div>
     </div>
-    <span v-if="place.isGem" class="mt-2 inline-block rounded-full bg-accent/20 px-2 py-0.5 text-xs font-bold">Hidden gem</span>
+      <div class="mt-2 flex flex-wrap gap-1">
+      <span v-if="place.isGem" class="rounded-full bg-accent/20 px-2 py-0.5 text-xs font-bold">Hidden gem</span>
+      <span v-if="place.outside" class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">Slightly outside your criteria</span>
+      <span v-if="place.visits" class="rounded-full bg-brand-light px-2 py-0.5 text-xs font-bold text-brand">Been here {{ place.visits }}×</span>
+    </div>
     <slot />
   </div>
 </template>

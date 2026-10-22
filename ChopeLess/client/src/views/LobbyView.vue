@@ -169,7 +169,7 @@ async function start() {
             </button>
           </div>
         </div>
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-3 gap-3">
           <div>
             <label class="label" for="walk">Max walk (min)</label>
             <input
@@ -192,6 +192,21 @@ async function start() {
               @change="update({ maxWaitMins: +$event.target.value })"
             />
           </div>
+          <div>
+            <label class="label" for="timer">Vote timer</label>
+            <select
+              id="timer"
+              class="input"
+              :value="store.session.voteSeconds ?? 60"
+              :disabled="!isHost"
+              @change="update({ voteSeconds: +$event.target.value })"
+            >
+              <option :value="30">30 s</option>
+              <option :value="60">60 s</option>
+              <option :value="90">90 s</option>
+              <option :value="0">No timer</option>
+            </select>
+          </div>
         </div>
         <div>
           <span class="label"
@@ -211,12 +226,12 @@ async function start() {
           />
         </div>
         <div
-        v-if="error"
-        role="alert"
-        class="rounded-lg border border-red-300 bg-red-50 p-3 text-sm font-medium text-red-700"
+          v-if="error"
+          role="alert"
+          class="rounded-lg border border-red-300 bg-red-50 p-3 text-sm font-medium text-red-700"
         >
-        {{ error }}
-      </div>
+          {{ error }}
+        </div>
         <p
           v-if="isHost && !store.session.meetingPoint"
           class="text-sm text-amber-700"
@@ -227,11 +242,14 @@ async function start() {
         <button
           v-if="isHost"
           class="btn-primary w-full"
-          :disabled="starting"
+          :disabled="starting || members.length < 2"
           @click="start"
         >
           {{ starting ? "Building shortlist…" : "Start voting" }}
         </button>
+        <p v-if="isHost && members.length < 2" class="text-center text-xs text-slate-500">
+          Share the code: you need at least 2 people to vote.
+        </p>
         <p v-else class="text-sm text-slate-500">
           Waiting for the host to start…
         </p>
