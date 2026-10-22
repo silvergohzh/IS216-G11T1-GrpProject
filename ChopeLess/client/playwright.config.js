@@ -29,7 +29,8 @@ export default defineConfig({
       command: 'node index.js',
       cwd: '../server',
       url: 'http://localhost:3001/api/health',
-      env: { ...emulatorEnv, PORT: '3001', CLIENT_URL: 'http://localhost:5174' }
+      // STRIPE_WEBHOOK_SECRET: a made-up secret, so e2e/orders.spec.js can send a signed "payment worked" message
+      env: { ...emulatorEnv, PORT: '3001', CLIENT_URL: 'http://localhost:5174', STRIPE_WEBHOOK_SECRET: 'whsec_test_chopeless' }
     }
   ]
 })

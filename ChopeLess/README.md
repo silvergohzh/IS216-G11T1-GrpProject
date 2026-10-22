@@ -28,7 +28,7 @@ Every file starts with a comment that says who owns it. Search the code for `TOD
 | M3 | Silver | Session front-end | `client/src/services/sessions.js`, `client/src/stores/session.js`, `client/src/views/SessionsView.vue`, `LobbyView.vue`, `VoteView.vue`, `WinnerView.vue`, `client/src/components/PlaceCard.vue` |
 | M4 | Jonathan | QueueLess | `client/src/services/places.js`, `server/routes/places.js`, `server/services/openai.js`, `client/src/views/QueueLessView.vue`, `PlaceDetailView.vue` |
 | M5 | Jan | Hidden Gems and data | `client/src/services/gems.js`, `client/src/views/GemsView.vue`, `server/seed/`, the `gems` and `places` blocks in `firestore.rules` |
-| M6 | Myat | Foundation, testing, delivery | `client/src/lib/`, `client/src/stores/auth.js`, `client/src/services/users.js`, `client/src/router/`, `App.vue`, `NavBar.vue`, `HomeView.vue`, `LoginView.vue`, `ProfileView.vue`, `server/index.js`, `server/firebase.js`, `server/middleware/auth.js`, `firebase.json`, `playwright.config.js`, this README |
+| M6 | Myat | Orders + payments + platform (roles, testing, CI, delivery) | `server/routes/orders.js`, `server/routes/payments.js`, `server/routes/admin.js`, `server/services/payments.js`, `server/seed/platform.js`, `server/seed/menus.json`, `client/src/services/orders.js`, `client/src/lib/` (incl. `splitBill.js`), `OrdersView.vue`, `CartView.vue`, `HawkerOrdersView.vue`, `AdminView.vue`, `client/src/stores/auth.js`, `client/src/services/users.js`, `client/src/router/`, `App.vue`, `NavBar.vue`, `HomeView.vue`, `LoginView.vue`, `ProfileView.vue`, `server/index.js`, `server/firebase.js`, `server/middleware/auth.js`, the `users` and `orders` blocks in `firestore.rules`, `firebase.json`, `playwright.config.js`, `.github/workflows/`, this README |
 
 **Shared files.** If you need to change a file someone else owns (for example, adding your route to `client/src/router/index.js`), tell them in the group chat first.
 
@@ -62,9 +62,10 @@ Browser (Vue)  ──── reads/writes directly ────▶  Firestore  (p
 
 | Collection | Fields | Who writes it |
 |---|---|---|
-| `users/{uid}` | name, defaultBudget, dietary[] | The user (M6) |
+| `users/{uid}` | name, defaultBudget, dietary[], role (`diner` / `hawker` / `admin`), placeId (hawkers only) | The user (name, budget, diet); **only the server** sets role and placeId (M6) |
+| `orders/{id}` | placeId, placeName, ownerUid, members[{uid, name}], memberUids[], items[{lineId, itemId, name, price, qty, addedBy, addedByName}], total, status (cart / awaiting_payment / paid / preparing / ready / collected / cancelled), createdAt, paidAt. **Money is in cents.** | Only the server (M6). The group, the stall's hawker and admins can read it |
 | `sessions/{code}` | hostUid, status (lobby / voting / done), serviceMode, maxWalkMins, maxWaitMins, meetingPoint, members{uid: {name, budget, dietary}}, shortlist[], votes{placeId: {uid: true/false}}, winner, expiresAt | Browser in the lobby (M3, rules by M1); server for shortlist, votes and winner (M1) |
-| `places/{id}` | name, cuisine, address, lat, lng, priceMin, priceMax, dietary[], serviceModes[], latest{waitMins, seatOccupancy, ...} | Seed script (M5); server updates `latest` (M4) |
+| `places/{id}` | name, cuisine, address, lat, lng, priceMin, priceMax, dietary[], serviceModes[], latest{waitMins, seatOccupancy, ...}, menu[{id, name, price (cents)}] | Seed script (M5, menus by M6); server updates `latest` (M4) |
 | `places/{id}/analyses/{id}` | hour, peopleInQueue, waitMins, seatOccupancy, confidence | Seed script and server (M4) |
 | `gems/{id}` | name, mustTry, price, address, lat, lng, dietary[], submittedBy, upvoters[] | The user (M5) |
 
@@ -86,6 +87,8 @@ The `.env` files are already set up for the **local emulators**, so you don't ne
 
 QueueLess photo analysis uses OpenAI. Add `OPENAI_API_KEY=sk-...` to `server/.env` (optionally `OPENAI_MODEL`, default `gpt-4o`). Without a key the server returns a random sample estimate, so the page still works.
 
+Payments use **Stripe in test mode** (no real money). Add `STRIPE_SECRET_KEY=sk_test_...` and `STRIPE_WEBHOOK_SECRET=whsec_...` to `server/.env` (see the comments in `server/.env.example`). Without them, pressing Pay marks the order paid straight away ("demo mode"). Test card: **4242 4242 4242 4242**, any future date, any CVC.
+
 ## Running the app locally
 
 Open three terminals:
@@ -93,7 +96,7 @@ Open three terminals:
 ```bash
 # Terminal 1: local Firebase (Auth + Firestore). Data resets every time you stop it.
 cd client && npm run emulators
-#   then, once it says "All emulators ready", load the sample places (in any terminal):
+#   then, once it says "All emulators ready", load the sample places, menus and test accounts (in any terminal):
 cd server && npm run seed
 
 # Terminal 2: API on http://localhost:3000
@@ -106,11 +109,17 @@ cd client && npm run dev
 - Sign up with any email and a password of 6+ characters. Accounts only exist on your laptop.
 - Open http://localhost:4000 to see the **Emulator UI**. It shows every Firestore document and user, which is very handy for debugging.
 
-### Test accounts (deployed app)
+### Test accounts
 
-| Email | Password |
-|---|---|
-| _TODO: add after deployment_ | |
+`npm run seed` creates one account for each role (password **test1234** for all):
+
+| Email | Role | What you can do |
+|---|---|---|
+| `diner@chopeless.test` | Diner | Everything a normal user can: sessions, QueueLess, gems, pre-orders |
+| `hawker@chopeless.test` | Hawker (Albert Centre) | Also: **Order board** for that stall |
+| `admin@chopeless.test` | Admin | Also: **Admin** page to change anyone's role |
+
+New sign-ups are always diners. An admin can make someone a hawker on the Admin page.
 
 ## Testing
 
@@ -128,6 +137,11 @@ npm run test:e2e
 | `sessions.spec.js` | M3 / M1 | **Two browsers:** host creates, guest joins live, host starts voting, both vote yes, both see the same winner |
 | `queueless.spec.js` | M4 | Seeded places show a crowd level; the place page shows the hourly chart |
 | `gems.spec.js` | M5 | Add, edit and delete a gem |
+| `orders.spec.js` | M6 | Pre-order, pay (signed Stripe webhook) and the order shows as paid on the hawker board; a fake payment is rejected; group cart with split bill; diners can't open hawker/admin pages |
+
+Unit tests for the split-bill algorithm: `cd client && npm run test:unit` (Node's built-in test runner).
+
+**CI:** `.github/workflows/tests.yml` runs the unit and end-to-end tests on GitHub for every pull request, so you see ✅ or ❌ before merging.
 
 **Adding your tests:** make a file in `client/e2e/` named after your feature, and use `signUp(page)` from `e2e/helpers.js` to get a logged-in user. Find elements with `getByRole`, `getByLabel` or `data-testid`, so restyling a page doesn't break its tests.
 
@@ -152,6 +166,14 @@ Everything else goes through Firestore directly. All routes need a logged-in use
 | POST | `/api/sessions/:code/vote` | M1 | Vote `{ placeId, yes }`. The first place with all yes wins |
 | GET | `/api/shortlist/:code` | M2 | Preview the shortlist without starting voting |
 | POST | `/api/places/:id/analyse` | M4 | No login needed (10 photos per 10 min per visitor). Send `{ imageBase64, mimeType }`; OpenAI estimates queue length, wait, seats taken and confidence |
+| POST | `/api/orders` | M6 | Start a cart for a stall `{ placeId }` |
+| POST | `/api/orders/:id/join` | M6 | Join a group cart (from the shared link) |
+| POST / PATCH / DELETE | `/api/orders/:id/items[/:lineId]` | M6 | Add `{ itemId, qty }`, change `{ qty }` or remove a cart item. Prices come from the menu on the server |
+| POST | `/api/orders/:id/cancel` | M6 | Owner only, before paying |
+| POST | `/api/orders/:id/checkout` | M6 | Owner only. Returns a Stripe checkout page URL |
+| POST | `/api/orders/:id/next` | M6 | Hawker of that stall (or admin): paid → preparing → ready → collected |
+| POST | `/api/payments/webhook` | M6 | Called **by Stripe**, checked with the signing secret. Marks the order paid |
+| GET / PATCH | `/api/admin/users[/:uid]` | M6 | Admin only: list accounts, change a role `{ role, placeId }` |
 
 ## Deployment (M6, Week 11)
 
@@ -163,6 +185,7 @@ Everything else goes through Firestore directly. All routes need a logged-in use
 3. **Back-end → Render:** root directory `server`, start command `npm start`. Add the server `.env` values (without the EMULATOR lines) in Render's settings, and set `CLIENT_URL` to the Vercel URL.
 4. **Front-end → Vercel:** root directory `client`, build `npm run build`, output `dist`. Set `VITE_USE_EMULATOR=false`, the `VITE_FIREBASE_*` web config values, and `VITE_API_URL` to the Render URL + `/api`.
 5. In Firebase **Authentication → Settings → Authorized domains**, add the Vercel domain.
+6. **Stripe (test mode):** in the Stripe dashboard → Developers → Webhooks, add an endpoint `https://<render-url>/api/payments/webhook` for the event `checkout.session.completed`. Put its signing secret in Render as `STRIPE_WEBHOOK_SECRET`, and the test secret key as `STRIPE_SECRET_KEY`.
 
 Keep the app, API keys and database running until **after Week 18** (per the project brief).
 

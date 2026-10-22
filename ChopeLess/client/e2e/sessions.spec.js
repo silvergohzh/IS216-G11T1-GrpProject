@@ -23,12 +23,14 @@ test('two members join, vote yes on the same place, and both see the winner', as
   await expect(guest).toHaveURL(/\/vote$/)
 
 
-  // Both say yes to the first card (shortest walk + wait, from the seed data)
+  // Both say yes to the first card (shortest walk + wait, from the seed data).
+  // Read its name from the card, so the test still works when the seed data changes.
+  const firstPlace = (await host.getByTestId('swipe-card').locator('h3').first().textContent()).trim()
   await host.getByTestId('vote-yes').click()      // host taps the ✓ button
   await guest.keyboard.press('ArrowRight')         // guest uses the keyboard shortcut
 
-  await expect(host.getByTestId('winner-name')).toContainText('Bras Basah Complex food court')
-  await expect(guest.getByTestId('winner-name')).toContainText('Bras Basah Complex food court')
+  await expect(host.getByTestId('winner-name')).toContainText(firstPlace)
+  await expect(guest.getByTestId('winner-name')).toContainText(firstPlace)
   await expect(host.getByRole('link', { name: 'Get walking directions' })).toBeVisible()
 })
  

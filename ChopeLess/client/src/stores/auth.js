@@ -6,21 +6,37 @@ import {
   EmailAuthProvider, reauthenticateWithCredential, deleteUser
 } from 'firebase/auth'
 import { auth } from '../lib/firebase'
-import { saveProfile, deleteProfile } from '../services/users'
+import { getProfile, saveProfile, deleteProfile } from '../services/users'
 
 export const useAuthStore = defineStore('auth', () => {
-  const user = ref(null) // { uid, email, name }
+  const user = ref(null) // { uid, email, name, role, placeId }
   const ready = ref(false)
   const isLoggedIn = computed(() => !!user.value)
 
-  const toUser = fbUser => (fbUser ? { uid: fbUser.uid, email: fbUser.email, name: fbUser.email.split('@')[0] } : null)
+  // Roles: 'diner' (everyone), 'hawker' (runs a stall) or 'admin'. Used by the navbar and the router.
+  const isHawker = computed(() => user.value?.role === 'hawker')
+  const isAdmin = computed(() => user.value?.role === 'admin')
+
+  // Build our user object from the Firebase login + the profile saved in Firestore (users/{uid}).
+  // The profile holds the display name and the role.
+  async function loadUser(fbUser) {
+    if (!fbUser) return null
+    const profile = (await getProfile(fbUser.uid)) || {}
+    return {
+      uid: fbUser.uid,
+      email: fbUser.email,
+      name: profile.name || fbUser.email.split('@')[0],
+      role: profile.role || 'diner',
+      placeId: profile.placeId || null // only hawkers have this: the stall they run
+    }
+  }
 
   // Runs once when the app starts and waits for Firebase to say who is logged in
   let started = null
   function init() {
     started ??= new Promise(resolve => {
-      onAuthStateChanged(auth, fbUser => {
-        user.value = toUser(fbUser)
+      onAuthStateChanged(auth, async fbUser => {
+        user.value = await loadUser(fbUser)
         ready.value = true
         resolve()
       })
@@ -30,12 +46,12 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function login(email, password) {
     const cred = await signInWithEmailAndPassword(auth, email, password)
-    user.value = toUser(cred.user)
+    user.value = await loadUser(cred.user)
   }
 
   async function register(email, password) {
     const cred = await createUserWithEmailAndPassword(auth, email, password)
-    user.value = toUser(cred.user)
+    user.value = await loadUser(cred.user)
     // Create a starter profile so the session page can pre-fill budget and diet
     await saveProfile(cred.user.uid, { name: email.split('@')[0], defaultBudget: 8, dietary: [] })
   }
@@ -55,5 +71,5 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
   }
 
-  return { user, ready, isLoggedIn, init, login, register, logout, deleteAccount }
+  return { user, ready, isLoggedIn, isHawker, isAdmin, init, login, register, logout, deleteAccount }
 })
