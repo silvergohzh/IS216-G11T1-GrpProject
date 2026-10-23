@@ -10,7 +10,7 @@ const router = useRouter()
 // One smart Back: return to the page you came from; if you opened this link directly, go to All places
 function goBack() {
   if (window.history.state?.back) router.back()
-  else router.push('/places')
+  else router.push('/queueless')
 }
 const place = ref(null)
 const photoName = ref('') // name of the chosen file, shown on the button

@@ -25,6 +25,7 @@ const isOwner = computed(() => group.value?.ownerUid === auth.user?.uid)
 const isMember = computed(() => group.value?.memberUids?.includes(auth.user?.uid))
 const members = computed(() => Object.entries(group.value?.members || {}))
 const liveCount = computed(() => Object.keys(live.value?.members || {}).length)
+const inLive = computed(() => !!live.value?.members?.[auth.user?.uid])   // am I already in the live session?
 
 onMounted(() => {
  stopGroup = watchGroup(code, g => { group.value = g; loaded.value = true }, err => { error.value = err.message })
@@ -109,9 +110,9 @@ async function copyCode() {
     <!-- Live session banner: updates the moment someone starts one -->
     <div v-if="live && live.status === 'lobby' && live.expiresAt?.toMillis() > Date.now()" class="card mb-4 flex flex-wrap items-center justify-between gap-2 border-red-200 bg-red-50">
       <p><b>● Live session</b> · {{ liveCount }} joined so far</p>
-      <button class="btn-primary" :disabled="busy" @click="joinLive">Join live session</button>
+        <button class="btn-primary" :disabled="busy" @click="joinLive">{{ inLive ? 'Back to the lobby' : 'Join live session' }}</button>
     </div>
-    <div v-else-if="live && live.status === 'voting'" class="card mb-4 bg-amber-50">
+      <div v-else-if="live && live.status === 'voting' && live.expiresAt?.toMillis() > Date.now()" class="card mb-4 bg-amber-50">
       Voting is in progress for this group.
       <RouterLink :to="`/sessions/${group.activeSession}/vote`" class="font-bold text-brand">Open</RouterLink>
     </div>

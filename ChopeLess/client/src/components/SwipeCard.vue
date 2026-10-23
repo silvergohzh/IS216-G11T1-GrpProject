@@ -80,7 +80,7 @@ const noOpacity = computed(() => Math.min(1, Math.max(0, -dx.value / THRESHOLD))
   <div ref="el"
        class="relative cursor-grab select-none active:cursor-grabbing"
        style="touch-action: pan-y; will-change: transform"
-       data-testid="vote-card"
+       data-testid="swipe-card"
        @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp">
         <span class="pointer-events-none absolute left-6 top-1/2 z-20 -translate-y-1/2 -rotate-12 rounded-xl border-4 border-green-500 bg-white px-4 py-1 text-3xl font-extrabold text-green-600 shadow-lg"
           :style="{ opacity: yesOpacity }">YES</span>
