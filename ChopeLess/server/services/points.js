@@ -14,7 +14,7 @@ export const POINT_RULES = {
   SILVER: 150,
   GOLD: 300,
   PRIORITY: 150,
-  EXTRA_SUPER: 20   // cost of one extra Super Like in a voting round
+  EXTRA_SUPER: 20  // each extra Super Like costs 20 points (max: half the cards per session, free one included)
 };
 
 const fail = (status, message) =>

@@ -13,7 +13,8 @@ const reasonLabels = {
   SESSION_COMPLETE: 'Completed a Makan Session',
   HOST_BONUS: 'Hosted a Makan Session',
   VERIFIED_REPORT: 'Verified crowd report',
-  INVALID_REPORT: 'Invalid crowd report'
+  INVALID_REPORT: 'Invalid crowd report',
+  'Extra Super Like': 'Bought an extra Super Like ⭐'
 }
 
 function formatReason(reason) {

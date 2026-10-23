@@ -399,24 +399,19 @@ router.post("/:code/vote", async (req, res, next) => {
         throw fail(409, "You have already voted");
       }
 
-      // Bought Super Likes (Makan Points): { uid: placeId }
+      // Bought Super Likes (Makan Points): { uid: [placeId, ...] }
       const bonusSuperLikes = session.bonusSuperLikes || {};
+      const myBonus = [].concat(bonusSuperLikes[req.uid] || []);   // old sessions stored one id, not a list
+      const bought = Number(session.boughtSupers?.[req.uid] || 0);  // how many I've paid for
 
-      // Enforce one free Super Like per session,
-      // plus one extra if the user bought it with Makan Points.
+      // 1 free Super Like per session, plus each one bought with Makan Points
       if (special === "super") {
         if (!superLikes[req.uid]) {
-          superLikes[req.uid] = placeId;                 // the free one
-        } else if (
-          session.boughtSupers?.[req.uid] &&
-          !bonusSuperLikes[req.uid]
-        ) {
-          bonusSuperLikes[req.uid] = placeId;            // the bought one
+          superLikes[req.uid] = placeId;                    // the free one
+        } else if (myBonus.length < bought) {
+          bonusSuperLikes[req.uid] = [...myBonus, placeId]; // a bought one
         } else {
-          throw fail(
-            409,
-            "You have already used your Super Like"
-          );
+          throw fail(409, "No Super Likes left: buy one with Makan Points");
         }
       }
 
@@ -536,32 +531,44 @@ router.post("/:code/finish", async (req, res, next) => {
   }
 });
 
-// BUY AN EXTRA SUPER LIKE: costs points, max 1 per person per session, only after using the free one.
-// Points pay for extra positive influence only: Vetoes can never be bought.
-router.post('/:code/buy-super', async (req, res, next) => {
+// BUY AN EXTRA SUPER LIKE with Makan Points.
+// Rules: use your free one first; use each bought one before buying the next;
+// price rises (20, 40, 60...); you can star at most half the cards, so a star still means "this one".
+// Vetoes can never be bought.
+router.post("/:code/buy-super", async (req, res, next) => {
   try {
-    const ref = db.collection('sessions').doc(req.params.code)
-    const account = await db.runTransaction(async tx => {
-      const snap = await tx.get(ref)
-      if (!snap.exists) throw fail(404, 'Session not found')
-      const s = snap.data()
-      if (s.status !== 'voting') throw fail(409, 'Voting is not open')
-      if (!s.members[req.uid]) throw fail(403, 'You are not in this session')
-      if (!s.superLikes?.[req.uid]) throw fail(409, 'Use your free Super Like first')
-      if (s.boughtSupers?.[req.uid]) throw fail(409, 'You already bought an extra Super Like this session')
+    const ref = db.collection("sessions").doc(req.params.code);
+    const result = await db.runTransaction(async tx => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) throw fail(404, "Session not found");
+      const s = snap.data();
+      if (s.status !== "voting") throw fail(409, "Voting is not open");
+      if (!s.members?.[req.uid]) throw fail(403, "You are not in this session");
+      if (!s.superLikes?.[req.uid]) throw fail(409, "Use your free Super Like first");
 
-      const acc = await spendPointsInTx(tx, {
+      const bought = Number(s.boughtSupers?.[req.uid] || 0);
+      const used = [].concat(s.bonusSuperLikes?.[req.uid] || []).length;
+      if (used < bought) throw fail(409, "Use the Super Like you already bought first");
+
+      // At most half the cards can have my star (the free one counts), e.g. 8 cards -> 3 extra
+      const maxExtra = Math.max(0, Math.floor((s.shortlist || []).length / 2) - 1);
+      if (bought >= maxExtra) throw fail(409, "You've starred half the places: that's the limit for this session");
+
+      const cost = POINT_RULES.EXTRA_SUPER;   // flat 20 points for each extra Super Like
+      const account = await spendPointsInTx(tx, {
         uid: req.uid,
-        eventId: `extra-super_${req.params.code}`,   // one purchase per session, so a double tap can't charge twice
-        points: POINT_RULES.EXTRA_SUPER,
-        reason: 'Extra Super Like',
+        eventId: `extra-super_${req.params.code}_${bought + 1}`,  // one ledger entry per purchase; a double tap can't charge twice
+        points: cost,
+        reason: "Extra Super Like",
         sessionCode: req.params.code
-      })
-      tx.update(ref, { [`boughtSupers.${req.uid}`]: true })   // remember I bought one this session
-      return acc
-    })
-    res.json({ ok: true, balance: account.balance })
-  } catch (err) { next(err) }
-})
+      });
+      tx.update(ref, { [`boughtSupers.${req.uid}`]: bought + 1 });
+      return { account, cost };
+    });
+    res.json({ ok: true, cost: result.cost, balance: result.account.balance });
+  } catch (err) {
+    next(err);
+  }
+});
 
 export default router;
