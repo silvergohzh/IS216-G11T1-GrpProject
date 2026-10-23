@@ -5,7 +5,7 @@ import { auth } from '../lib/firebase'
 import { db } from '../lib/firebase'
 import { collection, getDocs } from 'firebase/firestore'
 
-const API = 'http://localhost:3000/api/crowd-reports'
+const API = `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/crowd-reports`
 
 const placeId = ref('')
 const places = ref([])
