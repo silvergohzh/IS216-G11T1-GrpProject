@@ -27,7 +27,7 @@ const members = computed(() => Object.entries(group.value?.members || {}))
 const liveCount = computed(() => Object.keys(live.value?.members || {}).length)
 
 onMounted(() => {
-  stopGroup = watchGroup(code, g => { group.value = g; loaded.value = true }, err => { error.value = err.message })
+ stopGroup = watchGroup(code, g => { group.value = g; loaded.value = true }, err => { error.value = err.message })
 })
 onUnmounted(() => { stopGroup?.(); stopLive?.() })
 
@@ -107,7 +107,7 @@ async function copyCode() {
     <p v-if="error" class="error mb-3">{{ error }}</p>
 
     <!-- Live session banner: updates the moment someone starts one -->
-    <div v-if="live && live.status === 'lobby'" class="card mb-4 flex flex-wrap items-center justify-between gap-2 border-red-200 bg-red-50">
+    <div v-if="live && live.status === 'lobby' && live.expiresAt?.toMillis() > Date.now()" class="card mb-4 flex flex-wrap items-center justify-between gap-2 border-red-200 bg-red-50">
       <p><b>● Live session</b> · {{ liveCount }} joined so far</p>
       <button class="btn-primary" :disabled="busy" @click="joinLive">Join live session</button>
     </div>

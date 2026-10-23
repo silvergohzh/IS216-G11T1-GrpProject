@@ -197,13 +197,11 @@ async function start() {
             <select
               id="timer"
               class="input"
-              :value="store.session.voteSeconds ?? 60"
+              :value="store.session.voteSeconds ?? 45"
               :disabled="!isHost"
               @change="update({ voteSeconds: +$event.target.value })"
             >
-              <option :value="30">30 s</option>
-              <option :value="60">60 s</option>
-              <option :value="90">90 s</option>
+              <option :value="45">45 s</option>
               <option :value="0">No timer</option>
             </select>
           </div>
@@ -247,7 +245,10 @@ async function start() {
         >
           {{ starting ? "Building shortlist…" : "Start voting" }}
         </button>
-        <p v-if="isHost && members.length < 2" class="text-center text-xs text-slate-500">
+        <p
+          v-if="isHost && members.length < 2"
+          class="text-center text-xs text-slate-500"
+        >
           Share the code: you need at least 2 people to vote.
         </p>
         <p v-else class="text-sm text-slate-500">
