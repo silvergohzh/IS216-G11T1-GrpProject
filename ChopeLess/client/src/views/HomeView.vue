@@ -35,7 +35,7 @@ const auth = useAuthStore();
     </div>
 
     <div class="mt-6">
-      <ForYou v-if="auth.isLoggedIn" />
+      <ForYou />
     </div>
 
     <div class="mt-10 grid gap-4 md:grid-cols-3">
@@ -49,7 +49,7 @@ const auth = useAuthStore();
       <div class="card">
         <h3 class="font-bold">2. Swipe &amp; vote</h3>
         <p class="text-sm text-slate-600">
-          The first place everyone says yes to wins.
+          Everyone swipes. The highest score wins, otherwise ties are spun!
         </p>
       </div>
 

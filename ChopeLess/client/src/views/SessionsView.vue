@@ -39,6 +39,7 @@ async function create() {
 }
 
 async function join() {
+  error.value = check()   // clear the old error and re-check name + budget
   if (error.value) return
   loading.value = true
   try { router.push(`/sessions/${await joinSession(joinCode.value, me.value)}`) } catch (err) { error.value = err.message } finally { loading.value = false }

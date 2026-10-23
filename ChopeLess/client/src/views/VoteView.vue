@@ -133,7 +133,7 @@ const secondsLeft = computed(() =>
 const timeUp = computed(() => secondsLeft.value === 0);
 const percentLeft = computed(() => {
   if (!endsAt.value) return 100;
-  const total = (store.session?.voteSeconds || 60) * 1000;
+    const total = (store.session?.voteSeconds || 45) * 1000;
   return Math.max(0, Math.min(100, ((endsAt.value - now.value) / total) * 100));
 });
 

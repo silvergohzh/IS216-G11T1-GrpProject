@@ -88,6 +88,12 @@ watch(
       :route="path"
     />
   </div>
+    <!-- Voting finished with no winner (every place was vetoed) -->
+  <div v-else-if="store.session?.status === 'done'" class="card text-center">
+    <p class="mb-3 text-lg font-bold">No winner this time 🚫</p>
+    <p class="mb-4 text-slate-600">Every place got vetoed. Start a new session to try again.</p>
+    <RouterLink to="/sessions" class="btn-primary">Start a new session</RouterLink>
+  </div>
   <p v-else-if="store.error" class="error">{{ store.error }}</p>
   <p v-else>Loading…</p>
 </template>

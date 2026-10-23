@@ -1,16 +1,19 @@
 <!-- "For You": an endless, swipeable row of picks on the Home page. Owner: M3
      - Ranks every place by how similar it is to places you've eaten at or saved (cuisine, price, diet, distance)
      - Keeps loading more cards as you scroll sideways
-     - ↻ Refresh shuffles in different picks, ✕ hides a place, ♥ saves it for later (stored in Firestore) -->
+     - ↻ Refresh shuffles in different picks; logged in: ✕ hides a place, ♥ saves it for later (stored in Firestore)
+     - Guests can browse (public places only); tapping ♥ asks them to log in -->
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import { useRouter } from 'vue-router'
 import { listPlaces } from '../services/places'
 import { listHistory } from '../services/history'
 import { watchSaved, savePlace, unsavePlace } from '../services/saved'
 
 const auth = useAuthStore()
-const uid = auth.user.uid
+const router = useRouter()
+const uid = auth.user?.uid   // undefined for guests: they can browse, but not save
 
 const places = ref([])
 const history = ref([])
@@ -170,7 +173,7 @@ const feed = computed(() => {
       .map(p => ({ place: p, personal: true, reason: 'Saved for later ♥' }))
   }
   return places.value
-    .filter(p => !hidden.value.includes(p.id))
+    .filter(p => !uid || !hidden.value.includes(p.id))   // guests see every place; logged in: skip ✕ "Not for me" ones
     .map(scorePlace)
     .sort((a, b) => (b.score + jitter(b.place.id) * 1.5) - (a.score + jitter(a.place.id) * 1.5))
 })
@@ -202,6 +205,8 @@ function switchTab(name) {
   scroller.value?.scrollTo({ left: 0 })
 }
 async function toggleSave(p) {
+  // Guests: ask them to log in, then come back to Home (like TikTok asking when you tap ♥)
+  if (!uid) return router.push({ name: 'login', query: { next: '/' } })
   try {
     if (saved.value[p.id]) await unsavePlace(uid, p.id)
     else await savePlace(uid, p)
@@ -209,9 +214,13 @@ async function toggleSave(p) {
 }
 
 onMounted(async () => {
-  stopSaved = watchSaved(uid, map => { saved.value = map }, () => {})
+  // Saved places and Meal History are private, so only logged-in users load them
+  if (uid) stopSaved = watchSaved(uid, map => { saved.value = map }, () => {})
   try {
-    const [all, past] = await Promise.all([listPlaces(), listHistory(uid).catch(() => [])])
+    const [all, past] = await Promise.all([
+      listPlaces(),                                   // public: anyone can see places
+      uid ? listHistory(uid).catch(() => []) : []     // guests have no history
+    ])
     places.value = all
     history.value = past
   } catch { /* leave the row empty */ }
@@ -263,7 +272,9 @@ const title = computed(() =>
 const subtitle = computed(() =>
   tab.value === 'saved'
     ? 'Places you hearted. Tap ♥ again to remove.'
-    : hasPersonal.value ? 'Similar to places you ate at or saved. Swipe for more →' : 'Short queues near SMU. Swipe for more →'
+    : hasPersonal.value ? 'Similar to places you ate at or saved. Swipe for more →'
+    : uid ? 'Short queues near SMU. Swipe for more →'
+    : 'Short queues near SMU. Log in to save ♥ and get picks made for you →'
 )
 const savedCount = computed(() => Object.keys(saved.value).length)
 </script>
@@ -280,7 +291,7 @@ const savedCount = computed(() => Object.keys(saved.value).length)
         <div class="flex rounded-full bg-slate-100 p-1 text-sm font-semibold">
           <button class="rounded-full px-3 py-1" :class="tab === 'foryou' ? 'bg-white shadow' : 'text-slate-500'"
                   @click="switchTab('foryou')">For you</button>
-          <button class="rounded-full px-3 py-1" :class="tab === 'saved' ? 'bg-white shadow' : 'text-slate-500'"
+          <button v-if="uid" class="rounded-full px-3 py-1" :class="tab === 'saved' ? 'bg-white shadow' : 'text-slate-500'"
                   @click="switchTab('saved')">♥ Saved ({{ savedCount }})</button>
         </div>
           <button v-if="tab === 'foryou'" class="btn text-sm" aria-label="Refresh picks" data-testid="for-you-refresh"
@@ -329,7 +340,7 @@ const savedCount = computed(() => Object.keys(saved.value).length)
                   @click="toggleSave(r.place)">
             <span :class="saved[r.place.id] ? 'text-red-500' : 'text-slate-400'">{{ saved[r.place.id] ? '♥' : '♡' }}</span>
           </button>
-          <button v-if="tab === 'foryou'"
+          <button v-if="uid && tab === 'foryou'"
                   class="grid h-9 w-9 place-items-center rounded-full bg-white/90 text-sm text-slate-500 shadow transition active:scale-90"
                   aria-label="Not for me" title="Not for me" @click="hide(r.place.id)">✕</button>
         </div>
@@ -354,7 +365,7 @@ const savedCount = computed(() => Object.keys(saved.value).length)
           <p class="mt-2 font-bold">You're all caught up</p>
           <p class="mb-3 text-sm text-slate-500">{{ feed.length }} places so far</p>
           <button v-if="tab === 'foryou'" class="btn-primary text-sm" @click="refresh">↻ Shuffle again</button>
-          <button v-if="tab === 'foryou' && hidden.length" class="mt-2 block w-full text-xs text-slate-500 underline" @click="unhideAll">
+          <button v-if="uid && tab === 'foryou' && hidden.length" class="mt-2 block w-full text-xs text-slate-500 underline" @click="unhideAll">
             Show {{ hidden.length }} hidden
           </button>
         </div>
