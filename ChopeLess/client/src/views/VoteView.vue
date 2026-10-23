@@ -5,6 +5,7 @@ import { useRoute, useRouter } from "vue-router";
 import { useSessionStore } from "../stores/session";
 import { useAuthStore } from "../stores/auth";
 import { castVote, finishVoting, buyExtraSuper } from "../services/sessions";
+import { api } from "../lib/api";
 import { listHistory } from "../services/history";
 import SwipeCard from "../components/SwipeCard.vue";
 
@@ -34,24 +35,35 @@ const superLikes = computed(() => store.session?.superLikes || {}); // { uid: pl
 const vetoes = computed(() => store.session?.vetoes || {}); // { uid: placeId }
 const vetoedIds = computed(() => Object.values(vetoes.value));
 const usedSuper = computed(() => !!superLikes.value[myUid.value]);
-// Extra Super Like bought with Makan Points (max 1 per session)
-const boughtSuper = computed(
-  () => !!store.session?.boughtSupers?.[myUid.value],
-);
-const usedBonus = computed(
-  () => !!store.session?.bonusSuperLikes?.[myUid.value],
-);
-const canSuper = computed(
-  () => !usedSuper.value || (boughtSuper.value && !usedBonus.value),
-);
+// Super Likes: 1 free per session; after that each costs PRICE Makan Points,
+// as many as your points allow (one per card, since you vote on each card once). Same rules as the server.
+const PRICE = 20;
+const boughtCount = computed(() => Number(store.session?.boughtSupers?.[myUid.value] || 0));
+const usedBonus = computed(() => [].concat(store.session?.bonusSuperLikes?.[myUid.value] || []).length);
+const canSuper = computed(() => !usedSuper.value || usedBonus.value < boughtCount.value); // a free or already-paid ⭐ is ready
+const canBuy = computed(() => !canSuper.value);   // free one used: an extra ⭐ just needs enough points
+const balance = ref(null);   // my Makan Points, shown under the buttons
 const buying = ref(false);
+// The ⭐ button is disabled while busy, at the limit, or when I can't afford the next one
+const superDisabled = computed(() =>
+  busy.value || buying.value ||
+  (!canSuper.value && (!canBuy.value || (balance.value !== null && balance.value < PRICE))),
+);
+
+async function loadBalance() {
+  try { balance.value = (await api("/points/me")).balance; } catch { /* leave it hidden */ }
+}
+// Pays for one extra Super Like. Returns true if it worked.
 async function buySuper() {
   buying.value = true;
   error.value = "";
   try {
-    await buyExtraSuper(code);
+    const r = await buyExtraSuper(code);
+    balance.value = r.balance;   // the line under the buttons updates to the new balance
+    return true;
   } catch (err) {
     error.value = err.message;
+    return false;
   } finally {
     buying.value = false;
   }
@@ -103,11 +115,18 @@ async function vote(yes) {
     busy.value = false;
   }
 }
-function superLike() {
-  if (!canSuper.value || busy.value || !card.value) return;
+// ⭐: uses the free one if I have it; otherwise asks to pay PRICE points, then super-likes this card
+async function superLike() {
+  if (busy.value || buying.value || !card.value) return;
+  if (!canSuper.value) {
+    if (!canBuy.value) return;
+    if (!confirm(`Use ${PRICE} Makan Points for another Super Like on this place?`)) return;
+    if (!(await buySuper())) return;   // payment failed: the error shows under the buttons
+  }
   pendingSpecial.value = "super";
-  card.value.fling(true); // same fly-off animation as a yes
+  card.value?.fling(true); // same fly-off animation as a yes
 }
+
 function veto() {
   if (usedVeto.value || busy.value || !card.value) return;
   pendingSpecial.value = "veto";
@@ -167,6 +186,7 @@ watch(
 
 onMounted(() => {
   store.watch(code);
+  loadBalance();
   window.addEventListener("keydown", onKey);
   ticker = setInterval(() => {
     now.value = Date.now();
@@ -195,8 +215,9 @@ const yesCount = (placeId) =>
 const superCount = (placeId) =>
   [
     ...Object.values(superLikes.value),
-    ...Object.values(store.session?.bonusSuperLikes || {}),
+        ...Object.values(store.session?.bonusSuperLikes || {}).flat(),
   ].filter((id) => id === placeId).length;
+
 const vetoedBy = (placeId) => {
   const uid = Object.keys(vetoes.value).find(
     (u) => vetoes.value[u] === placeId,
@@ -301,30 +322,29 @@ function voteClass(placeId, uid) {
           >
             ✓
           </button>
-          <button
-            class="h-12 w-12 rounded-full border-2 border-amber-300 bg-white text-lg disabled:opacity-30"
-            aria-label="Super Like"
-            title="Super Like: +1 point for this place (once per session, buy 1 more for 20 pts)"
-            data-testid="vote-super"
-            :disabled="busy || !canSuper"
-            @click="superLike"
-          >
-            ⭐
-          </button>
+          <div class="relative">
+            <button
+              class="h-12 w-12 rounded-full border-2 border-amber-300 bg-white text-lg disabled:opacity-30"
+              aria-label="Super Like"
+              :title="canSuper ? 'Super Like: +1 for this place (free)' : `Super Like for ${PRICE} Makan Points`"
+              data-testid="vote-super"
+              :disabled="superDisabled"
+              @click="superLike"
+            >
+              ⭐
+            </button>
+            <!-- Small tag under the star: free, or its price -->
+            <span class="absolute -bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap text-[11px] font-bold"
+                  :class="canSuper ? 'text-slate-400' : 'text-amber-700'">
+              {{ canSuper ? "free" : `${PRICE} pts` }}
+            </span>
+          </div>
         </div>
-          <p class="mt-2 text-center text-xs text-slate-400">
-          ⭐ Super Like {{ canSuper ? "available" : "used" }} · 🚫 Veto
-          {{ usedVeto ? "used" : "available" }}
+
+        <p class="mt-6 text-center text-xs text-slate-400">
+          🚫 Veto {{ usedVeto ? "used" : "available" }}<span v-if="balance !== null"> · {{ balance }} Makan Points left</span>
         </p>
-        <!-- After the free ⭐ is used: buy one more with Makan Points (once per session) -->
-        <button
-          v-if="usedSuper && !boughtSuper && currentCard && !timeUp"
-          class="mx-auto mt-2 block rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 disabled:opacity-50"
-          :disabled="buying"
-          @click="buySuper"
-        >
-          {{ buying ? "Buying…" : "+1 ⭐ Super Like for 20 pts" }}
-        </button>
+
         <p v-if="error" class="error mt-2">{{ error }}</p>
       </div>
 

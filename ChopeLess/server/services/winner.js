@@ -18,7 +18,7 @@ export function rankPlaces(session) {
   // Free + bought Super Likes: each one adds +1 to that place
   const supers = [
     ...Object.values(session.superLikes || {}),
-    ...Object.values(session.bonusSuperLikes || {})
+        ...Object.values(session.bonusSuperLikes || {}).flat()
   ];
 
   return (session.shortlist || [])
@@ -76,7 +76,7 @@ export function mostLiked(session) {
   // Free + bought Super Likes: each one adds +1 to that place
   const supers = [
     ...Object.values(session.superLikes || {}),
-    ...Object.values(session.bonusSuperLikes || {})
+        ...Object.values(session.bonusSuperLikes || {}).flat()
   ];
 
   // Never restore vetoed restaurants.
