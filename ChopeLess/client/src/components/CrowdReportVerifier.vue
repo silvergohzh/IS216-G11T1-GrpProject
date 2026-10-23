@@ -3,7 +3,7 @@
 import { ref, onMounted } from 'vue'
 import { auth } from '../lib/firebase'
 
-const API = 'http://localhost:3000/api/crowd-reports'
+const API = `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/crowd-reports`
 
 const authorized = ref(false)
 const checking = ref(true)
