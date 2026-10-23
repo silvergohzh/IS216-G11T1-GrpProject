@@ -7,7 +7,7 @@ const history = ref([])
 const loading = ref(false)
 const error = ref('')
 
-const API_URL = 'http://localhost:3000/api/points'
+const API_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/points`
 
 const reasonLabels = {
   SESSION_COMPLETE: 'Completed a Makan Session',
