@@ -16,7 +16,7 @@ defineProps({
     </div>
       <div class="mt-2 flex flex-wrap gap-1">
       <span v-if="place.isGem" class="rounded-full bg-accent/20 px-2 py-0.5 text-xs font-bold">Hidden gem</span>
-      <span v-if="place.outside" class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">Slightly outside your criteria</span>
+      <span v-if="place.outside" class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">Slightly outside your limits</span>
       <span v-if="place.visits" class="rounded-full bg-brand-light px-2 py-0.5 text-xs font-bold text-brand">Been here {{ place.visits }}×</span>
     </div>
     <slot />

@@ -22,6 +22,27 @@ const PAGE = 6                 // cards added each time you reach the end
 const shown = ref(PAGE)
 const scroller = ref(null)     // the sideways-scrolling row
 const sentinel = ref(null)     // an invisible marker at the end of the row
+
+// ---------- carousel: ‹ › arrows and dots ----------
+const CARD = 252                  // one card = 240px wide + 12px gap
+const atStart = ref(true)         // hide ‹ at the start
+const atEnd = ref(false)          // hide › at the end
+const activeIndex = ref(0)        // which card is at the front (for the dots)
+
+function onScroll() {
+  const el = scroller.value
+  if (!el) return
+  atStart.value = el.scrollLeft < 10
+  atEnd.value = el.scrollLeft + el.clientWidth >= el.scrollWidth - 10
+  activeIndex.value = Math.round(el.scrollLeft / CARD)
+}
+function scrollRow(direction) {   // -1 = back, 1 = forward
+  scroller.value?.scrollBy({ left: direction * CARD, behavior: 'smooth' })
+}
+function goTo(i) {                // tap a dot to jump to that card
+  scroller.value?.scrollTo({ left: i * CARD, behavior: 'smooth' })
+}
+
 const broken = ref({})         // photos that failed to load
 let stopSaved = null
 let observer = null
@@ -42,25 +63,62 @@ function unhideAll() {
 }
 
 // ---------- the recommendation ----------
-// Straight-line distance between two places, in km (the "haversine" formula)
+// Think of it as a ruler: give it two places, it tells you how far apart they are.
 function distanceKm(a, b) {
+  // No location saved for one of the places: treat it as "infinitely far", so it gets no distance points
   if (!a.lat || !b.lat) return Infinity
-  const R = 6371, toRad = d => (d * Math.PI) / 180
-  const dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng)
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2
+ 
+  const R = 6371                              // Earth's radius in km
+  const toRad = d => (d * Math.PI) / 180      // the maths functions need radians, not degrees
+ 
+  // How far apart the two places are, north-south (latitude) and east-west (longitude)
+  const dLat = toRad(b.lat - a.lat)
+  const dLng = toRad(b.lng - a.lng)
+ 
+  // Haversine step 1: a value from 0 to 1 for how far apart the points are on the globe
+  // (the cos parts shrink east-west distances away from the equator, since the Earth is round)
+  const h = Math.sin(dLat / 2) ** 2 +
+            Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2
+ 
+  // Haversine step 2: turn that into an angle, then multiply by Earth's radius to get km
   return 2 * R * Math.asin(Math.sqrt(h))
 }
-
-// How similar two places are, plus the reasons (shown on the card)
+ 
+/*
+Find how similar place a is to place b. Returns the points AND the reasons (shown on the card).
+  a = the place we're thinking of recommending (e.g. Bodhi Deli)
+  b = a place you liked: ate at or saved (e.g. Albert Centre)
+Gives points for each thing they have in common, and saves the reasons to show on the card.
+Example: Bodhi Deli vs Albert Centre -> similar price (+2), also halal, vegetarian (+2), nearby (+2) = 6
+POINTS BREAKDOWN
+  Cuisine   same type of food (e.g. both Korean)        +3
+  Price     price ranges overlap (e.g. $5-10 & $3-8)    +2
+  Diet      each diet tag both have (e.g. halal)        +1 each
+  Distance  within 500 m +2, within 1 km +1             +2 max
+  ----------------------------------------------------------------
+  Min 0, max 7 + number of shared diet tags
+  (e.g. halal + vegetarian + vegan shared -> 3 + 2 + 3 + 2 = 10)
+*/
 function similarity(a, b) {
   let score = 0
   const why = []
+ 
+  // Same cuisine (e.g. both Korean): the strongest sign you'd like it, so +3
   if (a.cuisine && a.cuisine === b.cuisine) { score += 3; why.push(`also ${a.cuisine}`) }
+ 
+  // Price ranges overlap (e.g. $5-10 and $3-8 share $5-8): +2
+  //    ?? 0 and ?? 99 are only used when a price is MISSING (real prices are used as they are).
   if ((a.priceMin ?? 0) <= (b.priceMax ?? 99) && (b.priceMin ?? 0) <= (a.priceMax ?? 99)) { score += 2; why.push('similar price') }
+ 
+  // Diet tags both places have (e.g. halal, vegetarian): +1 for each one
   const shared = (a.dietary || []).filter(d => (b.dietary || []).includes(d))
   if (shared.length) { score += shared.length; why.push(`also ${shared.join(', ')}`) }
+ 
+  // Distance: if you liked a place, you probably go to that area often, so nearby places are useful
   const km = distanceKm(a, b)
-  if (km <= 0.5) { score += 2; why.push('nearby') } else if (km <= 1) { score += 1; why.push('close by') }
+  if (km <= 0.5) { score += 2; why.push('nearby') }            // within 500 m: +2
+  else if (km <= 1) { score += 1; why.push('close by') }       // within 1 km: +1
+ 
   return { score, why }
 }
 
@@ -129,7 +187,8 @@ function watchEnd() {
   }, { root: scroller.value, rootMargin: '0px 300px 0px 0px' })
   observer.observe(sentinel.value)
 }
-watch([loading, tab], async () => { await nextTick(); watchEnd() })
+watch([loading, tab], async () => { await nextTick(); watchEnd(); onScroll() })
+watch(() => visible.value.length, async () => { await nextTick(); onScroll() })   // more cards loaded
 
 // ---------- buttons ----------
 async function refresh() {
@@ -224,8 +283,8 @@ const savedCount = computed(() => Object.keys(saved.value).length)
           <button class="rounded-full px-3 py-1" :class="tab === 'saved' ? 'bg-white shadow' : 'text-slate-500'"
                   @click="switchTab('saved')">♥ Saved ({{ savedCount }})</button>
         </div>
-        <button v-if="tab === 'foryou'" class="btn text-sm" aria-label="Refresh picks" data-testid="for-you-refresh"
-                @click="refresh">↻ Refresh</button>
+          <button v-if="tab === 'foryou'" class="btn text-sm" aria-label="Refresh picks" data-testid="for-you-refresh"
+          @click="refresh">↻ Refresh</button>
       </div>
     </div>
 
@@ -238,9 +297,11 @@ const savedCount = computed(() => Object.keys(saved.value).length)
       Nothing saved yet. Tap ♥ on any card to save it for later.
     </p>
 
-    <!-- The endless sideways row: snaps to each card -->
-    <div v-else ref="scroller" class="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2"
-         style="scrollbar-width: none">
+    <!-- Carousel: the sideways row, with ‹ › arrows on top and dots underneath -->
+    <div v-else class="relative md:px-14">
+    <div ref="scroller" class="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 md:mx-0 md:px-0"
+         style="scrollbar-width: none" @scroll="onScroll">
+
       <div v-for="r in visible" :key="r.place.id"
            class="group relative h-80 w-60 shrink-0 snap-start overflow-hidden rounded-3xl shadow-md transition hover:-translate-y-1 hover:shadow-xl"
            :style="{ backgroundImage: gradientFor(r.place.name) }">
@@ -298,6 +359,29 @@ const savedCount = computed(() => Object.keys(saved.value).length)
           </button>
         </div>
       </div>
+    </div>
+
+      <!-- ‹ arrow: left edge, middle of the cards -->
+      <button v-show="!atStart" aria-label="Previous places" @click="scrollRow(-1)"
+      class="absolute left-0 top-40 z-10 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-brand/60 text-white shadow-md backdrop-blur-sm transition hover:scale-110 hover:bg-brand/90 md:grid">
+        <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+      </button>
+
+      <!-- › arrow: right edge -->
+      <button v-show="!atEnd" aria-label="Next places" @click="scrollRow(1)"
+      class="absolute right-0 top-40 z-10 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-brand/60 text-white shadow-md backdrop-blur-sm transition hover:scale-110 hover:bg-brand/90 md:grid">
+        <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6" /></svg>
+      </button>
+
+      <!-- Dots: the current card is a long dash; tap one to jump there -->
+      <div v-if="visible.length > 1 && visible.length <= 12" class="mt-3 flex justify-center gap-1.5">
+        <button v-for="(r, i) in visible" :key="r.place.id" :aria-label="`Go to card ${i + 1}`" @click="goTo(i)"
+                class="h-1.5 rounded-full transition-all duration-300"
+                :class="i === activeIndex ? 'w-6 bg-brand' : 'w-3 bg-slate-300 hover:bg-slate-400'"></button>
+      </div>
+      <p v-else-if="visible.length > 12" class="mt-3 text-center text-xs text-slate-400">
+        {{ Math.min(activeIndex + 1, visible.length) }} / {{ visible.length }}
+      </p>
     </div>
   </section>
 </template>

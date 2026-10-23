@@ -40,7 +40,7 @@ export async function createSession(me, groupId = null) {
     hostUid: uid,
     status: "lobby",
     serviceMode: "dine-in", groupId, // which Makan Kakis group started it (null if none)
-    voteSeconds: 60, // vote timer, used in Part 4
+    voteSeconds: 45, // vote timer, used in Part 4
     maxWalkMins: 10,
     maxWaitMins: 15,
     meetingPoint: null,

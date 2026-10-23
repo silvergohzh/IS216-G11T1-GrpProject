@@ -206,8 +206,7 @@ function voteClass(placeId, uid) {
       data-testid="round-two"
     >
       🔄 <b>Round 2.</b> Nobody matched, so we relaxed the limits (+5 min walk,
-      +10 min queue). Places marked "slightly outside your criteria" go a little
-      beyond your original limits.
+      +10 min queue).
     </p>
 
     <!-- Part 4: countdown bar -->
