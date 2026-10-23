@@ -4,7 +4,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useSessionStore } from "../stores/session";
 import { useAuthStore } from "../stores/auth";
-import { castVote, finishVoting } from "../services/sessions";
+import { castVote, finishVoting, buyExtraSuper } from "../services/sessions";
 import { listHistory } from "../services/history";
 import SwipeCard from "../components/SwipeCard.vue";
 
@@ -34,6 +34,29 @@ const superLikes = computed(() => store.session?.superLikes || {}); // { uid: pl
 const vetoes = computed(() => store.session?.vetoes || {}); // { uid: placeId }
 const vetoedIds = computed(() => Object.values(vetoes.value));
 const usedSuper = computed(() => !!superLikes.value[myUid.value]);
+// Extra Super Like bought with Makan Points (max 1 per session)
+const boughtSuper = computed(
+  () => !!store.session?.boughtSupers?.[myUid.value],
+);
+const usedBonus = computed(
+  () => !!store.session?.bonusSuperLikes?.[myUid.value],
+);
+const canSuper = computed(
+  () => !usedSuper.value || (boughtSuper.value && !usedBonus.value),
+);
+const buying = ref(false);
+async function buySuper() {
+  buying.value = true;
+  error.value = "";
+  try {
+    await buyExtraSuper(code);
+  } catch (err) {
+    error.value = err.message;
+  } finally {
+    buying.value = false;
+  }
+}
+
 const usedVeto = computed(() => !!vetoes.value[myUid.value]);
 // Vetoed places are taken out of everyone's deck
 const activePlaces = computed(() =>
@@ -81,7 +104,7 @@ async function vote(yes) {
   }
 }
 function superLike() {
-  if (usedSuper.value || busy.value || !card.value) return;
+  if (!canSuper.value || busy.value || !card.value) return;
   pendingSpecial.value = "super";
   card.value.fling(true); // same fly-off animation as a yes
 }
@@ -168,8 +191,12 @@ onUnmounted(() => {
 // ---------- live tally helpers ----------
 const yesCount = (placeId) =>
   Object.values(votes.value[placeId] || {}).filter((v) => v === true).length;
+// Free + bought Super Likes on this place (shown as ⭐×2 in the tally)
 const superCount = (placeId) =>
-  Object.values(superLikes.value).filter((id) => id === placeId).length;
+  [
+    ...Object.values(superLikes.value),
+    ...Object.values(store.session?.bonusSuperLikes || {}),
+  ].filter((id) => id === placeId).length;
 const vetoedBy = (placeId) => {
   const uid = Object.keys(vetoes.value).find(
     (u) => vetoes.value[u] === placeId,
@@ -205,8 +232,7 @@ function voteClass(placeId, uid) {
       class="mb-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900"
       data-testid="round-two"
     >
-      🔄 <b>Round 2.</b> Nobody matched, so we relaxed the limits (+5 min walk,
-      +10 min queue).
+      🔄 <b>Round 2.</b> No match, so we widened the search (+5 min walk, +10 min queue).
     </p>
 
     <!-- Part 4: countdown bar -->
@@ -250,7 +276,7 @@ function voteClass(placeId, uid) {
           <button
             class="h-12 w-12 rounded-full border-2 border-slate-300 bg-white text-lg disabled:opacity-30"
             aria-label="Veto"
-            title="Veto: removes this place for everyone (once per round)"
+            title="Veto: removes this place for everyone (once per session)"
             data-testid="vote-veto"
             :disabled="busy || usedVeto"
             @click="veto"
@@ -278,18 +304,27 @@ function voteClass(placeId, uid) {
           <button
             class="h-12 w-12 rounded-full border-2 border-amber-300 bg-white text-lg disabled:opacity-30"
             aria-label="Super Like"
-            title="Super Like: counts double (once per round)"
+            title="Super Like: +1 point for this place (once per session, buy 1 more for 20 pts)"
             data-testid="vote-super"
-            :disabled="busy || usedSuper"
+            :disabled="busy || !canSuper"
             @click="superLike"
           >
             ⭐
           </button>
         </div>
-        <p class="mt-2 text-center text-xs text-slate-400">
-          ⭐ Super Like {{ usedSuper ? "used" : "available" }} · 🚫 Veto
+          <p class="mt-2 text-center text-xs text-slate-400">
+          ⭐ Super Like {{ canSuper ? "available" : "used" }} · 🚫 Veto
           {{ usedVeto ? "used" : "available" }}
         </p>
+        <!-- After the free ⭐ is used: buy one more with Makan Points (once per session) -->
+        <button
+          v-if="usedSuper && !boughtSuper && currentCard && !timeUp"
+          class="mx-auto mt-2 block rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 disabled:opacity-50"
+          :disabled="buying"
+          @click="buySuper"
+        >
+          {{ buying ? "Buying…" : "+1 ⭐ Super Like for 20 pts" }}
+        </button>
         <p v-if="error" class="error mt-2">{{ error }}</p>
       </div>
 

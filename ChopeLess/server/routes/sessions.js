@@ -8,7 +8,7 @@ import { db } from "../firebase.js";
 import { requireAuth } from "../middleware/auth.js";
 import { buildShortlist } from "../services/shortlist.js";
 import { decide, mostLiked } from "../services/winner.js";
-import { awardSessionPoints } from "../services/points.js";
+import { awardSessionPoints, spendPointsInTx, POINT_RULES } from "../services/points.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -399,16 +399,25 @@ router.post("/:code/vote", async (req, res, next) => {
         throw fail(409, "You have already voted");
       }
 
-      // Enforce one Super Like per session.
+      // Bought Super Likes (Makan Points): { uid: placeId }
+      const bonusSuperLikes = session.bonusSuperLikes || {};
+
+      // Enforce one free Super Like per session,
+      // plus one extra if the user bought it with Makan Points.
       if (special === "super") {
-        if (superLikes[req.uid]) {
+        if (!superLikes[req.uid]) {
+          superLikes[req.uid] = placeId;                 // the free one
+        } else if (
+          session.boughtSupers?.[req.uid] &&
+          !bonusSuperLikes[req.uid]
+        ) {
+          bonusSuperLikes[req.uid] = placeId;            // the bought one
+        } else {
           throw fail(
             409,
             "You have already used your Super Like"
           );
         }
-
-        superLikes[req.uid] = placeId;
       }
 
       // Enforce one Veto per session.
@@ -441,7 +450,8 @@ router.post("/:code/vote", async (req, res, next) => {
       const update = {
         votes,
         superLikes,
-        vetoes
+        vetoes,
+        bonusSuperLikes
       };
 
       // Immediate unanimous YES winner.
@@ -525,5 +535,33 @@ router.post("/:code/finish", async (req, res, next) => {
     next(err);
   }
 });
+
+// BUY AN EXTRA SUPER LIKE: costs points, max 1 per person per session, only after using the free one.
+// Points pay for extra positive influence only: Vetoes can never be bought.
+router.post('/:code/buy-super', async (req, res, next) => {
+  try {
+    const ref = db.collection('sessions').doc(req.params.code)
+    const account = await db.runTransaction(async tx => {
+      const snap = await tx.get(ref)
+      if (!snap.exists) throw fail(404, 'Session not found')
+      const s = snap.data()
+      if (s.status !== 'voting') throw fail(409, 'Voting is not open')
+      if (!s.members[req.uid]) throw fail(403, 'You are not in this session')
+      if (!s.superLikes?.[req.uid]) throw fail(409, 'Use your free Super Like first')
+      if (s.boughtSupers?.[req.uid]) throw fail(409, 'You already bought an extra Super Like this session')
+
+      const acc = await spendPointsInTx(tx, {
+        uid: req.uid,
+        eventId: `extra-super_${req.params.code}`,   // one purchase per session, so a double tap can't charge twice
+        points: POINT_RULES.EXTRA_SUPER,
+        reason: 'Extra Super Like',
+        sessionCode: req.params.code
+      })
+      tx.update(ref, { [`boughtSupers.${req.uid}`]: true })   // remember I bought one this session
+      return acc
+    })
+    res.json({ ok: true, balance: account.balance })
+  } catch (err) { next(err) }
+})
 
 export default router;

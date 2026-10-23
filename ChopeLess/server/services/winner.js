@@ -15,7 +15,11 @@
 export function rankPlaces(session) {
   const votes = session.votes || {};
   const vetoed = Object.values(session.vetoes || {});
-  const supers = Object.values(session.superLikes || {});
+  // Free + bought Super Likes: each one adds +1 to that place
+  const supers = [
+    ...Object.values(session.superLikes || {}),
+    ...Object.values(session.bonusSuperLikes || {})
+  ];
 
   return (session.shortlist || [])
     .filter(p => !vetoed.includes(p.id))
@@ -69,7 +73,11 @@ export function decide(session) {
 export function mostLiked(session) {
   const votes = session.votes || {};
   const vetoed = Object.values(session.vetoes || {});
-  const supers = Object.values(session.superLikes || {});
+  // Free + bought Super Likes: each one adds +1 to that place
+  const supers = [
+    ...Object.values(session.superLikes || {}),
+    ...Object.values(session.bonusSuperLikes || {})
+  ];
 
   // Never restore vetoed restaurants.
   const pool = (session.shortlist || [])
