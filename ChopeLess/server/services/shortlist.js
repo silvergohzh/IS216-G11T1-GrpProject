@@ -17,7 +17,10 @@ async function loadCandidates() {
     .filter(g => (g.upvoters || []).length >= GEM_UPVOTES_NEEDED && g.lat)
     .map(g => ({
       id: 'gem-' + g.id, name: g.name, cuisine: g.mustTry, address: g.address, lat: g.lat, lng: g.lng,
-      priceMin: g.price, priceMax: g.price, dietary: g.dietary || [], serviceModes: ['dine-in', 'takeaway'],
+      // Gems may store one price, or a min/max range. Use whichever exists, and 0 if neither does.
+      priceMin: g.priceMin ?? g.price ?? 0,
+      priceMax: g.priceMax ?? g.price ?? g.priceMin ?? 0,
+      dietary: g.dietary || [], serviceModes: ['dine-in', 'takeaway'],
       isGem: true, latest: null
     }))
 
@@ -58,5 +61,15 @@ export async function buildShortlist(session) {
     const gem = places.slice(SHORTLIST_SIZE).find(p => p.isGem)
     if (gem) top[top.length - 1] = gem
   }
-  return top
+  // Firestore can't save "undefined", so fill in any missing fields.
+  // This way one incomplete place or gem can't break Start voting.
+  return top.map(p => ({
+    ...p,
+    priceMin: p.priceMin ?? p.priceMax ?? 0,
+    priceMax: p.priceMax ?? p.priceMin ?? 0,
+    cuisine: p.cuisine ?? '',
+    address: p.address ?? '',
+    dietary: p.dietary || [],
+    latest: p.latest ?? null
+  }))
 }

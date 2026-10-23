@@ -39,7 +39,8 @@ export async function createSession(me, groupId = null) {
     code,
     hostUid: uid,
     status: "lobby",
-    serviceMode: "dine-in", groupId, // which Makan Kakis group started it (null if none)
+    serviceMode: "dine-in",
+    groupId, // which Makan Kakis group started it (null if none)
     voteSeconds: 45, // vote timer, used in Part 4
     maxWalkMins: 10,
     maxWaitMins: 15,
@@ -97,15 +98,23 @@ export const startVoting = (code) =>
   api(`/sessions/${code}/start`, { method: "POST" });
 // special: undefined (normal vote), 'super' (Super Like) or 'veto'
 export const castVote = (code, placeId, yes, special) =>
-  api(`/sessions/${code}/vote`, { method: 'POST', body: { placeId, yes, special } })
+  api(`/sessions/${code}/vote`, {
+    method: "POST",
+    body: { placeId, yes, special },
+  });
+
+// Buy one extra Super Like with Makan Points (20 pts, once per session)
+export const buyExtraSuper = (code) =>
+  api(`/sessions/${code}/buy-super`, { method: "POST" });
 
 // Called when the vote timer runs out (Part 4)
-export const finishVoting = code => api(`/sessions/${code}/finish`, { method: 'POST' })
+export const finishVoting = (code) =>
+  api(`/sessions/${code}/finish`, { method: "POST" });
 
 // Join a session if I'm not in it yet; if I already am, just open it
 export async function joinOrOpen(code, me) {
-  const snap = await getDoc(doc(db, 'sessions', code))
-  if (!snap.exists()) throw new Error('That session has ended')
-  if (snap.data().members?.[auth.currentUser.uid]) return code
-  return joinSession(code, me)
+  const snap = await getDoc(doc(db, "sessions", code));
+  if (!snap.exists()) throw new Error("That session has ended");
+  if (snap.data().members?.[auth.currentUser.uid]) return code;
+  return joinSession(code, me);
 }

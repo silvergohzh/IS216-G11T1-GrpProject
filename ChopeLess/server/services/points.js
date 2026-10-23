@@ -13,7 +13,8 @@ export const POINT_RULES = {
   BRONZE: 50,
   SILVER: 150,
   GOLD: 300,
-  PRIORITY: 150
+  PRIORITY: 150,
+  EXTRA_SUPER: 20   // cost of one extra Super Like in a voting round
 };
 
 const fail = (status, message) =>
@@ -255,6 +256,38 @@ export async function getPointsAccount(uid) {
     uid,
     snap.exists ? snap.data() : {}
   );
+}
+
+// =====================================================
+// SPEND POINTS (inside another transaction)
+// =====================================================
+// Used when buying an extra Super Like. Runs inside the caller's transaction so that
+// charging the points and giving the Super Like happen together, or not at all.
+// The balance can never go below 0, and lifetime points (badges) are not reduced.
+export async function spendPointsInTx(tx, { uid, eventId, points, reason, sessionCode = null }) {
+  if (!Number.isSafeInteger(points) || points <= 0) throw fail(400, "Cost must be a positive whole number");
+
+  const entryRef = ledger.doc(`${eventId}_${uid}`);   // one entry per purchase, so a double tap can't charge twice
+  const userRef = accountRef(uid);
+  const [entrySnap, accountSnap] = await Promise.all([tx.get(entryRef), tx.get(userRef)]);
+
+  if (entrySnap.exists) throw fail(409, "Already purchased");
+  const current = normaliseAccount(uid, accountSnap.exists ? accountSnap.data() : {});
+  if (current.balance < points) {
+    throw fail(400, `Not enough points (need ${points}, you have ${current.balance})`);
+  }
+
+  const next = normaliseAccount(uid, {
+    balance: current.balance - points,
+    lifetimePoints: current.lifetimePoints        // spending doesn't take away badges
+  });
+  const now = Date.now();
+  tx.create(entryRef, {
+    id: entryRef.id, uid, eventId, points: -points, reason, sessionCode,
+    status: "active", createdAt: now, updatedAt: now
+  });
+  tx.set(userRef, next);
+  return next;
 }
 
 // =====================================================
