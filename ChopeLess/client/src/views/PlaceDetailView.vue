@@ -76,6 +76,11 @@ const nowColour = computed(() => {
   const occ = place.value?.latest?.seatOccupancy ?? 0
   return occ >= 75 ? 'bg-red-500' : occ >= 45 ? 'bg-amber-400' : 'bg-green-500'
 })
+
+// The bar the user tapped (starts on the current hour); tap it again to close
+const selectedHour = ref(currentHour)
+const selected = computed(() => place.value?.trend.find(t => t.hour === selectedHour.value))
+const toggleHour = h => (selectedHour.value = selectedHour.value === h ? null : h)
 </script>
 
 <template>
@@ -107,11 +112,22 @@ const nowColour = computed(() => {
       </p>
       <!-- Simple CSS bar chart -->
       <div class="flex h-40 items-end gap-1 overflow-x-auto">
-        <div v-for="t in place.trend" :key="t.hour" class="flex h-full min-w-6 flex-1 flex-col items-center justify-end gap-1">
-          <div class="w-full rounded-t" :class="t.hour === currentHour ? nowColour : 'bg-blue-500'"
+        <button v-for="t in place.trend" :key="t.hour" type="button" @click="toggleHour(t.hour)" :aria-pressed="t.hour === selectedHour"
+          :aria-label="`${hourLabel(t.hour)}: about ${Math.round(t.avgWait)} min wait`"
+          class="flex h-full min-w-6 flex-1 cursor-pointer flex-col items-center justify-end gap-1 rounded hover:bg-slate-100"
+          :class="t.hour === selectedHour && 'bg-slate-100'" data-testid="hour-bar">
+          <div class="w-full rounded-t" :class="t.hour === currentHour ? [nowColour, 'ring-2 ring-ink ring-offset-1'] : 'bg-blue-700'"
             :style="{ height: Math.max(4, (t.avgWait / maxWait) * 100) + '%' }" :title="Math.round(t.avgWait) + ' min'"></div>
-          <span class="text-[10px] text-slate-500">{{ t.hour }}</span>
-        </div>
+          <span v-if="t.hour === currentHour" class="text-[10px] font-bold text-ink" data-testid="now-label">Now</span>
+          <span v-else class="text-[10px] text-slate-500">{{ t.hour }}</span>
+        </button>
+      </div>
+      <div v-if="selected" class="mt-3 grid grid-cols-3 gap-2 rounded-lg bg-slate-50 p-3 text-center" data-testid="hour-stats">
+        <p class="col-span-3 text-left text-sm font-bold">{{ hourLabel(selected.hour) }} to {{ hourLabel((selected.hour + 1) % 24) }}</p>
+        <div><p class="text-xl font-extrabold">~{{ Math.round(selected.avgWait) }}</p><p class="text-xs text-slate-500">min wait</p></div>
+        <div><p class="text-xl font-extrabold">{{ Math.round(selected.avgSeats) }}%</p><p class="text-xs text-slate-500">seats taken</p></div>
+        <div><p class="text-xl font-extrabold">{{ Math.round(selected.avgPeople) }}</p><p class="text-xs text-slate-500">in queue</p></div>
+        <p class="col-span-3 text-left text-xs text-slate-500">Average of {{ selected.reports }} report{{ selected.reports === 1 ? '' : 's' }}</p>
       </div>
     </div>
 

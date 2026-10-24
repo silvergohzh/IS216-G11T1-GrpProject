@@ -20,7 +20,7 @@ export async function listPlaces() {
 // Input: id
 // Output: { id, name, cuisine, address, lat, lng, priceMin, priceMax, dietary, serviceModes,
 //           latest: { peopleInQueue, waitMins, seatOccupancy, confidence, at },
-//           trend: [{ hour, avgWait }, ...] }
+//           trend: [{ hour, avgWait, avgPeople, avgSeats, reports }, ...] }
 export async function getPlace(id) {
   const snap = await getDoc(doc(db, 'places', id))
   if (!snap.exists()) throw new Error('Place not found')
@@ -29,12 +29,17 @@ export async function getPlace(id) {
   const byHour = {}
   history.forEach(d => {
     const a = d.data()
-    byHour[a.hour] ??= { total: 0, count: 0 }
+    byHour[a.hour] ??= { total: 0, people: 0, seats: 0, count: 0 }
     byHour[a.hour].total += a.waitMins
+    byHour[a.hour].people += a.peopleInQueue
+    byHour[a.hour].seats += a.seatOccupancy
     byHour[a.hour].count++
   })
   const trend = Object.keys(byHour).map(Number).sort((a, b) => a - b)
-    .map(hour => ({ hour, avgWait: byHour[hour].total / byHour[hour].count }))
+    .map(hour => {
+      const h = byHour[hour]
+      return { hour, avgWait: h.total / h.count, avgPeople: h.people / h.count, avgSeats: h.seats / h.count, reports: h.count }
+    })
 
   return { id: snap.id, ...snap.data(), trend }
 }
