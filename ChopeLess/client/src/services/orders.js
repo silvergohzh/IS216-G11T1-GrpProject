@@ -17,6 +17,11 @@ export const STATUS_LABELS = {
   cancelled: 'Cancelled'
 }
 
+// Orders that are finished go into "history"
+export function isFinished(order) {
+  return order.status === 'collected' || order.status === 'cancelled'
+}
+
 // A short code to show at the stall, e.g. "#4F7Q" (the last 4 letters of the order id)
 export function orderCode(orderId) {
   return '#' + orderId.slice(-4).toUpperCase()
@@ -24,16 +29,27 @@ export function orderCode(orderId) {
 
 // ---------- READ ----------
 
-// A stall's menu: [{ id, name, price }]   (price in cents)
-export async function getMenu(placeId) {
+// A stall's details for ordering and pickup: { name, address, lat, lng, menu: [{ id, name, price }] }
+export async function getStall(placeId) {
   const snap = await getDoc(doc(db, 'places', placeId))
-  return snap.exists() ? snap.data().menu || [] : []
+  if (!snap.exists()) return null
+  const place = snap.data()
+  return { name: place.name, address: place.address, lat: place.lat, lng: place.lng, menu: place.menu || [] }
 }
 
 // One order, e.g. the cart page
 export function watchOrder(orderId, onChange, onError) {
   return onSnapshot(doc(db, 'orders', orderId), snap => {
     onChange(snap.exists() ? { id: snap.id, ...snap.data() } : null)
+  }, onError)
+}
+
+// The proof photos of one order: { ready: {...}, collected: {...} }
+export function watchProofs(orderId, onChange, onError) {
+  return onSnapshot(collection(db, 'orders', orderId, 'proofs'), snap => {
+    const proofs = {}
+    snap.docs.forEach(d => (proofs[d.id] = d.data()))
+    onChange(proofs)
   }, onError)
 }
 
@@ -60,10 +76,16 @@ export function watchStallOrders(placeId, onChange, onError) {
 // ---------- CHANGES (through the server) ----------
 
 export const createOrder = placeId => api('/orders', { method: 'POST', body: { placeId } })
-export const joinOrder = orderId => api(`/orders/${orderId}/join`, { method: 'POST' })
+export const joinByCode = code => api('/orders/join', { method: 'POST', body: { code } })
 export const addItem = (orderId, itemId, qty) => api(`/orders/${orderId}/items`, { method: 'POST', body: { itemId, qty } })
 export const changeQty = (orderId, lineId, qty) => api(`/orders/${orderId}/items/${lineId}`, { method: 'PATCH', body: { qty } })
 export const removeItem = (orderId, lineId) => api(`/orders/${orderId}/items/${lineId}`, { method: 'DELETE' })
 export const cancelOrder = orderId => api(`/orders/${orderId}/cancel`, { method: 'POST' })
 export const checkout = orderId => api(`/orders/${orderId}/checkout`, { method: 'POST' })
-export const nextStatus = orderId => api(`/orders/${orderId}/next`, { method: 'POST' }) // hawker only
+
+// Hawker: start cooking, then mark ready with a photo (starts the 15-minute pickup timer)
+export const startPreparing = orderId => api(`/orders/${orderId}/preparing`, { method: 'POST' })
+export const markReady = (orderId, photo) => api(`/orders/${orderId}/ready`, { method: 'POST', body: { photo } })
+
+// Diner: mark collected with a photo of the food they picked up
+export const markCollected = (orderId, photo) => api(`/orders/${orderId}/collect`, { method: 'POST', body: { photo } })

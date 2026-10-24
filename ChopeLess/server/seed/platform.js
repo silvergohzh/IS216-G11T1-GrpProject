@@ -18,14 +18,17 @@ for (const placeId in menus) {
 }
 console.log(`Added menus to ${Object.keys(menus).length} places`)
 
-// ---------- 2. Test accounts ----------
-// Everyone signs up as a diner. These accounts already have the other roles set,
-// so you can log in and see the hawker board and admin page straight away.
+// ---------- 2. Ready-made accounts ----------
+// So nobody has to sign up to try the app. The login page has a one-tap button for each.
+// Keep this list the same as client/src/lib/demoAccounts.js
 const PASSWORD = 'test1234'
 const accounts = [
-  { email: 'diner@chopeless.test', name: 'Demo Diner', role: 'diner', placeId: null },
-  { email: 'hawker@chopeless.test', name: 'Demo Hawker', role: 'hawker', placeId: 'albert-centre' },
-  { email: 'admin@chopeless.test', name: 'Demo Admin', role: 'admin', placeId: null }
+  { email: 'alice@chopeless.test', name: 'Alice Tan', role: 'diner', placeId: null },
+  { email: 'ben@chopeless.test', name: 'Ben Lim', role: 'diner', placeId: null },
+  { email: 'chloe@chopeless.test', name: 'Chloe Ng', role: 'diner', placeId: null },
+  { email: 'hawker@chopeless.test', name: 'Albert Centre Hawker', role: 'hawker', placeId: 'albert-centre' },
+  { email: 'hawker2@chopeless.test', name: 'Waterloo Centre Hawker', role: 'hawker', placeId: 'waterloo-centre' },
+  { email: 'admin@chopeless.test', name: 'Admin', role: 'admin', placeId: null }
 ]
 
 for (const account of accounts) {

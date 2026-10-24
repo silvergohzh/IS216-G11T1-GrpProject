@@ -1,16 +1,21 @@
-// Pre-orders for pickup, group carts and checkout. Owner: M6
+// Pre-orders for pickup, group carts, checkout, and pickup with photo proof. Owner: M6
 //
 // Firestore: orders/{orderId}
 //   {
 //     placeId, placeName,           which stall the order is for
 //     ownerUid,                      the person who started the order (they pay)
+//     joinCode,                      6 letters friends type in to join the group cart
 //     members:    [{ uid, name }],   everyone in the group cart
 //     memberUids: [uid],             the same people as a plain list (the security rules need this)
 //     items: [{ lineId, itemId, name, price, qty, addedBy, addedByName }],   price is in CENTS
 //     total,                         in cents, worked out by the server
-//     status,                        see STATUS below
+//     status,                        see the steps below
+//     readyAt, pickupBy,             when it was ready, and the pickup deadline (milliseconds)
+//     collectedAt, collectedByName,  who picked it up, and when
 //     createdAt, paidAt
 //   }
+// Photo proof: orders/{orderId}/proofs/ready      (the hawker's photo when the food is ready)
+//              orders/{orderId}/proofs/collected  (the diner's photo when they pick it up)
 //
 // The browser READS orders straight from Firestore (live updates).
 // Every CHANGE goes through this file, so the server can check the rules and work out prices.
@@ -27,14 +32,15 @@ const orders = db.collection('orders')
 
 // An order moves through these steps, in this order:
 //   cart -> awaiting_payment -> paid -> preparing -> ready -> collected
+//   - the hawker moves it to "preparing", then to "ready" (with a photo)
+//   - the DINER moves it to "collected" (with a photo) when they pick it up
 // It can be cancelled while it is still a cart or waiting for payment.
-//
-// What the hawker's "next" button moves the order to:
-const NEXT_STATUS = {
-  paid: 'preparing',
-  preparing: 'ready',
-  ready: 'collected'
-}
+
+// After the food is ready, the diner has this many minutes to collect it
+const PICKUP_MINUTES = 15
+
+// Letters for join codes. No I or O, so they can't be mixed up with 1 and 0.
+const CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
 
 // Makes an error with an HTTP status code. The shared handler in index.js sends it to the browser.
 function httpError(status, message) {
@@ -55,6 +61,39 @@ function cartTotal(items) {
     total = total + item.price * item.qty
   }
   return total
+}
+
+// Make a random 6-letter code, e.g. "KQWTRM", that no other open cart is using
+async function makeJoinCode() {
+  while (true) {
+    let code = ''
+    for (let i = 0; i < 6; i++) {
+      code = code + CODE_LETTERS[Math.floor(Math.random() * CODE_LETTERS.length)]
+    }
+    const taken = await orders.where('joinCode', '==', code).where('status', '==', 'cart').limit(1).get()
+    if (taken.empty) return code
+  }
+}
+
+// Check a proof photo sent by the browser.
+// The browser shrinks it first, so it is a small JPEG written as text ("data:image/jpeg;base64,...").
+function checkPhoto(photo) {
+  if (typeof photo !== 'string' || !photo.startsWith('data:image/')) {
+    throw httpError(400, 'Please add a photo as proof')
+  }
+  if (photo.length > 900000) { // Firestore documents can hold about 1 MB
+    throw httpError(400, 'That photo is too big. Please try another one.')
+  }
+}
+
+// Save a proof photo next to the order: orders/{orderId}/proofs/{kind}
+async function saveProof(orderId, kind, photo, uid) {
+  await orders.doc(orderId).collection('proofs').doc(kind).set({
+    photo: photo,
+    byUid: uid,
+    byName: await getName(uid),
+    at: Date.now()
+  })
 }
 
 // Change an order safely.
@@ -81,16 +120,26 @@ router.use(requireAuth)
 
 // CREATE: POST /api/orders   body: { placeId }
 // Starts a new, empty cart for one stall. You are the owner and the first member.
+// If you already have an open cart at this stall, you get that one back instead of a second cart.
 router.post('/', async (req, res, next) => {
   try {
     const place = await db.collection('places').doc(req.body.placeId || 'none').get()
     if (!place.exists) throw httpError(400, 'Choose a stall to order from')
+
+    const open = await orders
+      .where('ownerUid', '==', req.uid)
+      .where('placeId', '==', place.id)
+      .where('status', '==', 'cart')
+      .limit(1)
+      .get()
+    if (!open.empty) return res.json({ id: open.docs[0].id })
 
     const name = await getName(req.uid)
     const order = {
       placeId: place.id,
       placeName: place.data().name,
       ownerUid: req.uid,
+      joinCode: await makeJoinCode(),
       members: [{ uid: req.uid, name: name }],
       memberUids: [req.uid],
       items: [],
@@ -105,19 +154,22 @@ router.post('/', async (req, res, next) => {
   }
 })
 
-// JOIN: POST /api/orders/:id/join
-// Friends open the shared link and join the group cart. Joining twice does nothing.
-router.post('/:id/join', async (req, res, next) => {
+// JOIN: POST /api/orders/join   body: { code }
+// A friend types the 6-letter code (or opens the shared link) to join the group cart.
+router.post('/join', async (req, res, next) => {
   try {
-    const name = await getName(req.uid)
-    await updateOrder(req.params.id, order => {
-      if (order.memberUids.includes(req.uid)) return // already in the group
-      if (order.status !== 'cart') throw httpError(409, 'This order has already been sent')
+    const code = String(req.body.code || '').trim().toUpperCase()
+    const found = await orders.where('joinCode', '==', code).where('status', '==', 'cart').limit(1).get()
+    if (found.empty) throw httpError(404, 'No open group order has that code')
 
+    const orderId = found.docs[0].id
+    const name = await getName(req.uid)
+    await updateOrder(orderId, order => {
+      if (order.memberUids.includes(req.uid)) return // already in the group
       order.members.push({ uid: req.uid, name: name })
       order.memberUids.push(req.uid)
     })
-    res.json({ ok: true })
+    res.json({ id: orderId })
   } catch (err) {
     next(err)
   }
@@ -253,19 +305,54 @@ router.post('/:id/checkout', async (req, res, next) => {
   }
 })
 
-// HAWKER: POST /api/orders/:id/next
-// Moves a paid order along: paid -> preparing -> ready -> collected.
-// Only the hawker who runs this stall (or an admin) can do this.
-router.post('/:id/next', requireRole('hawker', 'admin'), async (req, res, next) => {
+// HAWKER, step 1: POST /api/orders/:id/preparing
+// The hawker starts cooking a paid order. Only the hawker who runs this stall (or an admin).
+router.post('/:id/preparing', requireRole('hawker', 'admin'), async (req, res, next) => {
   try {
     await updateOrder(req.params.id, order => {
-      if (req.role === 'hawker' && order.placeId !== req.placeId) {
-        throw httpError(403, 'This order is for a different stall')
-      }
-      const nextStatus = NEXT_STATUS[order.status]
-      if (!nextStatus) throw httpError(409, 'This order cannot move to a next step')
-      order.status = nextStatus
+      if (req.role === 'hawker' && order.placeId !== req.placeId) throw httpError(403, 'This order is for a different stall')
+      if (order.status !== 'paid') throw httpError(409, 'Only paid orders can be prepared')
+      order.status = 'preparing'
     })
+    res.json({ ok: true })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// HAWKER, step 2: POST /api/orders/:id/ready   body: { photo }
+// The hawker uploads a photo of the packed food. This starts the 15-minute pickup timer.
+router.post('/:id/ready', requireRole('hawker', 'admin'), async (req, res, next) => {
+  try {
+    checkPhoto(req.body.photo)
+    await updateOrder(req.params.id, order => {
+      if (req.role === 'hawker' && order.placeId !== req.placeId) throw httpError(403, 'This order is for a different stall')
+      if (order.status !== 'preparing') throw httpError(409, 'Start preparing the order first')
+      order.status = 'ready'
+      order.readyAt = Date.now()
+      order.pickupBy = Date.now() + PICKUP_MINUTES * 60 * 1000 // 15 minutes from now
+    })
+    await saveProof(req.params.id, 'ready', req.body.photo, req.uid)
+    res.json({ ok: true })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// DINER: POST /api/orders/:id/collect   body: { photo }
+// Anyone in the group marks the order as collected, with a photo of the food they picked up.
+router.post('/:id/collect', async (req, res, next) => {
+  try {
+    checkPhoto(req.body.photo)
+    const name = await getName(req.uid)
+    await updateOrder(req.params.id, order => {
+      if (!order.memberUids.includes(req.uid)) throw httpError(403, 'Only people in this order can collect it')
+      if (order.status !== 'ready') throw httpError(409, 'This order is not ready yet')
+      order.status = 'collected'
+      order.collectedAt = Date.now()
+      order.collectedByName = name
+    })
+    await saveProof(req.params.id, 'collected', req.body.photo, req.uid)
     res.json({ ok: true })
   } catch (err) {
     next(err)

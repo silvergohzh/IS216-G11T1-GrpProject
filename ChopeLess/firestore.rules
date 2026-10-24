@@ -82,13 +82,24 @@ service cloud.firestore {
     //   - admins
     // Nobody can WRITE from the browser. Every change goes through our server
     // (server/routes/orders.js), so prices and "paid" can't be faked.
-    match /orders/{orderId} {
-      allow read: if signedIn() && (
-        request.auth.uid in resource.data.memberUids
-        || isHawkerOf(resource.data.placeId)
+    function canSeeOrder(order) {
+      return signedIn() && (
+        request.auth.uid in order.memberUids
+        || isHawkerOf(order.placeId)
         || isAdmin()
       );
+    }
+
+    match /orders/{orderId} {
+      allow read: if canSeeOrder(resource.data);
       allow write: if false;
+
+      // Proof photos (hawker's "ready" photo, diner's "collected" photo).
+      // The same people who can see the order can see its photos.
+      match /proofs/{kind} {
+        allow read: if canSeeOrder(get(/databases/$(database)/documents/orders/$(orderId)).data);
+        allow write: if false;
+      }
     }
 
     // ---------- places (M5 seeds, M4 analyses) ----------

@@ -63,7 +63,8 @@ Browser (Vue)  ──── reads/writes directly ────▶  Firestore  (p
 | Collection | Fields | Who writes it |
 |---|---|---|
 | `users/{uid}` | name, defaultBudget, dietary[], role (`diner` / `hawker` / `admin`), placeId (hawkers only) | The user (name, budget, diet); **only the server** sets role and placeId (M6) |
-| `orders/{id}` | placeId, placeName, ownerUid, members[{uid, name}], memberUids[], items[{lineId, itemId, name, price, qty, addedBy, addedByName}], total, status (cart / awaiting_payment / paid / preparing / ready / collected / cancelled), createdAt, paidAt. **Money is in cents.** | Only the server (M6). The group, the stall's hawker and admins can read it |
+| `orders/{id}` | placeId, placeName, ownerUid, joinCode, members[{uid, name}], memberUids[], items[{lineId, itemId, name, price, qty, addedBy, addedByName}], total, status (cart / awaiting_payment / paid / preparing / ready / collected / cancelled), readyAt, pickupBy (15 min after ready), collectedAt, collectedByName, createdAt, paidAt. **Money is in cents.** | Only the server (M6). The group, the stall's hawker and admins can read it |
+| `orders/{id}/proofs/{ready \| collected}` | photo (small JPEG as text), byUid, byName, at | Only the server: the hawker's photo when ready, the diner's photo when collected (M6) |
 | `sessions/{code}` | hostUid, status (lobby / voting / done), serviceMode, maxWalkMins, maxWaitMins, meetingPoint, members{uid: {name, budget, dietary}}, shortlist[], votes{placeId: {uid: true/false}}, winner, expiresAt | Browser in the lobby (M3, rules by M1); server for shortlist, votes and winner (M1) |
 | `places/{id}` | name, cuisine, address, lat, lng, priceMin, priceMax, dietary[], serviceModes[], latest{waitMins, seatOccupancy, ...}, menu[{id, name, price (cents)}] | Seed script (M5, menus by M6); server updates `latest` (M4) |
 | `places/{id}/analyses/{id}` | hour, peopleInQueue, waitMins, seatOccupancy, confidence | Seed script and server (M4) |
@@ -111,15 +112,22 @@ cd client && npm run dev
 
 ### Test accounts
 
-`npm run seed` creates one account for each role (password **test1234** for all):
+`npm run seed` creates ready-made accounts, so nobody has to sign up. The login page has a **one-tap button** for each (password **test1234** for all):
 
-| Email | Role | What you can do |
+| Email | Name | Role |
 |---|---|---|
-| `diner@chopeless.test` | Diner | Everything a normal user can: sessions, QueueLess, gems, pre-orders |
-| `hawker@chopeless.test` | Hawker (Albert Centre) | Also: **Order board** for that stall |
-| `admin@chopeless.test` | Admin | Also: **Admin** page to change anyone's role |
+| `alice@chopeless.test` | Alice Tan | Diner |
+| `ben@chopeless.test` | Ben Lim | Diner |
+| `chloe@chopeless.test` | Chloe Ng | Diner |
+| `hawker@chopeless.test` | Albert Centre Hawker | Hawker, **Order board** for Albert Centre |
+| `hawker2@chopeless.test` | Waterloo Centre Hawker | Hawker, **Order board** for Waterloo Centre |
+| `admin@chopeless.test` | Admin | Admin, can change anyone's role |
 
 New sign-ups are always diners. An admin can make someone a hawker on the Admin page.
+
+**Pickup flow:** diner pays → hawker taps *Start preparing* → hawker uploads a photo and taps *Mark ready* (starts a **15-minute** pickup timer and notifies the diner) → the diner uploads a photo and taps *I've collected it*. Both diner and hawker keep an **order history** with the photos.
+
+**Group orders:** the person who starts an order shares its **6-letter code** (or the link `/orders?join=CODE`). Friends enter it under *Join a group order* on the Pre-order page.
 
 ## Testing
 
@@ -137,7 +145,7 @@ npm run test:e2e
 | `sessions.spec.js` | M3 / M1 | **Two browsers:** host creates, guest joins live, host starts voting, both vote yes, both see the same winner |
 | `queueless.spec.js` | M4 | Seeded places show a crowd level; the place page shows the hourly chart |
 | `gems.spec.js` | M5 | Add, edit and delete a gem |
-| `orders.spec.js` | M6 | Pre-order, pay (signed Stripe webhook) and the order shows as paid on the hawker board; a fake payment is rejected; group cart with split bill; diners can't open hawker/admin pages |
+| `orders.spec.js` | M6 | Full journey: pay (signed Stripe webhook) → hawker readies with a photo → diner gets a pop-up and collects with a photo → both histories; fake payment rejected; group order by code and by link with split bill; same stall reopens the same cart; one-tap demo login; diners can't open hawker/admin pages |
 
 Unit tests for the split-bill algorithm: `cd client && npm run test:unit` (Node's built-in test runner).
 
@@ -166,12 +174,14 @@ Everything else goes through Firestore directly. All routes need a logged-in use
 | POST | `/api/sessions/:code/vote` | M1 | Vote `{ placeId, yes }`. The first place with all yes wins |
 | GET | `/api/shortlist/:code` | M2 | Preview the shortlist without starting voting |
 | POST | `/api/places/:id/analyse` | M4 | No login needed (10 photos per 10 min per visitor). Send `{ imageBase64, mimeType }`; OpenAI estimates queue length, wait, seats taken and confidence |
-| POST | `/api/orders` | M6 | Start a cart for a stall `{ placeId }` |
-| POST | `/api/orders/:id/join` | M6 | Join a group cart (from the shared link) |
+| POST | `/api/orders` | M6 | Start a cart for a stall `{ placeId }` (reopens your open cart there if you have one) |
+| POST | `/api/orders/join` | M6 | Join a group cart with its code `{ code }` |
 | POST / PATCH / DELETE | `/api/orders/:id/items[/:lineId]` | M6 | Add `{ itemId, qty }`, change `{ qty }` or remove a cart item. Prices come from the menu on the server |
 | POST | `/api/orders/:id/cancel` | M6 | Owner only, before paying |
 | POST | `/api/orders/:id/checkout` | M6 | Owner only. Returns a Stripe checkout page URL |
-| POST | `/api/orders/:id/next` | M6 | Hawker of that stall (or admin): paid → preparing → ready → collected |
+| POST | `/api/orders/:id/preparing` | M6 | Hawker of that stall (or admin): paid → preparing |
+| POST | `/api/orders/:id/ready` | M6 | Hawker of that stall (or admin), with `{ photo }`: preparing → ready, starts the 15-minute pickup timer |
+| POST | `/api/orders/:id/collect` | M6 | Someone in the order, with `{ photo }`: ready → collected |
 | POST | `/api/payments/webhook` | M6 | Called **by Stripe**, checked with the signing secret. Marks the order paid |
 | GET / PATCH | `/api/admin/users[/:uid]` | M6 | Admin only: list accounts, change a role `{ role, placeId }` |
 
