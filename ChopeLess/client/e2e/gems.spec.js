@@ -12,6 +12,7 @@ test('add, edit and delete a gem', async ({ page }) => {
   await page.getByRole('button', { name: 'Add gem' }).click()
   const row = page.getByTestId('gem-row').filter({ hasText: name })
   await expect(row).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Add a gem' })).toBeVisible()
 
   await row.getByRole('button', { name: 'Edit' }).click()
   await page.getByLabel('Must try').fill('Lontong')

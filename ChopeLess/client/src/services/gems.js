@@ -1,9 +1,25 @@
 // Hidden Gems data. Owner: M5
 // Firestore: gems/{id} { name, mustTry, price, address, lat, lng, dietary, submittedBy, upvoters: [uid], createdAt }
-import { collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, arrayUnion, serverTimestamp } from 'firebase/firestore'
+import { collection, onSnapshot } from 'firebase/firestore'
 import { db, auth } from '../lib/firebase'
 
 export const UPVOTES_NEEDED = 3
+
+const API = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+
+// Calls the gems API. Sends the login token when logged in. Throws an Error with the server's message.
+async function api(path, method, body) {
+  const headers = { 'Content-Type': 'application/json' }
+  if (auth.currentUser) headers.Authorization = `Bearer ${await auth.currentUser.getIdToken()}`
+  const res = await fetch(`${API}/gems${path}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || 'Something went wrong')
+  return data
+}
 
 // READ (live): the board updates by itself when anyone adds or upvotes a gem
 export function watchGems(onChange, onError) {
@@ -14,24 +30,12 @@ export function watchGems(onChange, onError) {
   }, onError)
 }
 
-export function addGem({ name, mustTry, price, address }) {
-  return addDoc(collection(db, 'gems'), {
-    name, mustTry, price, address,
-    lat: null, lng: null, dietary: [],
-    submittedBy: auth.currentUser.uid,
-    upvoters: [],
-    createdAt: serverTimestamp()
-  })
-}
+export const addGem = gem => api('', 'POST', gem)
+export const updateGem = (id, gem) => api(`/${id}`, 'PUT', gem)
+export const deleteGem = id => api(`/${id}`, 'DELETE')
+export const upvoteGem = id => api(`/${id}/upvote`, 'POST')
 
-export function updateGem(id, { name, mustTry, price, address }) {
-  return updateDoc(doc(db, 'gems', id), { name, mustTry, price, address })
-}
-
-export function deleteGem(id) {
-  return deleteDoc(doc(db, 'gems', id))
-}
-
-export function upvoteGem(id) {
-  return updateDoc(doc(db, 'gems', id), { upvoters: arrayUnion(auth.currentUser.uid) })
-}
+// Reviews
+export const getReviews = id => api(`/${id}/reviews`, 'GET')
+export const saveReview = (id, review) => api(`/${id}/reviews`, 'POST', review)
+export const deleteReview = id => api(`/${id}/reviews`, 'DELETE')

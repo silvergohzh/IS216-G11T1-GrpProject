@@ -31,5 +31,141 @@
     "dietary": [],
     "serviceModes": ["dine-in", "takeaway"],
     "latestWaitMins": 8
+  },
+
+  {
+    "id": "warung-leko",
+    "name": "Warung Leko",
+    "cuisine": "Indonesian",
+    "address": "162 Rochor Rd, Singapore 188437",
+    "lat": 1.301165, "lng": 103.855407, 
+    "priceMin": 8, "priceMax": 20,
+    "dietary": ["halal"],
+    "serviceModes": ["dine-in", "takeaway"],
+    "latestWaitMins": 13
+  },
+
+  {
+    "id": "lao-wei-dao-sha-guo-bao",
+    "name": "Lao Wei Dao Sha Guo Bao",
+    "cuisine": "Chinese",
+    "address": "229 Victoria St, Bugis 188023",
+    "lat": 1.300189 , "lng": 103.854814,
+    "priceMin": 5, "priceMax": 15,
+    "dietary": [],
+    "serviceModes": ["dine-in", "takeaway"],
+    "latestWaitMins": 10
+  },
+
+  {
+    "id": "ice-lab",
+    "name": "Ice Lab",
+    "cuisine": "Korean",
+    "address": "164 Rochor Rd, #01-01, Singapore 188439",
+    "lat": 1.301583, "lng": 103.855518, 
+    "priceMin": 7, "priceMax": 15,
+    "dietary": ["halal"],
+    "serviceModes": ["dine-in", "takeaway"],
+    "latestWaitMins": 5
+  },
+
+  {
+    "id": "taste-good",
+    "name": "Taste Good",
+    "cuisine": "Chinese",
+    "address": "1 Rochor Canal Rd, #02-04/06 Sim Lim Square, Singapore 188504",
+    "lat": 1.303269, "lng": 103.852867, 
+    "priceMin": 5, "priceMax": 10,
+    "dietary": [],
+    "serviceModes": ["dine-in", "takeaway"],
+    "latestWaitMins": 5
+  },
+
+
+  {
+    "id": "hot-spot-cafe-restaurant",
+    "name": "Hot Spot Cafe Restaurant",
+    "cuisine": "Thai",
+    "address": "175 Bencoolen St, Singapore 189649",
+    "lat": 1.302940, "lng": 103.852427, 
+    "priceMin": 6, "priceMax": 10,
+    "dietary": [],
+    "serviceModes": ["dine-in", "takeaway"],
+    "latestWaitMins": 5
+  },
+
+
+  {
+    "id": "al-jilani-restaurant",
+    "name": "Al-Jilani Restaurant",
+    "cuisine": "Indian-Muslim",
+    "address": "127 Bencoolen St, Singapore 189637",
+    "lat": 1.301031, "lng": 103.851764, 
+    "priceMin": 3, "priceMax": 10,
+    "dietary": ["halal"],
+    "serviceModes": ["dine-in", "takeaway"],
+    "latestWaitMins": 3
+  },
+
+
+  {
+    "id": "bodhi-deli",
+    "name": "Bodhi Deli",
+    "cuisine": "Singaporean",
+    "address": "190 Middle Rd, #03-26/27 Fortune Centre, Singapore 188979",
+    "lat": 1.300664, "lng": 103.852421, 
+    "priceMin": 5, "priceMax": 10,
+    "dietary": ["halal", "vegetarian"],
+    "serviceModes": ["dine-in", "takeaway"],
+    "latestWaitMins": 10
+  },
+
+
+  {
+    "id": "ajummas",
+    "name": "Ajumma's",
+    "cuisine": "Korean",
+    "address": "107 N Bridge Rd, #B1-31, Singapore 179105",
+    "lat": 1.291366, "lng": 103.850056, 
+    "priceMin": 15, "priceMax": 20,
+    "dietary": [],
+    "serviceModes": ["dine-in", "takeaway"],
+    "latestWaitMins": 15
+  },
+
+  {
+    "id": "makanan-bollywood",
+    "name": "Makanan Bollywood Restaurant",
+    "cuisine": "Indian",
+    "address": "Coleman St, B1-51 1 The Adelphi Mall, Singapore 179803",
+    "lat": 1.291453, "lng": 103.851195, 
+    "priceMin": 10, "priceMax": 15,
+    "dietary": ["halal"],
+    "serviceModes": ["dine-in", "takeaway"],
+    "latestWaitMins": 6
+  },
+
+  {
+    "id": "kang-su-vegetarian",
+    "name": "Kang Su Vegetarian",
+    "cuisine": "Chinese",
+    "address": "14 Scotts Rd, #05-98 Far East Plaza, Singapore 228213",
+    "lat": 1.307424, "lng": 103.833788, 
+    "priceMin": 6, "priceMax": 10,
+    "dietary": ["vegetarian"],
+    "serviceModes": ["dine-in", "takeaway"],
+    "latestWaitMins": 8
+  },
+
+  {
+    "id": "haru-haru-mentaiko",
+    "name": "HARU-HARU Mentaiko",
+    "cuisine": "Japanese",
+    "address": "231 Bain St, #01-79 Stall 4, Singapore 180231",
+    "lat": 1.297027, "lng": 103.853365, 
+    "priceMin": 7, "priceMax": 15,
+    "dietary": [],
+    "serviceModes": ["dine-in", "takeaway"],
+    "latestWaitMins": 15
   }
 ]

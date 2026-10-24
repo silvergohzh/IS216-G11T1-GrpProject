@@ -17,6 +17,9 @@ const error = ref('')
 // Turn Firebase error codes into plain messages
 const messages = {
   'auth/invalid-credential': 'Wrong email or password.',
+  // The emulator reports these separately; real Firebase folds both into invalid-credential
+  'auth/user-not-found': 'Wrong email or password.',
+  'auth/wrong-password': 'Wrong email or password.',
   'auth/email-already-in-use': 'That email already has an account. Log in instead.',
   'auth/weak-password': 'Password must be at least 6 characters.',
   'auth/network-request-failed': usingEmulator
