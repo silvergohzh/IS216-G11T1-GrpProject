@@ -69,6 +69,13 @@ const bestHour = computed(() => {
 })
 const maxWait = computed(() => Math.max(1, ...(place.value?.trend || []).map(t => t.avgWait)))
 const hourLabel = h => `${h % 12 || 12}${h < 12 ? 'am' : 'pm'}`
+
+// The current hour's bar is coloured by how busy it is right now (same levels as the QueueLess list)
+const currentHour = Number(new Date().toLocaleString('en-SG', { hour: 'numeric', hour12: false, timeZone: 'Asia/Singapore' })) % 24
+const nowColour = computed(() => {
+  const occ = place.value?.latest?.seatOccupancy ?? 0
+  return occ >= 75 ? 'bg-red-500' : occ >= 45 ? 'bg-amber-400' : 'bg-green-500'
+})
 </script>
 
 <template>
@@ -101,7 +108,7 @@ const hourLabel = h => `${h % 12 || 12}${h < 12 ? 'am' : 'pm'}`
       <!-- Simple CSS bar chart -->
       <div class="flex h-40 items-end gap-1 overflow-x-auto">
         <div v-for="t in place.trend" :key="t.hour" class="flex h-full min-w-6 flex-1 flex-col items-center justify-end gap-1">
-          <div class="w-full rounded-t" :class="t.hour === bestHour?.hour ? 'bg-accent' : 'bg-brand'"
+          <div class="w-full rounded-t" :class="t.hour === currentHour ? nowColour : 'bg-blue-500'"
             :style="{ height: Math.max(4, (t.avgWait / maxWait) * 100) + '%' }" :title="Math.round(t.avgWait) + ' min'"></div>
           <span class="text-[10px] text-slate-500">{{ t.hour }}</span>
         </div>
