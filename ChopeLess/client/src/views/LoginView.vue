@@ -77,4 +77,8 @@ async function demoLogin(account) {
       {{ isSignUp ? 'Have an account? Log in' : 'New here? Create an account' }}
     </button>
   </form>
+
+  <p class="mx-auto mt-4 max-w-sm text-center text-sm text-slate-600">
+    Run a food stall? <RouterLink to="/hawker/signup" class="font-semibold text-brand">Sell on ChopeLess</RouterLink>
+  </p>
 </template>

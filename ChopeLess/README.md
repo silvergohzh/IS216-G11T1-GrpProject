@@ -65,8 +65,9 @@ Browser (Vue)  ──── reads/writes directly ────▶  Firestore  (p
 | `users/{uid}` | name, defaultBudget, dietary[], role (`diner` / `hawker` / `admin`), placeId (hawkers only) | The user (name, budget, diet); **only the server** sets role and placeId (M6) |
 | `orders/{id}` | placeId, placeName, ownerUid, joinCode, members[{uid, name}], memberUids[], items[{lineId, itemId, name, price, qty, addedBy, addedByName}], total, status (cart / awaiting_payment / paid / preparing / ready / collected / cancelled), readyAt, pickupBy (15 min after ready), collectedAt, collectedByName, createdAt, paidAt. **Money is in cents.** | Only the server (M6). The group, the stall's hawker and admins can read it |
 | `orders/{id}/proofs/{ready \| collected}` | photo (small JPEG as text), byUid, byName, at | Only the server: the hawker's photo when ready, the diner's photo when collected (M6) |
+| `hawkerApplications/{uid}` | uid, applicantName, stallName, cuisine, address, lat, lng, dietary[], serviceModes[], status (pending / approved / rejected), reason, placeId (once approved) | Only the server: the applicant applies, an admin approves or rejects (M6) |
 | `sessions/{code}` | hostUid, status (lobby / voting / done), serviceMode, maxWalkMins, maxWaitMins, meetingPoint, members{uid: {name, budget, dietary}}, shortlist[], votes{placeId: {uid: true/false}}, winner, expiresAt | Browser in the lobby (M3, rules by M1); server for shortlist, votes and winner (M1) |
-| `places/{id}` | name, cuisine, address, lat, lng, priceMin, priceMax, dietary[], serviceModes[], latest{waitMins, seatOccupancy, ...}, menu[{id, name, price (cents)}] | Seed script (M5, menus by M6); server updates `latest` (M4) |
+| `places/{id}` | name, cuisine, address, lat, lng, priceMin, priceMax, dietary[], serviceModes[], latest{waitMins, seatOccupancy, ...}, menu[{id, name, price (cents), available}], ownerUid (stalls created by hawker sign-up) | Seed script (M5, menus by M6); hawker sign-up after admin approval and **My menu** (M6); server updates `latest` (M4) |
 | `places/{id}/analyses/{id}` | hour, peopleInQueue, waitMins, seatOccupancy, confidence | Seed script and server (M4) |
 | `gems/{id}` | name, mustTry, price, address, lat, lng, dietary[], submittedBy, upvoters[] | The user (M5) |
 
@@ -122,12 +123,15 @@ cd client && npm run dev
 | `hawker@chopeless.test` | Albert Centre Hawker | Hawker, **Order board** for Albert Centre |
 | `hawker2@chopeless.test` | Waterloo Centre Hawker | Hawker, **Order board** for Waterloo Centre |
 | `admin@chopeless.test` | Admin | Admin, can change anyone's role |
+| `dan@chopeless.test` | Dan Koh | Diner with a **hawker application waiting** (Dan's Nasi Lemak), so the admin has one to approve |
 
 New sign-ups are always diners. An admin can make someone a hawker on the Admin page.
 
 **Pickup flow:** diner pays → hawker taps *Start preparing* → hawker uploads a photo and taps *Mark ready* (starts a **15-minute** pickup timer and notifies the diner) → the diner uploads a photo and taps *I've collected it*. Both diner and hawker keep an **order history** with the photos.
 
 **Group orders:** the person who starts an order shares its **6-letter code** (or the link `/orders?join=CODE`). Friends enter it under *Join a group order* on the Pre-order page.
+
+**Hawker sign-up and menus:** a hawker applies at `/hawker/signup` (account + stall name, cuisine, address, map location, diet tags). An **admin approves** it on the Admin page, which creates the stall in `places` and makes the account its hawker; a rejection shows the applicant the reason. The hawker then builds the menu on **My menu**: add, edit, delete, mark sold out, or **scan a photo of the menu board** — OpenAI GPT-4o reads dishes and prices into a draft the hawker checks before saving (without `OPENAI_API_KEY`, sample dishes). Every stall has a **public page** `/stalls/<id>` (no login needed) with the menu, map and a Pre-order button. Menu changes appear live there and in pre-orders; sold-out dishes can't be ordered.
 
 ## Testing
 
@@ -146,6 +150,7 @@ npm run test:e2e
 | `queueless.spec.js` | M4 | Seeded places show a crowd level; the place page shows the hourly chart |
 | `gems.spec.js` | M5 | Add, edit and delete a gem |
 | `orders.spec.js` | M6 | Full journey: pay (signed Stripe webhook) → hawker readies with a photo → diner gets a pop-up and collects with a photo → both histories; fake payment rejected; group order by code and by link with split bill; same stall reopens the same cart; one-tap demo login; diners can't open hawker/admin pages |
+| `hawkers.spec.js` | M6 | Hawker applies → admin approves → hawker adds and edits a dish, scans a menu photo, marks one sold out → public page shows it without login → a diner pre-orders from it; a rejection shows the reason; diners can't open My menu |
 
 Unit tests for the split-bill algorithm: `cd client && npm run test:unit` (Node's built-in test runner).
 
@@ -184,6 +189,12 @@ Everything else goes through Firestore directly. All routes need a logged-in use
 | POST | `/api/orders/:id/collect` | M6 | Someone in the order, with `{ photo }`: ready → collected |
 | POST | `/api/payments/webhook` | M6 | Called **by Stripe**, checked with the signing secret. Marks the order paid |
 | GET / PATCH | `/api/admin/users[/:uid]` | M6 | Admin only: list accounts, change a role `{ role, placeId }` |
+| GET | `/api/admin/applications` | M6 | Admin only: hawker applications waiting |
+| POST | `/api/admin/applications/:uid/approve` · `/reject` | M6 | Admin only: approve (creates the stall) or reject `{ reason }` |
+| POST / GET | `/api/hawkers/apply` · `/api/hawkers/application` | M6 | Apply to be a hawker with stall details; see my application |
+| POST / PATCH / DELETE | `/api/hawkers/menu[/:dishId]` | M6 | Hawker only, own stall: add `{ name, price }` (dollars), edit `{ name, price, available }`, delete |
+| POST | `/api/hawkers/menu/many` | M6 | Hawker only: add the reviewed AI draft `{ items }` |
+| POST | `/api/hawkers/menu/scan` | M6 | Hawker only: `{ photo }` → OpenAI reads the menu board → draft `{ items }` (not saved) |
 
 ## Deployment (M6, Week 11)
 

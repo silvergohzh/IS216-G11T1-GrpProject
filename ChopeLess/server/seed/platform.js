@@ -28,7 +28,8 @@ const accounts = [
   { email: 'chloe@chopeless.test', name: 'Chloe Ng', role: 'diner', placeId: null },
   { email: 'hawker@chopeless.test', name: 'Albert Centre Hawker', role: 'hawker', placeId: 'albert-centre' },
   { email: 'hawker2@chopeless.test', name: 'Waterloo Centre Hawker', role: 'hawker', placeId: 'waterloo-centre' },
-  { email: 'admin@chopeless.test', name: 'Admin', role: 'admin', placeId: null }
+  { email: 'admin@chopeless.test', name: 'Admin', role: 'admin', placeId: null },
+  { email: 'dan@chopeless.test', name: 'Dan Koh', role: 'diner', placeId: null } // has a hawker application waiting (below)
 ]
 
 for (const account of accounts) {
@@ -50,4 +51,23 @@ for (const account of accounts) {
   }, { merge: true })
 }
 console.log(`Test accounts ready (password "${PASSWORD}"): ${accounts.map(a => a.email).join(', ')}`)
+
+// ---------- 3. A hawker application waiting for the admin ----------
+// So the admin page has something to approve straight away.
+const dan = await adminAuth.getUserByEmail('dan@chopeless.test')
+await db.collection('hawkerApplications').doc(dan.uid).set({
+  uid: dan.uid,
+  applicantName: 'Dan Koh',
+  stallName: "Dan's Nasi Lemak",
+  cuisine: 'Malay',
+  address: '30 Victoria St, Singapore 187996',
+  lat: 1.2969,
+  lng: 103.8526,
+  dietary: ['halal'],
+  serviceModes: ['dine-in', 'takeaway'],
+  status: 'pending',
+  reason: '',
+  createdAt: new Date()
+})
+console.log("Hawker application waiting for approval: Dan's Nasi Lemak (dan@chopeless.test)")
 process.exit(0)

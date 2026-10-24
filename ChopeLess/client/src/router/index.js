@@ -30,7 +30,10 @@ const routes = [
   { path: '/orders', name: 'orders', component: () => import('../views/OrdersView.vue'), meta: { requiresAuth: true, title: 'Pre-order' } },
   { path: '/orders/:id', name: 'cart', component: () => import('../views/CartView.vue'), meta: { requiresAuth: true, title: 'Order' } },
   { path: '/hawker', name: 'hawker', component: () => import('../views/HawkerOrdersView.vue'), meta: { requiresAuth: true, role: 'hawker', title: 'Order board' } },
-  { path: '/admin', name: 'admin', component: () => import('../views/AdminView.vue'), meta: { requiresAuth: true, role: 'admin', title: 'Admin' } }
+  { path: '/admin', name: 'admin', component: () => import('../views/AdminView.vue'), meta: { requiresAuth: true, role: 'admin', title: 'Admin' } },
+  { path: '/hawker/signup', name: 'hawker-signup', component: () => import('../views/HawkerSignupView.vue'), meta: { title: 'Sell on ChopeLess' } },
+  { path: '/hawker/menu', name: 'hawker-menu', component: () => import('../views/MenuView.vue'), meta: { requiresAuth: true, role: 'hawker', title: 'My menu' } },
+  { path: '/stalls/:id', name: 'stall', component: () => import('../views/StallView.vue'), meta: { title: 'Stall' } }
 ]
 
 const router = createRouter({ history: createWebHistory(), routes })

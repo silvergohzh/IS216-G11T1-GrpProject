@@ -192,6 +192,7 @@ router.post('/:id/items', async (req, res, next) => {
       const menu = place.data().menu || []
       const dish = menu.find(d => d.id === req.body.itemId)
       if (!dish) throw httpError(400, 'That dish is not on the menu')
+      if (dish.available === false) throw httpError(409, 'Sorry, that dish is sold out')
 
       order.items.push({
         lineId: randomUUID(), // a unique id for this line, so it can be changed or removed later

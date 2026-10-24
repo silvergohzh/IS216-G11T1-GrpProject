@@ -102,6 +102,12 @@ service cloud.firestore {
       }
     }
 
+    // ---------- hawker applications (M6) ----------
+    // Only the server reads and writes these (routes/hawkers.js and routes/admin.js)
+    match /hawkerApplications/{uid} {
+      allow read, write: if false;
+    }
+
     // Meal history: you read and delete your own; only the server writes it (M3)
     match /users/{uid}/history/{code} {
       allow read, delete: if signedIn() && request.auth.uid == uid;

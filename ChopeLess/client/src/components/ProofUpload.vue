@@ -7,6 +7,7 @@ import { shrinkPhoto } from '../services/places'
 
 defineProps({
   buttonText: { type: String, required: true },
+  label: { type: String, default: 'Photo proof' },
   busy: { type: Boolean, default: false }
 })
 const emit = defineEmits(['send'])
@@ -28,7 +29,7 @@ async function pick(event) {
 
 <template>
   <div class="space-y-2">
-    <label class="label">Photo proof</label>
+    <label class="label">{{ label }}</label>
     <!-- capture="environment" opens the back camera on phones -->
     <input type="file" accept="image/*" capture="environment" class="text-sm" @change="pick" data-testid="proof-input" />
     <img v-if="photo" :src="photo" alt="Photo preview" class="h-32 rounded-lg object-cover" />

@@ -161,8 +161,9 @@ async function copyLink() {
         <p v-else-if="stall.menu.length === 0" class="text-slate-500">This stall has no menu yet.</p>
         <ul class="divide-y divide-slate-100">
           <li v-for="dish in stall?.menu || []" :key="dish.id" class="flex items-center justify-between py-2">
-            <span>{{ dish.name }} <span class="text-slate-500">{{ formatMoney(dish.price) }}</span></span>
-            <button class="btn text-sm" :disabled="busy" @click="add(dish)" :aria-label="`Add ${dish.name}`">Add</button>
+            <span :class="{ 'text-slate-400 line-through': dish.available === false }">{{ dish.name }} <span class="text-slate-500">{{ formatMoney(dish.price) }}</span></span>
+            <span v-if="dish.available === false" class="text-sm font-bold text-red-600">Sold out</span>
+            <button v-else class="btn text-sm" :disabled="busy" @click="add(dish)" :aria-label="`Add ${dish.name}`">Add</button>
           </li>
         </ul>
       </section>

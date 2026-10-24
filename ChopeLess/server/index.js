@@ -15,6 +15,7 @@ import pointsRouter from './routes/points.js'           // M1 - Makan Points
 import ordersRouter from './routes/orders.js'           // M6
 import paymentsRouter from './routes/payments.js'       // M6
 import adminRouter from './routes/admin.js'             // M6
+import hawkersRouter from './routes/hawkers.js'         // M6
 
 import crowdReportsRouter from './routes/crowdReports.js'
 import crowdReportVerificationRouter from './routes/crowdReportVerification.js'
@@ -61,6 +62,7 @@ app.use('/api/crowd-reports', crowdReportVerificationRouter)
 // Orders, payments and admin (M6)
 app.use('/api/orders', ordersRouter)
 app.use('/api/admin', adminRouter)
+app.use('/api/hawkers', hawkersRouter)
 
 // ---------- ERROR HANDLER ----------
 

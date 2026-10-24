@@ -116,7 +116,10 @@ const join = () => run(async () => {
         <p class="text-sm text-slate-500">{{ s.cuisine }} · from {{ cheapest(s) }}</p>
         <p class="text-xs text-slate-400">{{ s.address }}</p>
       </div>
-      <button class="btn-primary text-sm" :disabled="busy" @click="startOrder(s)">Order here</button>
+      <div class="flex gap-2">
+        <button class="btn-primary flex-1 text-sm" :disabled="busy" @click="startOrder(s)">Order here</button>
+        <RouterLink :to="`/stalls/${s.id}`" class="btn text-sm">View menu</RouterLink>
+      </div>
     </li>
   </ul>
 

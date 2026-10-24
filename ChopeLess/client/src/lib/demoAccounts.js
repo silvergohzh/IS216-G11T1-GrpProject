@@ -9,5 +9,6 @@ export const DEMO_ACCOUNTS = [
   { email: 'chloe@chopeless.test', name: 'Chloe Ng', role: 'Diner' },
   { email: 'hawker@chopeless.test', name: 'Albert Centre Hawker', role: 'Hawker' },
   { email: 'hawker2@chopeless.test', name: 'Waterloo Centre Hawker', role: 'Hawker' },
-  { email: 'admin@chopeless.test', name: 'Admin', role: 'Admin' }
+  { email: 'admin@chopeless.test', name: 'Admin', role: 'Admin' },
+  { email: 'dan@chopeless.test', name: 'Dan Koh', role: 'Hawker applicant' }
 ]
