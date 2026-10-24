@@ -18,6 +18,7 @@ for (const p of places) {
   const ref = db.collection('places').doc(id)
   await ref.set({ ...data, latest: { peopleInQueue: Math.round(latestWaitMins / 0.8), waitMins: latestWaitMins, seatOccupancy: latestWaitMins * 6, confidence: 'medium', at: new Date().toISOString() } })
 
+  // Add fake history for the past 14 days 
   const batch = db.batch()
   for (let hour = 8; hour <= 21; hour++) {
     const people = Math.round(25 * lunchPeak(hour) + Math.random() * 5)
