@@ -1,5 +1,9 @@
 // Owner: M4
+import { readFileSync } from 'fs'
 import { test, expect } from '@playwright/test'
+
+// The same sample places global-setup.js loads, so the expected count follows the seed file
+const places = JSON.parse(readFileSync(new URL('../../server/seed/places.json', import.meta.url), 'utf8'))
 
 // A tiny 2x2 PNG, so the test doesn't need an image file on disk
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP8z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg==', 'base64')
@@ -7,7 +11,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR
 // Test that the QueueLess page lists seeded places and shows a crowd level, and that anyone can upload a photo without logging in
 test('QueueLess lists seeded places with a crowd level', async ({ page }) => {
   await page.goto('/queueless')
-  await expect(page.getByTestId('place-row')).toHaveCount(3)
+  await expect(page.getByTestId('place-row')).toHaveCount(places.length)
   await expect(page.getByTestId('place-row').filter({ hasText: 'Bras Basah' })).toContainText('Quiet')
 
   await page.getByTestId('place-row').filter({ hasText: 'Albert Centre' }).click()
