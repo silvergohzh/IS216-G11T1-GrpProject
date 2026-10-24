@@ -1,3 +1,4 @@
+
 {
   "name": "chopeless-server",
   "version": "1.0.0",
@@ -5,7 +6,8 @@
   "scripts": {
     "dev": "node --watch index.js",
     "start": "node index.js",
-    "seed": "node seed/seed.js && node seed/platform.js"
+    "seed": "node seed/seed.js && node seed/platform.js",
+    "test": "node --test tests/*.test.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -15,3 +17,4 @@
     "stripe": "^23.0.0"
   }
 }
+

@@ -1,10 +1,17 @@
 <!-- One place: latest estimate, hourly trend and "analyse a photo". Owner: M4 -->
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { getPlace, analysePhoto, shrinkPhoto } from '../services/places'
 
 const route = useRoute()
+const router = useRouter()
+
+// One smart Back: return to the page you came from; if you opened this link directly, go to All places
+function goBack() {
+  if (window.history.state?.back) router.back()
+  else router.push('/queueless')
+}
 const place = ref(null)
 const photoName = ref('') // name of the chosen file, shown on the button
 const photo = ref('')      // the shrunk photo as a data URL, used for the preview and the upload
@@ -17,6 +24,8 @@ async function load() {
 }
 onMounted(load)
 
+
+// Shrink the photo and show a preview. If it fails, show an error message
 async function choosePhoto(e) {
   const file = e.target.files[0]
   photoName.value = file?.name || ''
@@ -35,11 +44,12 @@ async function analyse() {
     await load()
   } catch (err) {
     error.value = err.message
-  } finally {
+  } finally { // always run, even if the try block throws an error
     loading.value = false
   }
 }
 
+// Colours for the confidence badge
 const confidenceColours = { high: 'bg-green-100 text-green-800', medium: 'bg-amber-100 text-amber-800', low: 'bg-slate-200 text-slate-700' }
 
 // How long ago the latest estimate was made, e.g. "5 min ago"
@@ -64,7 +74,7 @@ const hourLabel = h => `${h % 12 || 12}${h < 12 ? 'am' : 'pm'}`
 <template>
   <div v-if="place" class="space-y-4">
     <div>
-      <RouterLink to="/queueless" class="text-sm text-brand">← All places</RouterLink>
+      <button class="text-sm font-semibold text-brand hover:underline" @click="goBack">← Back</button>
       <h1 class="page-title">{{ place.name }}</h1>
       <p class="text-slate-600">{{ place.address }}</p>
     </div>

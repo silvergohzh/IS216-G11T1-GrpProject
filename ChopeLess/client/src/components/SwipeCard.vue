@@ -1,56 +1,91 @@
 <!-- A place card you can drag left (no) or right (yes). Owner: M3 -->
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 import PlaceCard from './PlaceCard.vue'
-
+ 
 defineProps({ place: { type: Object, required: true } })
-const emit = defineEmits(['vote']) // sends true (yes) or false (no) to the parent page
-
-const THRESHOLD = 100      // drag further than 100px to count as a vote
-const dx = ref(0)          // how far the card has been dragged sideways
-const dragging = ref(false)
-const leaving = ref(0)     // 1 = flying off right, -1 = flying off left, 0 = staying
+const emit = defineEmits(['vote'])
+ 
+const el = ref(null)
+const dx = ref(0)          // how far the card has been dragged sideways (px), drives the YES / NOPE labels
 let startX = 0
-
+let startTime = 0
+let dragging = false
+let leaving = false        // true while the card flies off, so it can't be dragged or voted twice
+let frame = 0              // requestAnimationFrame id
+ 
+const THRESHOLD = 110      // drag further than this = a vote
+const FLICK_SPEED = 0.6    // or flick faster than this (px per ms), even if the drag was short
+ 
+// Move the card directly (no Vue re-render per mouse move): this is what makes it smooth
+function paint(x, withTransition) {
+  const card = el.value
+  if (!card) return
+  card.style.transition = withTransition ? 'transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1)' : 'none'
+  card.style.transform = `translateX(${x}px) rotate(${x / 18}deg)`
+}
+ 
 function onDown(e) {
-  dragging.value = true
+  if (leaving || e.button > 0) return
+  dragging = true
   startX = e.clientX
-  e.currentTarget.setPointerCapture(e.pointerId) // keep tracking even if the finger leaves the card
+  startTime = performance.now()
+  el.value.setPointerCapture(e.pointerId)   // keep getting moves even if the pointer leaves the card
 }
+ 
 function onMove(e) {
-  if (dragging.value) dx.value = e.clientX - startX
+  if (!dragging) return
+  const x = e.clientX - startX
+  cancelAnimationFrame(frame)
+  frame = requestAnimationFrame(() => {      // at most one update per screen refresh
+    paint(x, false)
+    dx.value = x
+  })
 }
-function onUp() {
-  if (!dragging.value) return
-  dragging.value = false
-  if (Math.abs(dx.value) > THRESHOLD) fling(dx.value > 0)
-  else dx.value = 0 // not far enough: snap back to the middle
-}
-
-// Animate the card off screen, then tell the parent which way it went
-function fling(yes) {
-  leaving.value = yes ? 1 : -1
-  setTimeout(() => emit('vote', yes), 250)
-}
-
-const style = computed(() => {
-  const x = leaving.value ? leaving.value * 600 : dx.value
-  return {
-    transform: `translateX(${x}px) rotate(${x / 20}deg)`, // translateX(130px) moves the card 130px right. 
-                                // rotate(130 / 20 = 6.5deg) tilts it slightly, like a Tinder card. The further you drag, the more it tilts.
-    transition: dragging.value ? 'none' : 'transform 0.25s ease'
+ 
+function onUp(e) {
+  if (!dragging) return
+  dragging = false
+  cancelAnimationFrame(frame)
+  const x = e.clientX - startX
+  const speed = Math.abs(x) / Math.max(1, performance.now() - startTime)
+  if (Math.abs(x) > THRESHOLD || (Math.abs(x) > 40 && speed > FLICK_SPEED)) {
+    fling(x > 0)
+  } else {
+    dx.value = 0
+    paint(0, true)                            // not far enough: spring back to the middle
   }
-})
-const hint = computed(() => (dx.value > 40 ? 'yes' : dx.value < -40 ? 'no' : '')) // dx refers to distance
-
-defineExpose({ fling }) // lets the parent's ✓ / ✕ buttons trigger the same animation
+}
+ 
+// Fly the card off screen, then tell the page which way it went
+function fling(yes) {
+  if (leaving) return
+  leaving = true
+  dx.value = yes ? 200 : -200                 // show the YES / NOPE label while it flies
+  const card = el.value
+  const distance = (window.innerWidth || 800) + 200
+  card.style.transition = 'transform 0.3s ease-in'
+  card.style.transform = `translateX(${yes ? distance : -distance}px) rotate(${yes ? 25 : -25}deg)`
+  setTimeout(() => emit('vote', yes), 280)    // emit just before it disappears; the page swaps in the next card
+}
+ 
+onUnmounted(() => cancelAnimationFrame(frame))
+defineExpose({ fling })
+ 
+const yesOpacity = computed(() => Math.min(1, Math.max(0, dx.value / THRESHOLD)))
+const noOpacity = computed(() => Math.min(1, Math.max(0, -dx.value / THRESHOLD)))
 </script>
-
+ 
 <template>
-  <div class="relative cursor-grab touch-none select-none active:cursor-grabbing" :style="style"
-       @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp" data-testid="swipe-card">
-    <span v-if="hint === 'yes'" class="absolute left-4 top-4 z-10 -rotate-12 rounded-lg border-4 border-green-500 bg-white px-3 py-1 text-2xl font-extrabold text-green-600">YES</span>
-    <span v-if="hint === 'no'" class="absolute right-4 top-4 z-10 rotate-12 rounded-lg border-4 border-red-500 bg-white px-3 py-1 text-2xl font-extrabold text-red-600">NOPE</span>
-    <PlaceCard :place="place" />
+  <div ref="el"
+       class="relative cursor-grab select-none active:cursor-grabbing"
+       style="touch-action: pan-y; will-change: transform"
+       data-testid="swipe-card"
+       @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp">
+        <span class="pointer-events-none absolute left-6 top-1/2 z-20 -translate-y-1/2 -rotate-12 rounded-xl border-4 border-green-500 bg-white px-4 py-1 text-3xl font-extrabold text-green-600 shadow-lg"
+          :style="{ opacity: yesOpacity }">YES</span>
+        <span class="pointer-events-none absolute right-6 top-1/2 z-20 -translate-y-1/2 rotate-12 rounded-xl border-4 border-red-500 bg-white px-4 py-1 text-3xl font-extrabold text-red-600 shadow-lg"
+          :style="{ opacity: noOpacity }">NOPE</span>
+    <PlaceCard :place="place" class="relative z-0" />
   </div>
 </template>

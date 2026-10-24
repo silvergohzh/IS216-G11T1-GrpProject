@@ -6,6 +6,7 @@ import { useSessionStore } from "../stores/session";
 import { api } from "../lib/api";
 import PlaceCard from "../components/PlaceCard.vue";
 import MapView from "../components/MapView.vue";
+import SpinWheel from "../components/SpinWheel.vue";
 
 const route = useRoute();
 const store = useSessionStore();
@@ -13,6 +14,8 @@ onMounted(() => store.watch(route.params.code));
 onUnmounted(() => store.stop());
 
 const winner = computed(() => store.session?.winner);
+const tie = computed(() => store.session?.tieBreak); // set by the server when there was a tie
+const revealed = ref(false); // true once the wheel stops
 const from = computed(() => store.session?.meetingPoint);
 
 // Opens Google Maps with walking directions (from the meeting point if the host set one)
@@ -46,7 +49,18 @@ watch(
 </script>
 
 <template>
-  <div v-if="winner" class="space-y-4">
+  <div v-if="tie && !revealed" class="text-center">
+    <h1 class="page-title">It's a tie! 🎡</h1>
+    <p class="mb-4 text-slate-600">
+      {{ tie.candidates.length }} places got the same votes. Spinning…
+    </p>
+    <SpinWheel
+      :candidates="tie.candidates"
+      :winner-id="tie.winnerId"
+      @done="revealed = true"
+    />
+  </div>
+  <div v-else-if="winner" class="space-y-4">
     <p class="label">It's a match</p>
     <h1
       class="animate-pop text-3xl font-extrabold text-brand"
@@ -73,6 +87,12 @@ watch(
       ]"
       :route="path"
     />
+  </div>
+    <!-- Voting finished with no winner (every place was vetoed) -->
+  <div v-else-if="store.session?.status === 'done'" class="card text-center">
+    <p class="mb-3 text-lg font-bold">No winner this time 🚫</p>
+    <p class="mb-4 text-slate-600">Every place got vetoed. Start a new session to try again.</p>
+    <RouterLink to="/sessions" class="btn-primary">Start a new session</RouterLink>
   </div>
   <p v-else-if="store.error" class="error">{{ store.error }}</p>
   <p v-else>Loading…</p>
