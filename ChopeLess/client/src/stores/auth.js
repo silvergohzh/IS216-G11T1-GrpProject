@@ -56,6 +56,12 @@ export const useAuthStore = defineStore('auth', () => {
     await saveProfile(cred.user.uid, { name: email.split('@')[0], defaultBudget: 8, dietary: [] })
   }
 
+  // Load the profile again, e.g. right after an admin approves you as a hawker,
+  // so the new role (and its menu links) shows up without reloading the page
+  async function refreshUser() {
+    user.value = await loadUser(auth.currentUser)
+  }
+
   async function logout() {
     await signOut(auth)
     user.value = null
@@ -71,5 +77,5 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
   }
 
-  return { user, ready, isLoggedIn, isHawker, isAdmin, init, login, register, logout, deleteAccount }
+  return { user, ready, isLoggedIn, isHawker, isAdmin, init, login, register, refreshUser, logout, deleteAccount }
 })

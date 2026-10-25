@@ -84,11 +84,30 @@ const minus = item => run(() => (item.qty > 1 ? changeQty(orderId, item.lineId, 
 const cancel = () => run(() => cancelOrder(orderId))
 const collect = photo => run(() => markCollected(orderId, photo))
 
-// Pay: the server gives us a Stripe page to go to. (In demo mode there is no page and the order is paid straight away.)
+// Pay: Stripe's payment page opens in a NEW TAB, and this page stays open.
+// When Stripe confirms the payment (webhook), this page turns "Paid" by itself.
+// (In demo mode there is no Stripe page: the order is paid straight away.)
+const payingInOtherTab = ref(false)
 const pay = () => run(async () => {
   askNotificationPermission() // so we can tell you when your food is ready
-  const result = await checkout(orderId)
-  if (result.url) window.location.href = result.url
+
+  // Open the new tab straight away, while the click is still happening.
+  // Browsers block tabs that open later (after waiting for the server).
+  const stripeTab = window.open('', '_blank')
+  try {
+    const result = await checkout(orderId)
+    if (result.url && stripeTab) {
+      stripeTab.location.href = result.url     // show Stripe in the new tab
+      payingInOtherTab.value = true
+    } else if (result.url) {
+      window.location.href = result.url        // the browser blocked the new tab: use this one
+    } else if (stripeTab) {
+      stripeTab.close()                        // demo mode: already paid, no Stripe page needed
+    }
+  } catch (err) {
+    if (stripeTab) stripeTab.close()
+    throw err
+  }
 })
 
 // You can only change items you added (the owner can change everything)
@@ -126,6 +145,10 @@ async function copyLink() {
     </div>
 
     <p v-if="justPaid && order.status === 'awaiting_payment'" class="card text-sm">Confirming your payment with Stripe...</p>
+    <p v-if="justPaid && order.status === 'paid'" class="card text-sm font-semibold text-brand">Payment done! You can close this tab.</p>
+    <p v-if="payingInOtherTab && order.status === 'awaiting_payment'" class="card text-sm" data-testid="paying-notice">
+      Finish paying in the Stripe tab. This page will change to "Paid" by itself.
+    </p>
 
     <!-- Ready: countdown, and the diner collects it with a photo -->
     <section v-if="order.status === 'ready'" class="card space-y-3 border-brand bg-brand-light">

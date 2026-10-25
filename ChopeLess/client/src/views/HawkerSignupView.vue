@@ -2,9 +2,9 @@
      After applying, an admin approves it (Admin page). Then the stall goes live
      and you can build your menu on the "My menu" page. -->
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
-import { applyAsHawker, getMyApplication } from '../services/hawkers'
+import { applyAsHawker, watchMyApplication } from '../services/hawkers'
 import MapView from '../components/MapView.vue'
 
 const auth = useAuthStore()
@@ -36,11 +36,22 @@ const markers = computed(() =>
   form.value.lat === null ? [] : [{ lat: form.value.lat, lng: form.value.lng, label: form.value.stallName || 'My stall' }]
 )
 
-async function loadApplication() {
-  if (auth.isLoggedIn) application.value = await getMyApplication()
-  loading.value = false
+// Watch my application live, so this page changes by itself when the admin decides
+let stopWatching = null
+function watchApplication() {
+  if (stopWatching || !auth.isLoggedIn) return
+  stopWatching = watchMyApplication(auth.user.uid, data => {
+    application.value = data
+    loading.value = false
+  })
 }
-onMounted(loadApplication)
+onMounted(() => {
+  if (auth.isLoggedIn) watchApplication()
+  else loading.value = false
+})
+onUnmounted(() => {
+  if (stopWatching) stopWatching()
+})
 
 function pickLocation({ lat, lng }) {
   form.value.lat = lat
@@ -58,7 +69,7 @@ async function submit() {
     // New here? Make the account first (you start as a diner until an admin approves you)
     if (!auth.isLoggedIn) await auth.register(email.value, password.value)
     await applyAsHawker(form.value)
-    await loadApplication()
+    watchApplication()
   } catch (err) {
     error.value = err.message
   } finally {

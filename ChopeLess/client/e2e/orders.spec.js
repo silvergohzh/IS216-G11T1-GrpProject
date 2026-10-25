@@ -75,6 +75,14 @@ test('full journey: pay, hawker readies with a photo, diner collects with a phot
   await expect(hawker.getByTestId('history-order').filter({ hasText: code })).toBeVisible()
 })
 
+test('pressing Pay (demo mode, no Stripe keys) marks the order paid', async ({ page }) => {
+  await signUp(page, 'payer')
+  await startOrder(page)
+  await page.getByRole('button', { name: 'Add Laksa' }).click()
+  await page.getByRole('button', { name: 'Pay $5.00' }).click()
+  await expect(page.getByTestId('order-status')).toHaveText('Paid')
+})
+
 test('a fake payment message is rejected', async ({ page, request }) => {
   await signUp(page, 'fakepay')
   const orderId = await startOrder(page)

@@ -36,11 +36,12 @@ test('hawker signs up, admin approves, hawker builds the menu, and it shows onli
   await card.getByRole('button', { name: 'Approve' }).click()
   await expect(card).toHaveCount(0)
 
-  // The hawker sees the approval and opens their menu page
-  await page.reload()
-  await expect(page.getByTestId('application-status')).toContainText('Approved')
-  await page.getByText('Set up my menu').click()
+  // The hawker gets a notice straight away (no reload) and opens their menu page
+  const notice = page.getByTestId('application-notice')
+  await expect(notice).toContainText('approved')
+  await notice.getByRole('button', { name: 'Set up my menu' }).click()
   await expect(page).toHaveURL(/\/hawker\/menu$/)
+  await expect(page.locator('nav a[href="/hawker/menu"]')).toBeAttached() // hawker links unlocked (inside ☰ on phones)
 
   // Type in a dish, then change its price
   await page.locator('#dish-name').fill('Laksa')
@@ -95,7 +96,14 @@ test('a rejected application shows the reason', async ({ page, browser }) => {
   await card.getByRole('button', { name: 'Reject' }).click()
   await expect(card).toHaveCount(0)
 
-  await page.reload()
+  // The applicant gets a notice straight away, and it stays on every page
+  const notice = page.getByTestId('application-notice')
+  await expect(notice).toContainText('not approved')
+  await expect(notice).toContainText('Please add your full address')
+  await page.goto('/queueless')
+  await expect(notice).toContainText('Please add your full address')
+  await notice.getByRole('link', { name: 'Fix and apply again' }).click()
+  await expect(page).toHaveURL(/\/hawker\/signup$/)
   await expect(page.getByTestId('application-status')).toContainText('Please add your full address')
 })
 

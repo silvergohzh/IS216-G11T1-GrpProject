@@ -14,6 +14,11 @@ export function watchStall(placeId, onChange, onError) {
 
 // ---------- Applying to be a hawker ----------
 export const applyAsHawker = details => api('/hawkers/apply', { method: 'POST', body: details })
+
+// My application, live: tells me the moment an admin approves or rejects it (null if I never applied)
+export function watchMyApplication(uid, onChange) {
+  return onSnapshot(doc(db, 'hawkerApplications', uid), snap => onChange(snap.exists() ? snap.data() : null), () => onChange(null))
+}
 export const getMyApplication = () => api('/hawkers/application')
 
 // ---------- Admin ----------

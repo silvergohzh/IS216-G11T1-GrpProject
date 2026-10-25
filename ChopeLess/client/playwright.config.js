@@ -30,8 +30,9 @@ export default defineConfig({
       cwd: '../server',
       url: 'http://localhost:3001/api/health',
       // STRIPE_WEBHOOK_SECRET: a made-up secret, so e2e/orders.spec.js can send a signed "payment worked" message
-      // OPENAI_API_KEY: empty, so the AI features return sample data (no cost, no internet needed)
-      env: { ...emulatorEnv, PORT: '3001', CLIENT_URL: 'http://localhost:5174', STRIPE_WEBHOOK_SECRET: 'whsec_test_chopeless', OPENAI_API_KEY: '' }
+      // STRIPE_SECRET_KEY and OPENAI_API_KEY: empty, so payments use demo mode and the AI returns sample data
+      // (no cost, no internet needed, even if your server/.env has real keys)
+      env: { ...emulatorEnv, PORT: '3001', CLIENT_URL: 'http://localhost:5174', STRIPE_WEBHOOK_SECRET: 'whsec_test_chopeless', STRIPE_SECRET_KEY: '', OPENAI_API_KEY: '' }
     }
   ]
 })
