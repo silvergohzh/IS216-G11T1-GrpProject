@@ -34,8 +34,10 @@ export const addGem = gem => api('', 'POST', gem)
 export const updateGem = (id, gem) => api(`/${id}`, 'PUT', gem)
 export const deleteGem = id => api(`/${id}`, 'DELETE')
 export const upvoteGem = id => api(`/${id}/upvote`, 'POST')
+export const unvoteGem = id => api(`/${id}/upvote`, 'DELETE')
 
 // Reviews
 export const getReviews = id => api(`/${id}/reviews`, 'GET')
 export const saveReview = (id, review) => api(`/${id}/reviews`, 'POST', review)
 export const deleteReview = id => api(`/${id}/reviews`, 'DELETE')
+export const updateReview = (id, review) => api(`/${id}/reviews`, 'PUT', review)
