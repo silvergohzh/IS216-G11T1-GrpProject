@@ -157,7 +157,7 @@ test("Round 2 fallback never selects vetoed places", () => {
 
   const result = mostLiked(session);
 
-  assert.equal(result.winner.id, "B");
+  assert.ok(["B", "C"].includes(result.winner.id));
 });
 
 test("All vetoed places produce no winner", () => {

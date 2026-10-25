@@ -1,10 +1,6 @@
 
 import { db } from "../firebase.js";
 
-// =====================================================
-// MAKAN POINTS RULES
-// =====================================================
-
 export const POINT_RULES = {
   SESSION_COMPLETE: 10,
   HOST_BONUS: 5,
@@ -14,6 +10,8 @@ export const POINT_RULES = {
   SILVER: 150,
   GOLD: 300,
   PRIORITY: 150,
+  EXTRA_SUPER_LIKE: 20,
+  MAX_DAILY_REWARDED_SESSIONS: 3,
   EXTRA_SUPER: 20  // each extra Super Like costs 20 points (max: half the cards per session, free one included)
 };
 
@@ -22,27 +20,17 @@ const fail = (status, message) =>
 
 const ledger = db.collection("pointsLedger");
 const accounts = db.collection("pointsAccounts");
+const dailyRewards = db.collection("dailySessionRewards");
+const sessions = db.collection("sessions");
 
 const accountRef = uid => accounts.doc(uid);
-
-// =====================================================
-// BADGES AND ACCOUNT DETAILS
-// =====================================================
 
 function badgesFor(total) {
   const badges = [];
 
-  if (total >= POINT_RULES.BRONZE) {
-    badges.push("bronze");
-  }
-
-  if (total >= POINT_RULES.SILVER) {
-    badges.push("silver");
-  }
-
-  if (total >= POINT_RULES.GOLD) {
-    badges.push("gold");
-  }
+  if (total >= POINT_RULES.BRONZE) badges.push("bronze");
+  if (total >= POINT_RULES.SILVER) badges.push("silver");
+  if (total >= POINT_RULES.GOLD) badges.push("gold");
 
   return badges;
 }
@@ -60,12 +48,38 @@ function normaliseAccount(uid, data = {}) {
   };
 }
 
-// =====================================================
-// CREATE: AWARD OR DEDUCT POINTS
-// =====================================================
+function singaporeDate(timestamp = Date.now()) {
+  // Stable YYYY-MM-DD for Singapore.
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Singapore",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(new Date(timestamp));
+}
 
-// Each eventId + uid combination can only be recorded once.
-// Firestore transactions prevent duplicate rewards.
+function validatePointsRequest({ uid, eventId, points, reason }) {
+  if (
+    typeof uid !== "string" ||
+    !uid ||
+    uid.includes("/") ||
+    typeof eventId !== "string" ||
+    !eventId ||
+    eventId.includes("/") ||
+    typeof reason !== "string" ||
+    !reason
+  ) {
+    throw fail(400, "Invalid points request");
+  }
+
+  if (!Number.isSafeInteger(points) || points === 0) {
+    throw fail(400, "Points must be a non-zero integer");
+  }
+}
+
+// =====================================================
+// GENERAL POINTS
+// =====================================================
 
 export async function awardPoints({
   uid,
@@ -74,25 +88,7 @@ export async function awardPoints({
   reason,
   sessionCode = null
 }) {
-  if (
-    typeof uid !== "string" ||
-    !uid ||
-    typeof eventId !== "string" ||
-    !eventId ||
-    typeof reason !== "string" ||
-    !reason
-  ) {
-    throw fail(400, "Invalid points request");
-  }
-
-  // Firestore document IDs cannot contain slashes.
-  if (uid.includes("/") || eventId.includes("/")) {
-    throw fail(400, "Invalid UID or event ID");
-  }
-
-  if (!Number.isSafeInteger(points) || points === 0) {
-    throw fail(400, "Points must be a non-zero integer");
-  }
+  validatePointsRequest({ uid, eventId, points, reason });
 
   const entryRef = ledger.doc(`${eventId}_${uid}`);
   const userRef = accountRef(uid);
@@ -101,18 +97,18 @@ export async function awardPoints({
     const entrySnap = await tx.get(entryRef);
     const accountSnap = await tx.get(userRef);
 
-    // Prevent duplicate awards.
     if (entrySnap.exists) {
-      return {
-        awarded: false,
-        duplicate: true
-      };
+      return { awarded: false, duplicate: true };
     }
 
     const current = normaliseAccount(
       uid,
       accountSnap.exists ? accountSnap.data() : {}
     );
+
+    if (current.balance + points < 0) {
+      throw fail(409, "Not enough Makan Points");
+    }
 
     const next = normaliseAccount(uid, {
       balance: current.balance + points,
@@ -147,15 +143,113 @@ export async function awardPoints({
 }
 
 // =====================================================
-// SESSION COMPLETION REWARDS
+// SESSION REWARDS
 // =====================================================
 
-// Every member receives +10 points.
-// The host receives an additional +5 points.
-//
-// Rewards are only processed for completed sessions
-// with a winner.
+async function rewardOneSessionMember({
+  uid,
+  sessionCode,
+  isHost,
+  completedAt
+}) {
+  const dateKey = singaporeDate(completedAt);
 
+  const dailyRef = dailyRewards.doc(`${dateKey}_${uid}`);
+  const userRef = accountRef(uid);
+
+  const participationEvent = `session_${sessionCode}`;
+  const hostEvent = `host_${sessionCode}`;
+
+  const participationRef = ledger.doc(
+    `${participationEvent}_${uid}`
+  );
+  const hostRef = ledger.doc(`${hostEvent}_${uid}`);
+
+  return db.runTransaction(async tx => {
+    const participationSnap = await tx.get(participationRef);
+    const hostSnap = isHost ? await tx.get(hostRef) : null;
+    const dailySnap = await tx.get(dailyRef);
+    const accountSnap = await tx.get(userRef);
+
+    if (participationSnap.exists) {
+      return { awarded: false, duplicate: true, uid };
+    }
+
+    const rewardedCount = dailySnap.exists
+      ? dailySnap.data().count || 0
+      : 0;
+
+    if (
+      rewardedCount >=
+      POINT_RULES.MAX_DAILY_REWARDED_SESSIONS
+    ) {
+      return {
+        awarded: false,
+        dailyLimitReached: true,
+        uid
+      };
+    }
+
+    const current = normaliseAccount(
+      uid,
+      accountSnap.exists ? accountSnap.data() : {}
+    );
+
+    const now = Date.now();
+    const awardHostBonus = isHost && !hostSnap?.exists;
+
+    const totalPoints =
+      POINT_RULES.SESSION_COMPLETE +
+      (awardHostBonus ? POINT_RULES.HOST_BONUS : 0);
+
+    const next = normaliseAccount(uid, {
+      balance: current.balance + totalPoints,
+      lifetimePoints: current.lifetimePoints + totalPoints
+    });
+
+    tx.create(participationRef, {
+      id: participationRef.id,
+      uid,
+      eventId: participationEvent,
+      points: POINT_RULES.SESSION_COMPLETE,
+      reason: "SESSION_COMPLETE",
+      sessionCode,
+      status: "active",
+      createdAt: now,
+      updatedAt: now
+    });
+
+    if (awardHostBonus) {
+      tx.create(hostRef, {
+        id: hostRef.id,
+        uid,
+        eventId: hostEvent,
+        points: POINT_RULES.HOST_BONUS,
+        reason: "HOST_BONUS",
+        sessionCode,
+        status: "active",
+        createdAt: now,
+        updatedAt: now
+      });
+    }
+
+    tx.set(userRef, next);
+
+    tx.set(dailyRef, {
+      uid,
+      date: dateKey,
+      count: rewardedCount + 1,
+      updatedAt: now
+    });
+
+    return {
+      awarded: true,
+      uid,
+      points: totalPoints,
+      account: next
+    };
+  });
+}
 
 export async function awardSessionPoints(session) {
   if (!session?.code || !session?.members) {
@@ -172,53 +266,300 @@ export async function awardSessionPoints(session) {
   const memberIds = Object.keys(session.members);
   const results = [];
 
-  // Reward every participating member with +10 points.
-  for (const uid of memberIds) {
-    results.push(
-      await awardPoints({
-        uid,
-        eventId: `session_${session.code}`,
-        points: POINT_RULES.SESSION_COMPLETE,
-        reason: "SESSION_COMPLETE",
-        sessionCode: session.code
-      })
-    );
-  }
+  const completedAt =
+    typeof session.completedAt === "number"
+      ? session.completedAt
+      : Date.now();
 
-  // Host receives an additional +5 points.
-  // The host must be a participant to receive this bonus.
-  if (
-    typeof session.hostUid === "string" &&
-    session.hostUid &&
-    memberIds.includes(session.hostUid)
-  ) {
-    results.push(
-      await awardPoints({
-        uid: session.hostUid,
-        eventId: `host_${session.code}`,
-        points: POINT_RULES.HOST_BONUS,
-        reason: "HOST_BONUS",
-        sessionCode: session.code
-      })
-    );
+  for (const uid of memberIds) {
+    const result = await rewardOneSessionMember({
+      uid,
+      sessionCode: session.code,
+      isHost: uid === session.hostUid,
+      completedAt
+    });
+
+    results.push(result);
   }
 
   return {
-    awarded: true,
+    awarded: results.some(result => result.awarded),
     results
   };
 }
 
-
-
 // =====================================================
-// CROWD REPORT REWARDS
+// EXTRA SUPER LIKE PURCHASE
 // =====================================================
 
-// Verified report: +15 points.
-// Invalid report: -10 points.
+// Session fields:
+// extraSuperLikes: {
+//   [uid]: {
+//     purchased: number,
+//     used: number,
+//     refunded: number
+//   }
+// }
 //
-// Only trusted backend code should call this function.
+// This function only PURCHASES a Super Like.
+// The voting route must consume it when the user votes.
+
+export async function purchaseExtraSuperLike({
+  uid,
+  sessionCode
+}) {
+  if (
+    !uid ||
+    !sessionCode ||
+    typeof uid !== "string" ||
+    typeof sessionCode !== "string" ||
+    uid.includes("/") ||
+    sessionCode.includes("/")
+  ) {
+    throw fail(400, "Invalid purchase request");
+  }
+
+  const sessionRef = sessions.doc(sessionCode);
+  const userRef = accountRef(uid);
+
+  return db.runTransaction(async tx => {
+    const sessionSnap = await tx.get(sessionRef);
+    const accountSnap = await tx.get(userRef);
+
+    if (!sessionSnap.exists) {
+      throw fail(404, "Session not found");
+    }
+
+    const session = sessionSnap.data();
+
+    if (!session.members?.[uid]) {
+      throw fail(403, "You are not in this session");
+    }
+
+    if (session.status !== "voting") {
+      throw fail(
+        409,
+        "Extra Super Likes can only be purchased during voting"
+      );
+    }
+
+    if (
+      session.votingEndsAt &&
+      Date.now() > session.votingEndsAt
+    ) {
+      throw fail(409, "Voting time has ended");
+    }
+
+    const account = normaliseAccount(
+      uid,
+      accountSnap.exists ? accountSnap.data() : {}
+    );
+
+    if (account.balance < POINT_RULES.EXTRA_SUPER_LIKE) {
+      throw fail(409, "Not enough Makan Points");
+    }
+
+    const extras = { ...(session.extraSuperLikes || {}) };
+
+    const current = extras[uid] || {
+      purchased: 0,
+      used: 0,
+      refunded: 0
+    };
+
+    const purchaseNumber = current.purchased + 1;
+
+    const eventId =
+      `super_purchase_${sessionCode}_${purchaseNumber}`;
+
+    const entryRef = ledger.doc(`${eventId}_${uid}`);
+    const entrySnap = await tx.get(entryRef);
+
+    if (entrySnap.exists) {
+      throw fail(409, "Purchase already recorded");
+    }
+
+    extras[uid] = {
+      ...current,
+      purchased: purchaseNumber
+    };
+
+    const next = normaliseAccount(uid, {
+      balance:
+        account.balance - POINT_RULES.EXTRA_SUPER_LIKE,
+      lifetimePoints: account.lifetimePoints
+    });
+
+    const now = Date.now();
+
+    tx.update(sessionRef, {
+      extraSuperLikes: extras
+    });
+
+    tx.set(userRef, next);
+
+    tx.create(entryRef, {
+      id: entryRef.id,
+      uid,
+      eventId,
+      points: -POINT_RULES.EXTRA_SUPER_LIKE,
+      reason: "EXTRA_SUPER_LIKE_PURCHASE",
+      sessionCode,
+      status: "active",
+      createdAt: now,
+      updatedAt: now
+    });
+
+    return {
+      purchased: true,
+      cost: POINT_RULES.EXTRA_SUPER_LIKE,
+      available:
+        purchaseNumber -
+        (current.used || 0) -
+        (current.refunded || 0),
+      account: next
+    };
+  });
+}
+
+// =====================================================
+// REFUND UNUSED PURCHASED SUPER LIKES
+// =====================================================
+
+// Called only after the session reaches "done".
+// Safe to call repeatedly.
+//
+// Each user's unused purchases are refunded together
+// in a single Firestore transaction.
+
+export async function refundUnusedSuperLikes(sessionCode) {
+  if (
+    typeof sessionCode !== "string" ||
+    !sessionCode ||
+    sessionCode.includes("/")
+  ) {
+    throw fail(400, "Invalid session code");
+  }
+
+  const sessionRef = sessions.doc(sessionCode);
+  const sessionSnap = await sessionRef.get();
+
+  if (!sessionSnap.exists) {
+    throw fail(404, "Session not found");
+  }
+
+  const session = sessionSnap.data();
+
+  if (session.status !== "done") {
+    return {
+      refunded: false,
+      reason: "Session is not finished"
+    };
+  }
+
+  const uids = Object.keys(session.extraSuperLikes || {});
+  const results = [];
+
+  for (const uid of uids) {
+    const result = await db.runTransaction(async tx => {
+      const latestSessionSnap = await tx.get(sessionRef);
+      const latestSession = latestSessionSnap.data();
+
+      if (latestSession.status !== "done") {
+        return { uid, refunded: 0 };
+      }
+
+      const extras = {
+        ...(latestSession.extraSuperLikes || {})
+      };
+
+      const record = extras[uid];
+
+      if (!record) {
+        return { uid, refunded: 0 };
+      }
+
+      const unused = Math.max(
+        0,
+        (record.purchased || 0) -
+        (record.used || 0) -
+        (record.refunded || 0)
+      );
+
+      if (!unused) {
+        return { uid, refunded: 0 };
+      }
+
+      const userRef = accountRef(uid);
+      const accountSnap = await tx.get(userRef);
+
+      const eventId =
+        `super_refund_${sessionCode}_${uid}`;
+
+      const entryRef = ledger.doc(eventId);
+      const entrySnap = await tx.get(entryRef);
+
+      if (entrySnap.exists) {
+        return { uid, refunded: 0, duplicate: true };
+      }
+
+      const account = normaliseAccount(
+        uid,
+        accountSnap.exists ? accountSnap.data() : {}
+      );
+
+      const amount =
+        unused * POINT_RULES.EXTRA_SUPER_LIKE;
+
+      const next = normaliseAccount(uid, {
+        balance: account.balance + amount,
+        lifetimePoints: account.lifetimePoints
+      });
+
+      extras[uid] = {
+        ...record,
+        refunded: (record.refunded || 0) + unused
+      };
+
+      const now = Date.now();
+
+      tx.update(sessionRef, {
+        extraSuperLikes: extras
+      });
+
+      tx.set(userRef, next);
+
+      tx.create(entryRef, {
+        id: entryRef.id,
+        uid,
+        eventId,
+        points: amount,
+        reason: "EXTRA_SUPER_LIKE_REFUND",
+        sessionCode,
+        status: "active",
+        createdAt: now,
+        updatedAt: now
+      });
+
+      return {
+        uid,
+        refunded: unused,
+        points: amount
+      };
+    });
+
+    results.push(result);
+  }
+
+  return {
+    refunded: results.some(r => r.refunded > 0),
+    results
+  };
+}
+
+// =====================================================
+// CROWD REPORTS
+// =====================================================
 
 export async function rewardCrowdReport({
   uid,
@@ -246,7 +587,7 @@ export async function rewardCrowdReport({
 }
 
 // =====================================================
-// READ: USER'S POINTS ACCOUNT
+// ACCOUNT
 // =====================================================
 
 export async function getPointsAccount(uid) {
@@ -306,13 +647,8 @@ export async function getPointsHistory(uid) {
 }
 
 // =====================================================
-// UPDATE: REVERSE A POINTS TRANSACTION
+// ADMIN REVERSAL
 // =====================================================
-
-// Only authorised admin routes should call this.
-//
-// Reversing a positive reward deducts the awarded points.
-// Reversing a penalty restores the deducted points.
 
 export async function reversePoints(
   entryId,
@@ -349,8 +685,7 @@ export async function reversePoints(
     const next = normaliseAccount(entry.uid, {
       balance: current.balance - entry.points,
       lifetimePoints:
-        current.lifetimePoints -
-        Math.max(0, entry.points)
+        current.lifetimePoints - Math.max(0, entry.points)
     });
 
     tx.set(userRef, next);
@@ -370,11 +705,8 @@ export async function reversePoints(
 }
 
 // =====================================================
-// DELETE: SOFT-DELETE A REVERSED ENTRY
+// ADMIN DELETE
 // =====================================================
-
-// The ledger document is retained to prevent
-// the same event from awarding points again.
 
 export async function deletePointsEntry(
   entryId,
@@ -408,19 +740,13 @@ export async function deletePointsEntry(
       updatedAt: Date.now()
     });
 
-    return {
-      deleted: true
-    };
+    return { deleted: true };
   });
 }
 
 // =====================================================
-// READ: WEEKLY LEADERBOARD
+// WEEKLY LEADERBOARD
 // =====================================================
-
-// Uses Singapore time (UTC+8).
-// Week begins Monday at 00:00 SGT.
-// Shows the top 20 users by net weekly points.
 
 export async function getWeeklyLeaderboard(
   now = Date.now()
@@ -430,7 +756,6 @@ export async function getWeeklyLeaderboard(
   const local = new Date(now + SG_OFFSET);
   const day = local.getUTCDay();
 
-  // Find Monday of the current Singapore week.
   const startLocal = Date.UTC(
     local.getUTCFullYear(),
     local.getUTCMonth(),
@@ -447,11 +772,21 @@ export async function getWeeklyLeaderboard(
 
   const totals = new Map();
 
+  const earningReasons = new Set([
+    "SESSION_COMPLETE",
+    "HOST_BONUS",
+    "VERIFIED_REPORT"
+  ]);
+
   for (const doc of snap.docs) {
     const entry = doc.data();
 
-    // Ignore reversed and deleted transactions.
-    if (entry.status !== "active") {
+    if (entry.status !== "active") continue;
+
+    if (
+      entry.points <= 0 ||
+      !earningReasons.has(entry.reason)
+    ) {
       continue;
     }
 
@@ -461,22 +796,40 @@ export async function getWeeklyLeaderboard(
     );
   }
 
-  const leaderboard = [...totals.entries()]
-    .map(([uid, points]) => ({
-      uid,
-      points
-    }))
-    // Highest points first.
-    // UID breaks ties consistently.
-    .sort((a, b) =>
-      b.points - a.points ||
-      a.uid.localeCompare(b.uid)
+  const topUsers = [...totals.entries()]
+    .map(([uid, points]) => ({ uid, points }))
+    .sort(
+      (a, b) =>
+        b.points - a.points ||
+        a.uid.localeCompare(b.uid)
     )
-    .slice(0, 20)
-    .map((user, index) => ({
+    .slice(0, 20);
+
+  const userSnapshots = topUsers.length
+    ? await db.getAll(
+        ...topUsers.map(user =>
+          db.collection("users").doc(user.uid)
+        )
+      )
+    : [];
+
+  const leaderboard = topUsers.map((user, index) => {
+    const profile = userSnapshots[index]?.data() || {};
+
+    const displayName =
+      profile.displayName ||
+      profile.name ||
+      profile.fullName ||
+      `User ${user.uid.slice(0, 6)}`;
+
+    return {
       rank: index + 1,
-      ...user
-    }));
+      uid: user.uid,
+      name: displayName,
+      displayName,
+      points: user.points
+    };
+  });
 
   return {
     start,
