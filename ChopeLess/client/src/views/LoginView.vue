@@ -4,6 +4,7 @@ import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { usingEmulator } from '../lib/firebase'
+import { DEMO_ACCOUNTS, DEMO_PASSWORD } from '../lib/demoAccounts'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -38,9 +39,31 @@ async function submit() {
     error.value = messages[err.code] || err.message
   }
 }
+
+// One-tap login with a ready-made account (no signing up needed)
+async function demoLogin(account) {
+  error.value = ''
+  try {
+    await auth.login(account.email, DEMO_PASSWORD)
+    router.push(route.query.next || '/sessions')
+  } catch (err) {
+    error.value = 'That demo account does not exist yet. Run "npm run seed" in the server folder first.'
+  }
+}
 </script>
 
 <template>
+  <section class="card mx-auto mb-4 max-w-sm space-y-2">
+    <h2 class="font-bold">Try a demo account</h2>
+    <p class="text-xs text-slate-500">One tap to log in. Password for all: {{ DEMO_PASSWORD }}</p>
+    <div class="grid grid-cols-2 gap-2">
+      <button v-for="a in DEMO_ACCOUNTS" :key="a.email" type="button" class="btn text-left text-sm" @click="demoLogin(a)">
+        <span class="block font-semibold">{{ a.name }}</span>
+        <span class="block text-xs text-slate-500">{{ a.role }}</span>
+      </button>
+    </div>
+  </section>
+
   <form class="card mx-auto max-w-sm space-y-3" @submit.prevent="submit">
     <h1 class="page-title">{{ isSignUp ? 'Create account' : 'Log in' }}</h1>
     <p v-if="usingEmulator" class="rounded-lg bg-amber-50 p-2 text-xs text-amber-800">
@@ -54,4 +77,8 @@ async function submit() {
       {{ isSignUp ? 'Have an account? Log in' : 'New here? Create an account' }}
     </button>
   </form>
+
+  <p class="mx-auto mt-4 max-w-sm text-center text-sm text-slate-600">
+    Run a food stall? <RouterLink to="/hawker/signup" class="font-semibold text-brand">Sell on ChopeLess</RouterLink>
+  </p>
 </template>

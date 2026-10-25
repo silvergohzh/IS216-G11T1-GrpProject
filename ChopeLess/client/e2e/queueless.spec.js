@@ -7,7 +7,9 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR
 // Test that the QueueLess page lists seeded places and shows a crowd level, and that anyone can upload a photo without logging in
 test('QueueLess lists seeded places with a crowd level', async ({ page }) => {
   await page.goto('/queueless')
-  await expect(page.getByTestId('place-row')).toHaveCount(3)
+  // At least the 14 places from server/seed/places.json (stalls approved by an admin are added too)
+  await expect(page.getByTestId('place-row').first()).toBeVisible()
+  expect(await page.getByTestId('place-row').count()).toBeGreaterThanOrEqual(14)
   await expect(page.getByTestId('place-row').filter({ hasText: 'Bras Basah' })).toContainText('Quiet')
 
   await page.getByTestId('place-row').filter({ hasText: 'Albert Centre' }).click()
