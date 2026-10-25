@@ -1,7 +1,8 @@
 // Hidden Gems API  : M5
 // Firestore: gems/{id} { name, mustTry, cuisine, address, lat, lng, priceMin, priceMax, dietary,
 //                        serviceModes, waitMins, submittedBy, upvoters: [uid], createdAt }
-// A gem with UPVOTES_NEEDED upvoters is copied into "places" as gem-<id>, in the same shape as the seeded places.
+// The id is a readable slug of the name, e.g. "ba-buong-banh-mi".
+// A gem with UPVOTES_NEEDED upvoters is copied into "places" with the SAME id, in the same shape as the seeded places.
 
 import { Router } from 'express'
 import { FieldValue } from 'firebase-admin/firestore'
@@ -18,6 +19,27 @@ const SERVICE_MODES = ['dine-in', 'takeaway']
 
 // Makes an error with an HTTP status code. The shared handler in index.js sends it to the browser.
 const httpError = (status, msg) => Object.assign(new Error(msg), { status })
+
+// Turns a name into a readable document ID: "Ba Buông Bánh Mì" -> "ba-buong-banh-mi"
+const slugify = s => String(s)
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '')   // strip accents
+  .replace(/đ/gi, 'd')
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-+|-+$/g, '')
+  .slice(0, 40)
+
+// Finds an unused ID for a new gem. It must be free in BOTH "gems" and "places",
+// because the gem's copy in "places" uses the same ID. Adds -2, -3 ... if the name is taken.
+async function freeGemId(name) {
+  const base = slugify(name) || 'gem'
+  let id = base
+  for (let i = 2; ; i++) {
+    const [inGems, inPlaces] = await Promise.all([gems.doc(id).get(), places.doc(id).get()])
+    if (!inGems.exists && !inPlaces.exists) return id
+    id = `${base}-${i}`
+  }
+}
 
 
 // Check and clean the data the form sends. Used by both submit and edit.
@@ -74,7 +96,12 @@ const isComplete = g =>
   g.lat != null && g.lng != null && !!g.address && !!g.cuisine &&
   g.priceMin != null && g.priceMax != null && g.waitMins != null && !!g.serviceModes?.length
 
-const placeRefOf = id => places.doc(`gem-${id}`)
+// The copy has the same ID as the gem
+const placeRefOf = id => places.doc(id)
+
+// Safety: only write to or delete a "places" document if it is free or is itself a gem copy.
+// A seeded place with the same ID is never touched.
+const isGemCopyOrFree = snap => !snap.exists || !!snap.data().fromGem
 
 // The fixed details of a place
 const placeBase = (id, g) => ({
@@ -128,8 +155,9 @@ router.post('/', requireAuth, async (req, res, next) => {
       upvoters: [],
       createdAt: FieldValue.serverTimestamp()
     }
-    const ref = await gems.add(gem)
-    res.status(201).json({ id: ref.id })
+    const id = await freeGemId(gem.name)
+    await gems.doc(id).set(gem)
+    res.status(201).json({ id })
   } catch (err) {
     next(err)
   }
@@ -150,9 +178,13 @@ router.put('/:id', requireAuth, async (req, res, next) => {
     const merged = { ...doc.data(), ...data }
     if ((merged.upvoters || []).length >= UPVOTES_NEEDED && isComplete(merged)) {
       const placeRef = placeRefOf(ref.id)
-      const exists = (await placeRef.get()).exists
-      const fields = exists ? placeBase(ref.id, merged) : { ...placeBase(ref.id, merged), ...placeLatest(merged) }
-      await placeRef.set(fields, { merge: true })
+      const placeSnap = await placeRef.get()
+      if (isGemCopyOrFree(placeSnap)) {
+        const fields = placeSnap.exists
+          ? placeBase(ref.id, merged)
+          : { ...placeBase(ref.id, merged), ...placeLatest(merged) }
+        await placeRef.set(fields, { merge: true })
+      }
     }
     res.json({ ok: true })
   } catch (err) {
@@ -168,7 +200,13 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
     if (!doc.exists) throw httpError(404, 'Gem not found')
     if (doc.data().submittedBy !== req.uid) throw httpError(403, 'You can only delete your own gems')
     await db.recursiveDelete(ref)
-    await placeRefOf(ref.id).delete()   // also remove it from the voting pool
+
+    // Remove this gem's copy from "places" (also the older gem-<id> naming)
+    for (const pid of [ref.id, `gem-${ref.id}`]) {
+      const placeRef = places.doc(pid)
+      const snap = await placeRef.get()
+      if (snap.exists && snap.data().fromGem && snap.data().gemId === ref.id) await placeRef.delete()
+    }
     res.json({ ok: true })
   } catch (err) {
     next(err)
@@ -179,8 +217,11 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
 router.post('/:id/upvote', requireAuth, async (req, res, next) => {
   try {
     const ref = gems.doc(req.params.id)
+    const placeRef = placeRefOf(ref.id)
     const upvoteCount = await db.runTransaction(async (t) => {
+      // All reads come first, then the writes
       const doc = await t.get(ref)
+      const placeSnap = await t.get(placeRef)
       if (!doc.exists) throw httpError(404, 'Gem not found')
       const g = doc.data()
       const upvoters = g.upvoters || []
@@ -189,8 +230,8 @@ router.post('/:id/upvote', requireAuth, async (req, res, next) => {
       const newCount = upvoters.length + 1
       t.update(ref, { upvoters: FieldValue.arrayUnion(req.uid) })
       // The vote that reaches the threshold copies the gem into "places"
-      if (newCount === UPVOTES_NEEDED && isComplete(g)) {
-        t.set(placeRefOf(ref.id), { ...placeBase(ref.id, g), ...placeLatest(g) })
+      if (newCount === UPVOTES_NEEDED && isComplete(g) && isGemCopyOrFree(placeSnap)) {
+        t.set(placeRef, { ...placeBase(ref.id, g), ...placeLatest(g) })
       }
       return newCount
     })
@@ -204,16 +245,18 @@ router.post('/:id/upvote', requireAuth, async (req, res, next) => {
 router.delete('/:id/upvote', requireAuth, async (req, res, next) => {
   try {
     const ref = gems.doc(req.params.id)
+    const placeRef = placeRefOf(ref.id)
     const upvoteCount = await db.runTransaction(async (t) => {
       const doc = await t.get(ref)
+      const placeSnap = await t.get(placeRef)
       if (!doc.exists) throw httpError(404, 'Gem not found')
       const upvoters = doc.data().upvoters || []
       if (!upvoters.includes(req.uid)) throw httpError(409, "You haven't upvoted this gem")
 
       const newCount = upvoters.length - 1
       t.update(ref, { upvoters: FieldValue.arrayRemove(req.uid) })
-      // Dropping below the threshold takes it out of the voting pool
-      if (newCount < UPVOTES_NEEDED) t.delete(placeRefOf(ref.id))
+      // Dropping below the threshold takes it out of the voting pool (only if it is this gem's copy)
+      if (newCount < UPVOTES_NEEDED && placeSnap.exists && placeSnap.data().fromGem) t.delete(placeRef)
       return newCount
     })
     res.json({ ok: true, upvoteCount, inPool: upvoteCount >= UPVOTES_NEEDED })
