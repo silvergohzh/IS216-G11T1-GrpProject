@@ -1,16 +1,20 @@
-<!-- Hidden Gems board: list (live), add, edit, delete, upvote, map picker, reviews. Owner: M5 -->
+<!-- Hidden Gems board: list (live), add, edit, delete, upvote/un-upvote, map picker, reviews (post/edit/delete). Owner: M5 -->
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import {
-  watchGems, addGem, updateGem, deleteGem, upvoteGem,
-  getReviews, saveReview, deleteReview, UPVOTES_NEEDED
+  watchGems, addGem, updateGem, deleteGem, upvoteGem, unvoteGem,
+  getReviews, saveReview, updateReview, deleteReview, UPVOTES_NEEDED
 } from '../services/gems'
 import MapView from '../components/MapView.vue'
 
 const auth = useAuthStore()
 const gems = ref([])
-const empty = () => ({ id: null, name: '', mustTry: '', price: 5, address: '', lat: null, lng: null, dietary: [] })
+// Same fields as a place in places.json, so a gem can join the voting pool as one
+const empty = () => ({
+  id: null, name: '', mustTry: '', cuisine: '', address: '', lat: null, lng: null,
+  priceMin: 5, priceMax: 10, dietary: [], serviceModes: ['dine-in', 'takeaway'], waitMins: 10
+})
 const form = ref(empty())
 const error = ref('')
 let unsubscribe
@@ -27,7 +31,16 @@ function onPick({ lat, lng }) {
   form.value.lng = lng
 }
 function edit(g) {
-  form.value = { ...g, dietary: [...(g.dietary || [])] }
+  // Older gems may be missing the newer fields, so fall back to sensible defaults
+  form.value = {
+    ...empty(),
+    ...g,
+    dietary: [...(g.dietary || [])],
+    serviceModes: [...(g.serviceModes || ['dine-in', 'takeaway'])],
+    priceMin: g.priceMin ?? g.price ?? 5,
+    priceMax: g.priceMax ?? g.price ?? 10,
+    waitMins: g.waitMins ?? 10
+  }
 }
 async function run(action) {
   error.value = ''
@@ -42,22 +55,34 @@ const save = () => run(async () => {
   form.value = empty()
 })
 
+const priceText = g => {
+  if (g.priceMin == null) return `$${g.price}`   // older gems have a single price
+  return g.priceMin === g.priceMax ? `$${g.priceMin}` : `$${g.priceMin}–${g.priceMax}`
+}
+
+// ---- Upvote: click once to vote, click again to take it back ----
+const hasVoted = g => !!auth.user && g.upvoters.includes(auth.user.uid)
+const toggleVote = g => run(() => (hasVoted(g) ? unvoteGem(g.id) : upvoteGem(g.id)))
+
 // ---- Reviews ----
 const openId = ref(null)          // which gem's reviews are showing
 const reviews = ref([])
 const review = ref({ rating: 5, text: '' })
+const editingReview = ref(false)  // true while you are editing your own review
 const reviewError = ref('')
 
+const myReview = computed(() => (auth.user ? reviews.value.find(r => r.id === auth.user.uid) : null))
 const stars = n => '★'.repeat(n) + '☆'.repeat(5 - n)
 const fmtDate = ms => (ms ? new Date(ms).toLocaleDateString() : '')
+const resetReviewForm = () => {
+  editingReview.value = false
+  review.value = { rating: 5, text: '' }
+}
 
 async function loadReviews(id) {
   reviewError.value = ''
   try {
     reviews.value = await getReviews(id)
-    // pre-fill the form with your own review so you can edit it
-    const mine = auth.user && reviews.value.find(r => r.id === auth.user.uid)
-    review.value = mine ? { rating: mine.rating, text: mine.text } : { rating: 5, text: '' }
   } catch (err) {
     reviewError.value = err.message
   }
@@ -66,12 +91,19 @@ async function toggleReviews(g) {
   if (openId.value === g.id) { openId.value = null; return }
   openId.value = g.id
   reviews.value = []
+  resetReviewForm()
   await loadReviews(g.id)
+}
+function startEditReview() {
+  review.value = { rating: myReview.value.rating, text: myReview.value.text }
+  editingReview.value = true
 }
 async function submitReview(g) {
   reviewError.value = ''
   try {
-    await saveReview(g.id, review.value)
+    if (editingReview.value) await updateReview(g.id, review.value)
+    else await saveReview(g.id, review.value)
+    resetReviewForm()
     await loadReviews(g.id)
   } catch (err) {
     reviewError.value = err.message
@@ -81,6 +113,7 @@ async function removeReview(g) {
   reviewError.value = ''
   try {
     await deleteReview(g.id)
+    resetReviewForm()
     await loadReviews(g.id)
   } catch (err) {
     reviewError.value = err.message
@@ -96,9 +129,22 @@ async function removeReview(g) {
     <form v-if="auth.isLoggedIn" class="card space-y-3 self-start" @submit.prevent="save">
       <h2 class="font-bold">{{ form.id ? 'Edit gem' : 'Add a gem' }}</h2>
       <div><label class="label" for="g-name">Stall or shop</label><input id="g-name" v-model="form.name" required class="input" /></div>
-      <div><label class="label" for="g-try">Must try</label><input id="g-try" v-model="form.mustTry" class="input" /></div>
-      <div><label class="label" for="g-price">Price ($)</label><input id="g-price" v-model.number="form.price" type="number" min="1" class="input" /></div>
-      <div><label class="label" for="g-addr">Address</label><input id="g-addr" v-model="form.address" class="input" /></div>
+      <div><label class="label" for="g-try">Must try (optional)</label><input id="g-try" v-model="form.mustTry" class="input" /></div>
+      <div><label class="label" for="g-cuisine">Cuisine</label><input id="g-cuisine" v-model="form.cuisine" required class="input" placeholder="e.g. Korean, Hawker" /></div>
+      <div><label class="label" for="g-addr">Address</label><input id="g-addr" v-model="form.address" required class="input" /></div>
+
+      <div class="grid grid-cols-2 gap-2">
+        <div><label class="label" for="g-min">Min price ($)</label><input id="g-min" v-model.number="form.priceMin" type="number" min="0" required class="input" /></div>
+        <div><label class="label" for="g-max">Max price ($)</label><input id="g-max" v-model.number="form.priceMax" type="number" min="0" required class="input" /></div>
+      </div>
+
+      <div><label class="label" for="g-wait">Typical wait (minutes)</label><input id="g-wait" v-model.number="form.waitMins" type="number" min="0" max="180" required class="input" /></div>
+
+      <fieldset>
+        <legend class="label">Service</legend>
+        <label class="mr-4 text-sm"><input type="checkbox" value="dine-in" v-model="form.serviceModes" /> Dine-in</label>
+        <label class="text-sm"><input type="checkbox" value="takeaway" v-model="form.serviceModes" /> Takeaway</label>
+      </fieldset>
 
       <fieldset>
         <legend class="label">Dietary</legend>
@@ -127,11 +173,16 @@ async function removeReview(g) {
         <div class="flex items-start justify-between gap-3">
           <div>
             <h3 class="font-bold">{{ g.name }}</h3>
-            <p class="text-sm text-slate-500">{{ g.mustTry }} · ${{ g.price }} · {{ g.address }}</p>
+            <p class="text-sm text-slate-500">{{ g.mustTry }}{{ g.mustTry ? ' · ' : '' }}{{ priceText(g) }} · {{ g.address }}</p>
+            <p v-if="g.cuisine" class="text-xs text-slate-500">
+              {{ g.cuisine }}<template v-if="g.waitMins != null"> · ~{{ g.waitMins }} min wait</template>
+            </p>
             <p class="text-xs font-semibold text-brand">▲ {{ g.upvoters.length }} {{ g.upvoters.length >= UPVOTES_NEEDED ? '· in voting pool' : '' }}</p>
           </div>
           <div v-if="auth.isLoggedIn" class="flex flex-wrap justify-end gap-1">
-            <button class="btn text-sm" :disabled="g.upvoters.includes(auth.user.uid)" @click="run(() => upvoteGem(g.id))">▲</button>
+            <button class="btn text-sm" :class="hasVoted(g) ? 'font-bold text-brand' : ''"
+                    :aria-pressed="hasVoted(g)" :title="hasVoted(g) ? 'Remove my upvote' : 'Upvote'"
+                    @click="toggleVote(g)">▲</button>
             <template v-if="g.submittedBy === auth.user.uid">
               <button class="btn text-sm" @click="edit(g)">Edit</button>
               <button class="btn text-sm text-red-600" @click="run(() => deleteGem(g.id))">Delete</button>
@@ -149,16 +200,18 @@ async function removeReview(g) {
               <div class="flex items-center justify-between gap-2">
                 <span><span class="font-semibold">{{ r.authorName }}</span>
                   <span class="ml-2 text-amber-500">{{ stars(r.rating) }}</span></span>
-                <span class="text-xs text-slate-400">{{ fmtDate(r.createdAt) }}</span>
+                <span class="text-xs text-slate-400">{{ fmtDate(r.createdAt) }}{{ r.editedAt ? ' · edited' : '' }}</span>
               </div>
               <p class="mt-1 text-slate-700">{{ r.text }}</p>
-              <button v-if="auth.isLoggedIn && r.id === auth.user.uid" type="button"
-                      class="mt-1 text-xs text-red-600" @click="removeReview(g)">Delete my review</button>
+              <div v-if="auth.isLoggedIn && r.id === auth.user.uid" class="mt-1 flex gap-3 text-xs">
+                <button type="button" class="font-semibold text-brand" @click="startEditReview">Edit my review</button>
+                <button type="button" class="text-red-600" @click="removeReview(g)">Delete my review</button>
+              </div>
             </li>
             <li v-if="!reviews.length && !reviewError" class="text-sm text-slate-500">No reviews yet.</li>
           </ul>
 
-          <form v-if="auth.isLoggedIn" class="space-y-2" @submit.prevent="submitReview(g)">
+          <form v-if="auth.isLoggedIn && (!myReview || editingReview)" class="space-y-2" @submit.prevent="submitReview(g)">
             <div class="flex items-center gap-2">
               <label class="label !mb-0" :for="'rate-' + g.id">Rating</label>
               <select :id="'rate-' + g.id" v-model.number="review.rating" class="input !w-auto">
@@ -167,9 +220,12 @@ async function removeReview(g) {
             </div>
             <textarea v-model="review.text" required maxlength="300" rows="2" class="input"
                       placeholder="Share what you tried (max 300 characters)"></textarea>
-            <button class="btn-primary text-sm" type="submit">Post review</button>
+            <div class="flex gap-2">
+              <button class="btn-primary text-sm" type="submit">{{ editingReview ? 'Update review' : 'Post review' }}</button>
+              <button v-if="editingReview" type="button" class="btn text-sm" @click="resetReviewForm">Cancel</button>
+            </div>
           </form>
-          <p v-else class="text-sm text-slate-500">Log in to leave a review.</p>
+          <p v-else-if="!auth.isLoggedIn" class="text-sm text-slate-500">Log in to leave a review.</p>
 
           <p v-if="reviewError" class="error">{{ reviewError }}</p>
         </div>
