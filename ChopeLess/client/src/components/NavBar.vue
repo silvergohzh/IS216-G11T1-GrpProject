@@ -1,6 +1,6 @@
 <!-- Top navigation. Owner: M6 -->
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { APP_NAME } from '../config'
@@ -9,12 +9,19 @@ const auth = useAuthStore()
 const router = useRouter()
 const open = ref(false) // mobile menu
 
-const links = [
-  { to: '/sessions', label: 'Makan Session' },
-  { to: '/groups', label: 'Makan Kakis' }, 
-  { to: '/queueless', label: 'QueueLess' },
-  { to: '/gems', label: 'Hidden Gems' }
-]
+// Everyone sees these. Logged-in users also see links for their role.
+const links = computed(() => {
+  const list = [
+    { to: '/sessions', label: 'Makan Session' },
+    { to: '/groups', label: 'Makan Kakis' },
+    { to: '/queueless', label: 'QueueLess' },
+    { to: '/gems', label: 'Hidden Gems' }
+  ]
+  if (auth.isLoggedIn) list.push({ to: '/orders', label: 'Pre-order' })
+  if (auth.isHawker) list.push({ to: '/hawker', label: 'Order board' }, { to: '/hawker/menu', label: 'My menu' })
+  if (auth.isAdmin) list.push({ to: '/admin', label: 'Admin' })
+  return list
+})
 
 async function logout() {
   await auth.logout()
