@@ -9,7 +9,7 @@ import ApplicationNotice from './components/ApplicationNotice.vue'
   <NavBar />
   <!-- "Your stall application was approved / not approved" (shows on every page) -->
   <ApplicationNotice />
-  <main class="mx-auto max-w-5xl px-4 py-6">
+  <main class="mx-auto max-w-6xl px-4 py-6">
     <RouterView />
   </main>
   <!-- Pop-ups like "Your order is ready!" (works on every page) -->

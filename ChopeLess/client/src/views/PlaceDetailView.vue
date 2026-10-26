@@ -74,55 +74,56 @@ const hourLabel = h => `${h % 12 || 12}${h < 12 ? 'am' : 'pm'}`
 <template>
   <div v-if="place" class="space-y-4">
     <div>
-      <button class="text-sm font-semibold text-brand hover:underline" @click="goBack">← Back</button>
+      <button class="btn mb-2 text-sm" @click="goBack">← Back</button>
+      <p class="kicker">Station 2 · Queue Tower</p>
       <h1 class="page-title">{{ place.name }}</h1>
       <p class="text-slate-600">{{ place.address }}</p>
     </div>
 
-    <div class="card" data-testid="latest">
-      <h2 class="mb-2 font-bold">Right now</h2>
+      <div class="card card-navy" data-testid="latest">
+      <h2 class="mb-2">Right now</h2>
       <div v-if="place.latest" class="grid grid-cols-3 gap-2 text-center">
-        <div><p class="text-2xl font-extrabold">~{{ place.latest.waitMins }}</p><p class="text-xs text-slate-500">min wait</p></div>
-        <div><p class="text-2xl font-extrabold">{{ place.latest.seatOccupancy }}%</p><p class="text-xs text-slate-500">seats taken</p></div>
-        <div><p class="text-2xl font-extrabold">{{ place.latest.peopleInQueue }}</p><p class="text-xs text-slate-500">in queue</p></div>
+                <div><p class="font-display text-4xl text-accent">~{{ place.latest.waitMins }}</p><p class="text-xs font-bold">min wait</p></div>
+        <div><p class="font-display text-4xl">{{ place.latest.seatOccupancy }}%</p><p class="text-xs font-bold">seats taken</p></div>
+        <div><p class="font-display text-4xl">{{ place.latest.peopleInQueue }}</p><p class="text-xs font-bold">in queue</p></div>
       </div>
-      <p v-else class="text-slate-500">No estimate yet. Upload a photo below.</p>
-      <p v-if="place.latest" class="mt-2 text-xs text-slate-500">
+      <p v-else class="font-bold">No estimate yet. Upload a photo below.</p>
+      <p v-if="place.latest" class="mt-2 text-xs font-bold">
         Updated {{ ago(place.latest.at) }} ·
         <span class="rounded-full px-2 py-0.5 font-bold" :class="confidenceColours[place.latest.confidence]">{{ place.latest.confidence }} confidence</span>
       </p>
     </div>
 
     <div class="card">
-      <h2 class="mb-1 font-bold">Average wait by hour</h2>
-      <p v-if="bestHour" class="mb-3 text-sm text-slate-600" data-testid="best-time">
+      <h2 class="mb-1">Average wait by hour</h2>
+      <p v-if="bestHour" class="chip mb-3 !bg-green-200 !text-sm" data-testid="best-time">
         Best time to go: <strong>{{ hourLabel(bestHour.hour) }}</strong> (about {{ Math.round(bestHour.avgWait) }} min)
       </p>
       <!-- Simple CSS bar chart -->
-      <div class="flex h-40 items-end gap-1 overflow-x-auto">
+        <div class="flex h-44 items-end gap-1.5 overflow-x-auto border-b-[3px] border-ink">
         <div v-for="t in place.trend" :key="t.hour" class="flex h-full min-w-6 flex-1 flex-col items-center justify-end gap-1">
-          <div class="w-full rounded-t" :class="t.hour === bestHour?.hour ? 'bg-accent' : 'bg-brand'"
+          <div class="w-full rounded-t-lg border-[3px] border-b-0 border-ink" :class="t.hour === bestHour?.hour ? 'bg-[#7bc96f]' : t.avgWait > 20 ? 'bg-coral' : 'bg-accent'"
             :style="{ height: Math.max(4, (t.avgWait / maxWait) * 100) + '%' }" :title="Math.round(t.avgWait) + ' min'"></div>
-          <span class="text-[10px] text-slate-500">{{ t.hour }}</span>
+           <span class="text-[11px] font-black">{{ t.hour }}</span>
         </div>
       </div>
     </div>
 
-    <div class="card space-y-3">
-      <h2 class="font-bold">Update with a photo</h2>
-      <p class="text-sm text-slate-600">Snap the queue and seating area. AI estimates how busy it is and everyone sees the update.</p>
+      <div class="card card-sun space-y-3">
+      <h2>Snap the queue</h2>
+      <p class="text-sm font-bold">Snap the queue and seating area. AI estimates how busy it is and everyone sees the update.</p>
       <!-- The real file input is hidden; the label is the big, clear button people tap -->
-      <label class="flex cursor-pointer flex-col items-center gap-1 rounded-xl border-2 border-dashed border-brand bg-brand-light/40 px-4 py-6 text-center hover:bg-brand-light focus-within:ring-2 focus-within:ring-brand">
+           <label class="flex cursor-pointer flex-col items-center gap-1 rounded-2xl border-[3px] border-dashed border-ink bg-white/70 px-4 py-6 text-center hover:bg-white focus-within:ring-4 focus-within:ring-coral">
         <span class="text-3xl" aria-hidden="true">📷</span>
-        <span class="font-bold text-brand">{{ photo ? 'Change photo' : 'Take or choose a photo' }}</span>
+        <span class="font-black">{{ photo ? 'Change photo' : 'Take or choose a photo' }}</span>
         <span class="text-xs text-slate-500">{{ photoName || 'JPG, PNG or WebP from your camera or gallery' }}</span>
         <input type="file" accept="image/*" class="sr-only" @change="choosePhoto" data-testid="photo-input" />
       </label>
       <img v-if="photo" :src="photo" alt="Your photo" class="max-h-64 rounded-lg" />
-      <button class="btn-primary" :disabled="!photo || loading" @click="analyse" data-testid="analyse-btn">
+      <button class="btn-primary !bg-ink !text-white" :disabled="!photo || loading" @click="analyse" data-testid="analyse-btn">
         {{ loading ? 'Analysing…' : 'Analyse photo' }}
       </button>
-      <p v-if="result" class="rounded-lg bg-brand-light px-3 py-2 text-sm" data-testid="analysis-result">
+      <p v-if="result" class="rounded-2xl border-[3px] border-ink bg-white px-3 py-2 text-sm font-bold" data-testid="analysis-result">
         Thanks! We estimate {{ result.peopleInQueue }} people in the queue, about {{ result.waitMins }} min wait,
         and {{ result.seatOccupancy }}% of seats taken ({{ result.confidence }} confidence).
       </p>

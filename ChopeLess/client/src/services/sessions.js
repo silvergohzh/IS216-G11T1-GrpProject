@@ -124,6 +124,10 @@ export async function joinSession(code, me) {
     throw new Error("Voting has already started");
   }
 
+  if (snap.data().kicked?.[auth.currentUser.uid]) {
+  throw new Error("The host removed you from this session"); //message for kicked out user
+  }
+
   await updateDoc(ref, {
     [`members.${auth.currentUser.uid}`]: me,
   });
@@ -180,6 +184,19 @@ export function leaveSession(code) {
 
   return updateDoc(doc(db, "sessions", code), {
     [`members.${auth.currentUser.uid}`]: deleteField(),
+  });
+}
+
+// =====================================================
+// KICK A MEMBER (host only, lobby only)
+// =====================================================
+
+// Removes someone from the lobby and remembers them in `kicked`,
+// so they can't join again with the same code.
+export function kickMember(code, uid) {
+  return updateDoc(doc(db, "sessions", code), {
+    [`members.${uid}`]: deleteField(),
+    [`kicked.${uid}`]: true,
   });
 }
 

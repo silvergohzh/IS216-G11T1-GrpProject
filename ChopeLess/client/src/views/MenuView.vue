@@ -74,6 +74,7 @@ const saveDraft = () => run(async () => {
 </script>
 
 <template>
+  <p class="kicker">Hawker HQ</p>
   <h1 class="page-title">My menu</h1>
   <p v-if="stall" class="mb-4 text-slate-600">
     {{ stall.name }} ·

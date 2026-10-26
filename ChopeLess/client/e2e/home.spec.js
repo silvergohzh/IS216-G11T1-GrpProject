@@ -5,7 +5,7 @@ import { signUp } from './helpers.js'
 test('logged-out users are sent to the login page', async ({ page }) => {
   await page.goto('/')
   await expect(page).toHaveTitle('ChopeLess')
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('Decide where to eat')
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Where we makan today')
   await page.getByRole('link', { name: 'Start a Makan Session' }).click()
   await expect(page).toHaveURL(/\/login/)
 })

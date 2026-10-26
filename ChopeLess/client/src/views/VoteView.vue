@@ -1,4 +1,3 @@
-
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
@@ -122,13 +121,13 @@ const doneCount = computed(
 // =====================================================
 
 async function buySuperLike() {
-  if (buying.value || busy.value || timeUp.value) return;
+    if (buying.value || busy.value || timeUp.value) return false;
 
   const confirmed = window.confirm(
-    "Buy 1 extra Super Like for 20 Makan Points?"
+    "You've used your free Super Like.\nUse 20 Makan Points to Super Like this place?"
   );
 
-  if (!confirmed) return;
+  if (!confirmed) return false;
 
   buying.value = true;
   error.value = "";
@@ -138,15 +137,15 @@ async function buySuperLike() {
     await buyExtraSuperLike(code);
 
     purchaseMessage.value =
-      "⭐ Extra Super Like purchased! 20 Makan Points deducted.";
-
-    // Firestore's session listener updates the count.
+      "⭐ Super Like bought: 20 Makan Points used.";
+    return true;
   } catch (err) {
     error.value =
       err.response?.data?.error ||
       err.response?.data?.message ||
       err.message ||
       "Unable to purchase Super Like.";
+    return false;
   } finally {
     buying.value = false;
   }
@@ -187,15 +186,16 @@ async function vote(yes) {
   }
 }
 
-function superLike() {
-  if (
-    totalSuperLikesLeft.value < 1 ||
-    busy.value ||
-    buying.value ||
-    timeUp.value ||
-    !card.value
-  ) {
+// ⭐ button: uses a free or bought Super Like. If you have none left,
+// it offers to buy one (20 points) and uses it straight away on this card.
+async function superLike() {
+  if (busy.value || buying.value || timeUp.value || !card.value) {
     return;
+  }
+
+  if (totalSuperLikesLeft.value < 1) {
+    const bought = await buySuperLike();
+    if (!bought || !card.value) return; // cancelled, not enough points, or time ran out
   }
 
   pendingSpecial.value = "super";
@@ -361,10 +361,19 @@ const yesCount = placeId =>
     value => value === true
   ).length;
 
-const superCount = placeId =>
-  Object.values(superLikes.value).filter(
+// Free Super Likes: { uid: placeId }. Bought ones: { uid: [placeId, placeId, ...] }.
+// Count both, the same way the server's winner.js does, so the tally matches the result.
+const superCount = placeId => {
+  const free = Object.values(superLikes.value).filter(
     id => id === placeId
   ).length;
+  
+  const bought = Object.values(store.session?.extraSuperLikeVotes || {})
+    .flat()
+    .filter(id => id === placeId).length;
+  return free + bought;
+};
+
 
 const vetoedBy = placeId => {
   const uid = Object.keys(vetoes.value).find(
@@ -406,6 +415,7 @@ function voteClass(placeId, uid) {
   </div>
 
   <template v-else>
+    <p class="kicker">Station 4 · Voting Arena</p>
     <h1 class="page-title">
       Swipe to vote
     </h1>
@@ -420,7 +430,7 @@ function voteClass(placeId, uid) {
 
     <p
       v-if="store.session?.round === 2"
-      class="mb-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900"
+      class="mb-3 rounded-2xl border-[3px] border-ink bg-amber-100 p-3 text-sm font-bold"
       data-testid="round-two"
     >
       🔄 <b>Round 2.</b>
@@ -454,14 +464,14 @@ function voteClass(placeId, uid) {
       </div>
 
       <div
-        class="mt-1 h-2 rounded-full bg-slate-100"
+        class="mt-1 h-4 overflow-hidden rounded-full border-[3px] border-ink bg-white"
       >
         <div
-          class="h-2 rounded-full transition-all duration-300"
+          class="h-full transition-all duration-300"
           :class="
             secondsLeft <= 10
               ? 'bg-red-500'
-              : 'bg-brand'
+              : 'bg-accent'
           "
           :style="{
             width: percentLeft + '%'
@@ -470,64 +480,6 @@ function voteClass(placeId, uid) {
       </div>
     </div>
 
-    <!-- SUPER LIKE PURCHASE PANEL -->
-
-    <div
-      class="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4"
-    >
-      <div
-        class="flex flex-wrap items-center justify-between gap-3"
-      >
-        <div>
-          <h2
-            class="font-bold text-amber-900"
-          >
-            ⭐ Super Likes
-          </h2>
-
-          <p
-            class="mt-1 text-sm text-amber-800"
-          >
-            {{ totalSuperLikesLeft }}
-            remaining
-            ({{ freeSuperLeft }} free,
-            {{ purchasedExtrasLeft }} purchased)
-          </p>
-
-          <p
-            class="mt-1 text-xs text-amber-700"
-          >
-            Unused purchased Super Likes are
-            refunded when the session finishes.
-          </p>
-        </div>
-
-        <button
-          class="rounded-xl bg-amber-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-40"
-          data-testid="buy-super-like"
-          :disabled="
-            buying ||
-            busy ||
-            timeUp ||
-            store.session?.status !== 'voting'
-          "
-          @click="buySuperLike"
-        >
-          {{
-            buying
-              ? "Purchasing..."
-              : "Buy Extra ⭐ — 20 Points"
-          }}
-        </button>
-      </div>
-
-      <p
-        v-if="purchaseMessage"
-        class="mt-3 text-sm font-semibold text-green-700"
-      >
-        {{ purchaseMessage }}
-      </p>
-    </div>
 
     <!-- SWIPE DECK + LIVE TALLY -->
 
@@ -567,10 +519,10 @@ function voteClass(placeId, uid) {
 
         <div
           v-if="currentCard && !timeUp"
-          class="mt-4 flex items-center justify-center gap-4"
+          class="mt-4 grid grid-cols-4 gap-2"
         >
           <button
-            class="h-12 w-12 rounded-full border-2 border-slate-300 bg-white text-lg disabled:opacity-30"
+            class="vote-btn bg-red-600 text-white"
             aria-label="Veto"
             title="Veto: removes this place for everyone"
             data-testid="vote-veto"
@@ -581,52 +533,54 @@ function voteClass(placeId, uid) {
             "
             @click="veto"
           >
-            🚫
+            <span class="text-2xl leading-none">🚫</span>
+            <span class="text-xs font-black">Veto</span>
           </button>
 
           <button
-            class="h-16 w-16 rounded-full border-2 border-red-300 bg-white text-2xl text-red-600 disabled:opacity-40"
+            class="vote-btn bg-white"
             aria-label="No"
             data-testid="vote-no"
             :disabled="busy || buying"
             @click="card?.fling(false)"
           >
-            ✕
+            <span class="text-2xl leading-none">✕</span>
+            <span class="text-xs font-black">Nope</span>
           </button>
 
           <button
-            class="h-16 w-16 rounded-full border-2 border-green-300 bg-white text-2xl text-brand disabled:opacity-40"
+            class="vote-btn bg-[#7bc96f]"
             aria-label="Yes"
             data-testid="vote-yes"
             :disabled="busy || buying"
             @click="card?.fling(true)"
           >
-            ✓
+            <span class="text-2xl leading-none">✓</span>
+            <span class="text-xs font-black">Yes</span>
           </button>
 
           <button
-            class="h-12 w-12 rounded-full border-2 border-amber-300 bg-white text-lg disabled:opacity-30"
+            class="vote-btn bg-accent"
             aria-label="Super Like"
             title="Super Like: counts double"
             data-testid="vote-super"
-            :disabled="
-              busy ||
-              buying ||
-              totalSuperLikesLeft < 1
-            "
+            :disabled="busy || buying"
             @click="superLike"
           >
-            ⭐
+            <span class="text-2xl leading-none">⭐</span>
+            <span class="text-xs font-black">{{ totalSuperLikesLeft > 0 ? "Super" : "20 pts" }}</span>
           </button>
         </div>
 
         <p
-          class="mt-2 text-center text-xs text-slate-400"
+          class="mt-2 text-center text-sm font-black"
         >
-          ⭐ {{ totalSuperLikesLeft }}
-          Super Like(s) left ·
+          ⭐ {{ totalSuperLikesLeft > 0 ? `${totalSuperLikesLeft} Super Like(s) left` : "Next ⭐ costs 20 pts" }} ·
           🚫 Veto
           {{ usedVeto ? "used" : "available" }}
+        </p>
+        <p v-if="purchaseMessage" class="mt-1 text-center text-sm font-black text-green-800">
+          {{ purchaseMessage }} Unused bought ⭐ are refunded at the end.
         </p>
 
         <p
@@ -724,3 +678,13 @@ function voteClass(placeId, uid) {
     </div>
   </template>
 </template>
+
+<style scoped>
+/* Vote buttons: chunky game buttons that press down. Owner: M3 */
+.vote-btn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  min-height: 68px; border-radius: 18px; border: 4px solid #17213b; box-shadow: 0 5px 0 #17213b; transition: transform .1s;
+}
+.vote-btn:active { transform: translateY(4px); box-shadow: 0 1px 0 #17213b; }
+.vote-btn:disabled { opacity: .35; transform: none; }
+</style>

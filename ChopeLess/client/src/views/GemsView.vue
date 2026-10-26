@@ -122,12 +122,13 @@ async function removeReview(g) {
 </script>
 
 <template>
+  <p class="kicker">Station 3 · Treasure Cove</p>
   <h1 class="page-title">Hidden Gems</h1>
   <p class="mb-4 text-slate-600">Places the big apps miss. {{ UPVOTES_NEEDED }} upvotes and a gem joins the voting pool.</p>
 
   <div class="grid gap-4 md:grid-cols-[2fr_3fr]">
-    <form v-if="auth.isLoggedIn" class="card space-y-3 self-start" @submit.prevent="save">
-      <h2 class="font-bold">{{ form.id ? 'Edit gem' : 'Add a gem' }}</h2>
+    <form v-if="auth.isLoggedIn" class="card card-sun space-y-3 self-start" @submit.prevent="save">
+      <h2>{{ form.id ? 'Edit gem' : 'Add a gem' }}</h2>
       <div><label class="label" for="g-name">Stall or shop</label><input id="g-name" v-model="form.name" required class="input" /></div>
       <div><label class="label" for="g-try">Must try (optional)</label><input id="g-try" v-model="form.mustTry" class="input" /></div>
       <div><label class="label" for="g-cuisine">Cuisine</label><input id="g-cuisine" v-model="form.cuisine" required class="input" placeholder="e.g. Korean, Hawker" /></div>
@@ -172,15 +173,18 @@ async function removeReview(g) {
       <li v-for="g in gems" :key="g.id" class="card space-y-3" data-testid="gem-row">
         <div class="flex items-start justify-between gap-3">
           <div>
-            <h3 class="font-bold">{{ g.name }}</h3>
-            <p class="text-sm text-slate-500">{{ g.mustTry }}{{ g.mustTry ? ' · ' : '' }}{{ priceText(g) }} · {{ g.address }}</p>
+            <h3 class="text-2xl leading-tight">{{ g.name }}</h3>
+            <p class="text-sm font-bold">{{ g.mustTry }}{{ g.mustTry ? ' · ' : '' }}{{ priceText(g) }} · {{ g.address }}</p>
             <p v-if="g.cuisine" class="text-xs text-slate-500">
               {{ g.cuisine }}<template v-if="g.waitMins != null"> · ~{{ g.waitMins }} min wait</template>
             </p>
-            <p class="text-xs font-semibold text-brand">▲ {{ g.upvoters.length }} {{ g.upvoters.length >= UPVOTES_NEEDED ? '· in voting pool' : '' }}</p>
+            <p class="mt-1 flex flex-wrap items-center gap-2">
+              <span class="chip">▲ {{ g.upvoters.length }} upvotes</span>
+              <span v-if="g.upvoters.length >= UPVOTES_NEEDED" class="chip !bg-ink !text-accent">IN THE VOTE POOL</span>
+            </p>
           </div>
           <div v-if="auth.isLoggedIn" class="flex flex-wrap justify-end gap-1">
-            <button class="btn text-sm" :class="hasVoted(g) ? 'font-bold text-brand' : ''"
+            <button class="btn text-sm" :class="hasVoted(g) ? '!bg-accent' : ''"
                     :aria-pressed="hasVoted(g)" :title="hasVoted(g) ? 'Remove my upvote' : 'Upvote'"
                     @click="toggleVote(g)">▲</button>
             <template v-if="g.submittedBy === auth.user.uid">
@@ -190,13 +194,13 @@ async function removeReview(g) {
           </div>
         </div>
 
-        <button type="button" class="text-sm font-semibold text-brand" @click="toggleReviews(g)">
+        <button type="button" class="btn self-start text-sm" @click="toggleReviews(g)">
           {{ openId === g.id ? 'Hide reviews' : 'Reviews' }}
         </button>
 
-        <div v-if="openId === g.id" class="space-y-3 border-t border-slate-200 pt-3" data-testid="reviews">
+        <div v-if="openId === g.id" class="space-y-3 border-t-[3px] border-dashed border-ink pt-3" data-testid="reviews">
           <ul class="space-y-2">
-            <li v-for="r in reviews" :key="r.id" class="rounded-lg bg-slate-50 p-2 text-sm">
+            <li v-for="r in reviews" :key="r.id" class="rounded-2xl bg-sky p-3 text-sm">
               <div class="flex items-center justify-between gap-2">
                 <span><span class="font-semibold">{{ r.authorName }}</span>
                   <span class="ml-2 text-amber-500">{{ stars(r.rating) }}</span></span>

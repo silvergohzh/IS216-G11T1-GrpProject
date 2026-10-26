@@ -22,6 +22,9 @@ const routes = [
   { path: '/queueless', name: 'queueless', component: () => import('../views/QueueLessView.vue'), meta: { title: 'QueueLess' } },
   { path: '/places/:id', name: 'place', component: () => import('../views/PlaceDetailView.vue'), meta: { title: 'Place' } },
 
+  // M1: Makan Points (moved off the Home page)
+  { path: '/points', name: 'points', component: () => import('../views/MakanPoints.vue'), meta: { requiresAuth: true, title: 'Makan Points' } },
+
   // M5: Hidden Gems
   { path: '/gems', name: 'gems', component: () => import('../views/GemsView.vue'), meta: { title: 'Hidden Gems' } },
 

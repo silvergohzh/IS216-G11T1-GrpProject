@@ -44,7 +44,9 @@ export function watchGroup(code, onChange, onError) {
 export async function joinGroup(code, myName) {
   code = code.trim().toUpperCase()
   const ref = doc(db, 'groups', code)
-  if (!(await getDoc(ref)).exists()) throw new Error('No group with that code')
+  const snap = await getDoc(ref)
+  if (!snap.exists()) throw new Error('No group with that code')
+  if (snap.data().kicked?.[auth.currentUser.uid]) throw new Error('The owner removed you from this group')
   const uid = auth.currentUser.uid
   await updateDoc(ref, { memberUids: arrayUnion(uid), [`members.${uid}`]: { name: myName } })
   return code
@@ -53,11 +55,20 @@ export async function joinGroup(code, myName) {
 // UPDATE: owner renames the group
 export const renameGroup = (code, name) => updateDoc(doc(db, 'groups', code), { name })
 
-// UPDATE: owner removes someone (or I remove myself = leave)
+// UPDATE: owner removes someone. They're remembered in `kicked`, so they can't rejoin with the code.
 export function removeMember(code, uid) {
+  return updateDoc(doc(db, 'groups', code), {
+    memberUids: arrayRemove(uid),
+    [`members.${uid}`]: deleteField(),
+    [`kicked.${uid}`]: true
+  })
+}
+
+// UPDATE: I leave on my own. Not a kick, so I can come back later.
+export const leaveGroup = code => {
+  const uid = auth.currentUser.uid
   return updateDoc(doc(db, 'groups', code), { memberUids: arrayRemove(uid), [`members.${uid}`]: deleteField() })
 }
-export const leaveGroup = code => removeMember(code, auth.currentUser.uid)
 
 // UPDATE: remember the group's live session so other members can join it (Part 2)
 export const setActiveSession = (code, sessionCode) =>

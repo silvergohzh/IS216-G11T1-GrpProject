@@ -26,7 +26,7 @@ const isMember = computed(() => group.value?.memberUids?.includes(auth.user?.uid
 const members = computed(() => Object.entries(group.value?.members || {}))
 const liveCount = computed(() => Object.keys(live.value?.members || {}).length)
 const inLive = computed(() => !!live.value?.members?.[auth.user?.uid])   // am I already in the live session?
-
+const kickedFromLive = computed(() => !!live.value?.kicked?.[auth.user?.uid])   // the host removed me from it
 onMounted(() => {
  stopGroup = watchGroup(code, g => { group.value = g; loaded.value = true }, err => { error.value = err.message })
 })
@@ -94,42 +94,51 @@ async function copyCode() {
   <p v-else-if="!group" class="error">This group doesn't exist any more.</p>
 
   <div v-else-if="!isMember" class="card text-center">
-    <p class="mb-3">You're not in <b>{{ group.name }}</b> yet.</p>
-    <button class="btn-primary" :disabled="busy" @click="joinThisGroup">Join this group</button>
+    <template v-if="group.kicked?.[auth.user?.uid]">
+      <p class="mb-3">The owner removed you from <b>{{ group.name }}</b>.</p>
+      <RouterLink to="/groups" class="btn">Back to my groups</RouterLink>
+    </template>
+    <template v-else>
+      <p class="mb-3">You're not in <b>{{ group.name }}</b> yet.</p>
+      <button class="btn-primary" :disabled="busy" @click="joinThisGroup">Join this group</button>
+    </template>
   </div>
 
   <div v-else>
+    <p class="kicker">Station 1 · Kopitiam Table</p>
     <div class="mb-4 flex flex-wrap items-center gap-2">
       <h1 class="page-title mb-0">{{ group.name }}</h1>
-      <span class="font-mono text-brand" data-testid="group-code">{{ code }}</span>
+      <span class="chip font-display text-lg !font-normal tracking-widest" data-testid="group-code">{{ code }}</span>
       <button class="btn text-sm" @click="copyCode">{{ copied ? 'Code copied ✓' : 'Copy code' }}</button>
       <button v-if="isOwner" class="btn text-sm" @click="rename">Rename</button>
     </div>
     <p v-if="error" class="error mb-3">{{ error }}</p>
 
-    <!-- Live session banner: updates the moment someone starts one -->
-    <div v-if="live && live.status === 'lobby' && live.expiresAt?.toMillis() > Date.now()" class="card mb-4 flex flex-wrap items-center justify-between gap-2 border-red-200 bg-red-50">
+     <!-- Live session banner: updates the moment someone starts one -->
+    <div v-if="live && live.status === 'lobby' && live.expiresAt?.toMillis() > Date.now()" class="card card-coral mb-4 flex flex-wrap items-center justify-between gap-2">
       <p><b>● Live session</b> · {{ liveCount }} joined so far</p>
-        <button class="btn-primary" :disabled="busy" @click="joinLive">{{ inLive ? 'Back to the lobby' : 'Join live session' }}</button>
+      <span v-if="kickedFromLive" class="chip !text-sm">The host removed you from this session</span>
+      <button v-else class="btn-primary" :disabled="busy" @click="joinLive">{{ inLive ? 'Back to the lobby' : 'Join live session' }}</button>
     </div>
-      <div v-else-if="live && live.status === 'voting' && live.expiresAt?.toMillis() > Date.now()" class="card mb-4 bg-amber-50">
+
+      <div v-else-if="live && live.status === 'voting' && live.expiresAt?.toMillis() > Date.now()" class="card card-sun mb-4">
       Voting is in progress for this group.
       <RouterLink :to="`/sessions/${group.activeSession}/vote`" class="font-bold text-brand">Open</RouterLink>
     </div>
-    <button v-else class="btn-primary mb-4 w-full md:w-auto" :disabled="busy" @click="startSession">
+      <button v-else class="btn-primary mb-4 w-full font-display text-2xl font-normal md:w-auto" :disabled="busy" @click="startSession">
       Start a Makan Session
     </button>
 
     <div class="card">
-      <h2 class="mb-2 font-bold">Members ({{ members.length }})</h2>
+      <h2 class="mb-2">Kakis ({{ members.length }})</h2>
       <ul class="divide-y divide-slate-100" data-testid="group-members">
         <li v-for="[uid, m] in members" :key="uid" class="flex items-center justify-between py-2">
           <span>
             <b>{{ m.name }}</b>
-            <span v-if="uid === group.ownerUid" class="ml-1 rounded-full bg-brand-light px-2 py-0.5 text-xs font-bold text-brand">Owner</span>
+            <span v-if="uid === group.ownerUid" class="chip ml-1 !bg-accent">OWNER</span>
             <span v-if="uid === auth.user?.uid" class="ml-1 text-xs text-slate-400">(you)</span>
           </span>
-          <button v-if="isOwner && uid !== auth.user?.uid" class="text-sm text-red-600" @click="remove(uid, m.name)">Remove</button>
+<button v-if="isOwner && uid !== auth.user?.uid" class="btn text-sm !text-red-700" @click="remove(uid, m.name)">Remove</button>
         </li>
       </ul>
     </div>

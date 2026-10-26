@@ -1,4 +1,3 @@
-
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
@@ -102,15 +101,13 @@ onMounted(() => {
 </script>
 
 <template>
-  <section class="mt-10 space-y-6">
+  <section class="space-y-6">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <p class="text-sm font-semibold text-green-700">
-          CHOPELESS REWARDS
-        </p>
-        <h2 class="text-2xl font-extrabold">
+        <p class="kicker">Station 6 · Reward Lighthouse</p>
+        <h1 class="page-title">
           Makan Points
-        </h2>
+        </h1>
         <p class="text-sm text-slate-600">
           Earn points, unlock badges and climb the leaderboard.
         </p>
@@ -131,19 +128,19 @@ onMounted(() => {
     </p>
 
     <div v-if="account" class="grid gap-4 md:grid-cols-3">
-      <div class="card">
-        <p class="text-sm text-slate-500">Available Points</p>
-        <p class="mt-2 text-4xl font-extrabold text-green-700">
+      <div class="card card-navy">
+        <p class="text-sm font-black tracking-wider text-accent">BALANCE</p>
+        <p class="mt-2 font-display text-6xl">
           {{ balance }}
         </p>
-        <p class="mt-2 text-xs text-slate-500">
+        <p class="mt-2 text-xs font-bold text-white/80">
           Your current points balance
         </p>
       </div>
 
       <div class="card">
-        <p class="text-sm text-slate-500">Lifetime Points</p>
-        <p class="mt-2 text-4xl font-extrabold">
+        <p class="text-sm font-black tracking-wider">LIFETIME</p>
+        <p class="mt-2 font-display text-6xl">
           {{ lifetimePoints }}
         </p>
         <p class="mt-2 text-xs text-slate-500">
@@ -151,9 +148,9 @@ onMounted(() => {
         </p>
       </div>
 
-      <div class="card">
-        <p class="text-sm text-slate-500">
-          Priority Queue Eligibility
+      <div class="card" :class="priorityEligible ? 'card-sun' : ''">
+        <p class="text-sm font-black tracking-wider">
+          PRIORITY PICKUP
         </p>
 
         <p
@@ -181,18 +178,24 @@ onMounted(() => {
     </div>
 
     <div class="card">
-      <h3 class="text-lg font-bold">Achievement Badges</h3>
+      <h2>Badges</h2>
 
       <div class="mt-4 grid gap-3 sm:grid-cols-3">
         <div
           v-for="badge in badgeLevels"
           :key="badge.id"
-          class="rounded-xl border p-4"
-          :class="hasBadge(badge.id)
-            ? 'border-green-500 bg-green-50'
-            : 'border-slate-200 bg-slate-50 opacity-60'"
+          class="rounded-2xl border-[3px] border-ink p-4 text-center"
+          :class="hasBadge(badge.id) ? '' : 'border-dashed bg-white'"
+          :style="hasBadge(badge.id) ? { background: { bronze: '#f3d8bf', silver: '#e6eaf2', gold: '#fff2b8' }[badge.id] } : {}"
         >
-          <p class="font-bold">{{ badge.name }}</p>
+                  <!-- the medal: bronze / silver / gold colour once unlocked, dashed outline while locked -->
+          <span
+            class="mx-auto mb-2 block h-14 w-14 rounded-full border-4 border-ink"
+            :class="hasBadge(badge.id) ? '' : 'border-dashed'"
+            :style="{ background: hasBadge(badge.id) ? { bronze: '#c8814a', silver: '#b8c0d0', gold: '#ffd23f' }[badge.id] : '#ffffff' }"
+            aria-hidden="true"
+          ></span>
+          <p class="font-display text-2xl">{{ badge.name }}</p>
 
           <p class="mt-1 text-sm text-slate-600">
             {{ badge.required }} lifetime points
@@ -204,14 +207,20 @@ onMounted(() => {
               ? 'text-green-700'
               : 'text-slate-500'"
           >
-            {{ hasBadge(badge.id) ? 'Unlocked' : 'Locked' }}
+            {{ hasBadge(badge.id) ? 'Unlocked' : `${Math.max(0, badge.required - lifetimePoints)} pts to go` }}
           </p>
         </div>
+             </div>
+      <!-- progress towards Gold (300 lifetime points) -->
+      <div class="mt-4 h-4 overflow-hidden rounded-full border-[3px] border-ink bg-sky" role="progressbar"
+           :aria-valuenow="lifetimePoints" aria-valuemin="0" aria-valuemax="300" aria-label="Progress to Gold">
+        <div class="h-full bg-accent" :style="{ width: Math.min(100, lifetimePoints / 300 * 100) + '%' }"></div> 
+
       </div>
     </div>
 
     <div class="card">
-      <h3 class="text-lg font-bold">Weekly Leaderboard</h3>
+      <h2>This week's leaderboard</h2>
 
       <p class="mt-1 text-sm text-slate-600">
         Top 20 users by points earned this week.
@@ -224,45 +233,25 @@ onMounted(() => {
         No points earned this week yet.
       </div>
 
-      <div v-else class="mt-4 overflow-x-auto">
-        <table class="w-full text-left text-sm">
-          <thead class="border-b bg-slate-50">
-            <tr>
-              <th class="p-3">Rank</th>
-              <th class="p-3">User</th>
-              <th class="p-3 text-right">Points</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            <tr
-              v-for="entry in leaderboard"
-              :key="entry.uid"
-              class="border-b"
-              :class="entry.uid === authStore.user?.uid
-                ? 'bg-green-50 font-semibold'
-                : ''"
-            >
-              <td class="p-3">{{ entry.rank }}</td>
-
-              <td class="p-3">
-                {{
-                  entry.uid === authStore.user?.uid
-                    ? 'You'
-                    : `User ${entry.uid.slice(0, 6)}`
-                }}
-              </td>
-
-              <td class="p-3 text-right">
-                {{ entry.points }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <ol v-else class="mt-4 flex flex-col gap-2">
+        <li
+          v-for="entry in leaderboard"
+          :key="entry.uid"
+          class="flex items-center gap-3 rounded-2xl border-[3px] border-ink px-4 py-2"
+          :class="entry.uid === authStore.user?.uid ? 'bg-accent' : entry.rank === 1 ? 'bg-sky' : 'bg-white'"
+        >
+          <span class="w-8 font-display text-2xl">{{ entry.rank }}</span>
+          <!-- the server sends each person's display name; fall back to a short id -->
+          <span class="flex-1 font-black">
+            {{ entry.name || entry.displayName || `User ${entry.uid.slice(0, 6)}` }}
+            <span v-if="entry.uid === authStore.user?.uid"> (you)</span>
+          </span>
+          <span class="font-black">{{ entry.points }} pts</span>
+        </li>
+      </ol>
     </div>
 
-    <p class="text-xs text-slate-500">
+        <p class="card card-sun text-sm font-bold">
       Earn 10 points when your group completes a Makan Session,
       plus 5 bonus points if you are the host.
       Verified crowd reports earn 15 points;
