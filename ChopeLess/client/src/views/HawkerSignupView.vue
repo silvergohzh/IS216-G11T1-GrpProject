@@ -84,6 +84,7 @@ function reload() {
 </script>
 
 <template>
+  <p class="kicker">Join the town as a hawker</p>
   <h1 class="page-title">Sell on ChopeLess</h1>
   <p class="mb-4 text-slate-600">Put your stall and menu online, and take pickup orders from hungry groups nearby.</p>
 

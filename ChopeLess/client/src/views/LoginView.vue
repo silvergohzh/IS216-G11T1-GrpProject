@@ -53,32 +53,48 @@ async function demoLogin(account) {
 </script>
 
 <template>
-  <section class="card mx-auto mb-4 max-w-sm space-y-2">
-    <h2 class="font-bold">Try a demo account</h2>
-    <p class="text-xs text-slate-500">One tap to log in. Password for all: {{ DEMO_PASSWORD }}</p>
-    <div class="grid grid-cols-2 gap-2">
-      <button v-for="a in DEMO_ACCOUNTS" :key="a.email" type="button" class="btn text-left text-sm" @click="demoLogin(a)">
-        <span class="block font-semibold">{{ a.name }}</span>
-        <span class="block text-xs text-slate-500">{{ a.role }}</span>
-      </button>
+  <div class="mx-auto flex max-w-5xl flex-wrap items-start gap-8 py-4">
+    <!-- left: what ChopeLess is, so first-time visitors (and the prof) get it in 5 seconds -->
+    <div class="flex flex-[1_1_340px] flex-col gap-4">
+      <p class="font-display text-6xl leading-none">Chope<span class="text-white [-webkit-text-stroke:3px_#17213b]">Less</span></p>
+      <p class="max-w-md text-xl font-extrabold">Decide where your group eats in minutes. Swipe together, skip the long queues, earn Makan Points.</p>
+      <div class="flex flex-wrap gap-2">
+        <span class="rounded-full border-[3px] border-ink bg-accent px-3 py-1 text-sm font-black">Swipe to vote</span>
+        <span class="rounded-full border-[3px] border-ink bg-white px-3 py-1 text-sm font-black">Live queues</span>
+        <span class="rounded-full border-[3px] border-ink bg-[#7bc96f] px-3 py-1 text-sm font-black">Hidden gems</span>
+      </div>
+      <RouterLink to="/" class="font-black underline">Just looking? Browse as a guest</RouterLink>
+
+      <!-- demo accounts: one tap, handy during the presentation -->
+      <section class="card mt-2 space-y-2">
+        <h2 class="text-2xl">Try a demo account</h2>
+        <p class="text-xs">One tap to log in. Password for all: {{ DEMO_PASSWORD }}</p>
+        <div class="grid grid-cols-2 gap-2">
+          <button v-for="a in DEMO_ACCOUNTS" :key="a.email" type="button" class="btn flex-col !items-start text-left text-sm" @click="demoLogin(a)">
+            <span class="block">{{ a.name }}</span>
+            <span class="block text-xs font-bold">{{ a.role }}</span>
+          </button>
+        </div>
+      </section>
     </div>
-  </section>
 
-  <form class="card mx-auto max-w-sm space-y-3" @submit.prevent="submit">
-    <h1 class="page-title">{{ isSignUp ? 'Create account' : 'Log in' }}</h1>
-    <p v-if="usingEmulator" class="rounded-lg bg-amber-50 p-2 text-xs text-amber-800">
-      Local emulator: accounts only exist on this laptop and reset when the emulator stops.
-    </p>
-    <div><label class="label" for="email">Email</label><input id="email" v-model="email" type="email" required class="input" /></div>
-    <div><label class="label" for="password">Password</label><input id="password" v-model="password" type="password" required minlength="6" class="input" /></div>
-    <p v-if="error" class="error">{{ error }}</p>
-    <button class="btn-primary w-full" type="submit">{{ isSignUp ? 'Sign up' : 'Log in' }}</button>
-    <button type="button" class="w-full text-sm text-brand" @click="isSignUp = !isSignUp">
-      {{ isSignUp ? 'Have an account? Log in' : 'New here? Create an account' }}
-    </button>
-  </form>
-
-  <p class="mx-auto mt-4 max-w-sm text-center text-sm text-slate-600">
-    Run a food stall? <RouterLink to="/hawker/signup" class="font-semibold text-brand">Sell on ChopeLess</RouterLink>
-  </p>
+    <!-- right: the form -->
+    <form class="card flex flex-[1_1_340px] flex-col gap-3" @submit.prevent="submit">
+      <p class="kicker">{{ isSignUp ? 'New player' : 'Welcome back' }}</p>
+      <h1 class="page-title">{{ isSignUp ? 'Create account' : 'Log in' }}</h1>
+      <p v-if="usingEmulator" class="rounded-xl border-2 border-ink bg-amber-100 p-2 text-xs">
+        Local emulator: accounts only exist on this laptop and reset when the emulator stops.
+      </p>
+      <div><label class="label" for="email">Email</label><input id="email" v-model="email" type="email" required class="input" /></div>
+      <div><label class="label" for="password">Password</label><input id="password" v-model="password" type="password" required minlength="6" class="input" /></div>
+      <p v-if="error" class="error">{{ error }}</p>
+      <button class="btn-primary w-full font-display text-2xl font-normal" type="submit">{{ isSignUp ? 'Sign up' : 'Log in' }}</button>
+      <button type="button" class="w-full font-black underline" @click="isSignUp = !isSignUp">
+        {{ isSignUp ? 'Have an account? Log in' : 'New here? Create an account' }}
+      </button>
+      <p class="text-center text-sm font-bold">
+        Run a food stall? <RouterLink to="/hawker/signup" class="font-black underline">Sell on ChopeLess</RouterLink>
+      </p>
+    </form>
+  </div>
 </template>

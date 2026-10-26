@@ -16,10 +16,15 @@ let map, layer
 
 function draw() {
   layer.clearLayers()
-  props.markers.forEach(m => L.circleMarker([m.lat, m.lng], { radius: 8, color: '#237a4b' }).bindPopup(m.label || '').addTo(layer))
+    // Markers: navy outline, filled with m.color if given (winner = yellow, meeting point = navy), else orange
+  props.markers.forEach(m => L.circleMarker([m.lat, m.lng], {
+    radius: m.radius || 9, color: '#17213b', weight: 3, fillColor: m.color || '#ff7a45', fillOpacity: 1
+  }).bindPopup(m.label || '').addTo(layer))
   if (props.route.length) {
-    const line = L.polyline(props.route, { color: '#e0a526', weight: 5 }).addTo(layer)
-    map.fitBounds(line.getBounds(), { padding: [24, 24] }) // show the whole walk, not just the destination
+    // Walking route: a thick white line underneath + orange dashes on top, so it stands out on the map
+    L.polyline(props.route, { color: '#ffffff', weight: 10, opacity: 0.9, lineCap: 'round', lineJoin: 'round' }).addTo(layer)
+    const line = L.polyline(props.route, { color: '#ff7a45', weight: 5, dashArray: '10 10', lineCap: 'round', lineJoin: 'round' }).addTo(layer)
+    map.fitBounds(line.getBounds(), { padding: [32, 32] }) // show the whole walk, not just the destination
   }
 }
 
@@ -37,5 +42,5 @@ onBeforeUnmount(() => map?.remove())
 </script>
 
 <template>
-  <div ref="el" class="h-72 w-full rounded-2xl" data-testid="map"></div>
+  <div ref="el" class="h-72 w-full rounded-2xl border-[3px] border-ink" data-testid="map"></div>
 </template>

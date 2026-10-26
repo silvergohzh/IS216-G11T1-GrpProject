@@ -136,10 +136,11 @@ async function copyLink() {
     <!-- Header: stall, order code and status -->
     <div class="flex flex-wrap items-center justify-between gap-2">
       <div>
+        <p class="kicker">Station 5 · Tingkat Pier</p>
         <h1 class="page-title">{{ order.placeName }}</h1>
         <p class="text-slate-500">Order {{ orderCode(order.id) }} · pickup</p>
       </div>
-      <span class="rounded-full bg-brand-light px-3 py-1 font-semibold text-brand" data-testid="order-status">
+      <span class="chip !bg-accent !text-base" data-testid="order-status">
         {{ STATUS_LABELS[order.status] }}
       </span>
     </div>
@@ -151,8 +152,8 @@ async function copyLink() {
     </p>
 
     <!-- Ready: countdown, and the diner collects it with a photo -->
-    <section v-if="order.status === 'ready'" class="card space-y-3 border-brand bg-brand-light">
-      <p class="text-lg font-bold">Your food is ready! Show {{ orderCode(order.id) }} at the stall.</p>
+    <section v-if="order.status === 'ready'" class="card card-sun space-y-3">
+      <p class="font-display text-2xl">Your food is ready! Show {{ orderCode(order.id) }} at the stall.</p>
       <PickupTimer :pickup-by="order.pickupBy" />
       <div v-if="isMember">
         <p class="mb-2 text-sm text-slate-600">Picked it up? Take a photo of your food, then tap the button.</p>
@@ -166,12 +167,12 @@ async function copyLink() {
     </p>
 
     <!-- Share with friends: only while it's still a cart -->
-    <section v-if="isCart && isMember" class="card space-y-2">
-      <h2 class="font-bold">Order as a group</h2>
-      <p class="text-sm text-slate-600">Friends can enter this code on the Pre-order page, or open the link.</p>
-      <p class="text-3xl font-extrabold tracking-widest" data-testid="join-code">{{ order.joinCode }}</p>
+    <section v-if="isCart && isMember" class="card card-navy space-y-2">
+      <h2>Order as a group</h2>
+      <p class="text-sm font-bold">Friends can enter this code on the Pre-order page, or open the link.</p>
+      <p class="font-display text-5xl tracking-[0.2em] text-accent" data-testid="join-code">{{ order.joinCode }}</p>
       <div class="flex gap-2">
-        <input ref="linkBox" :value="shareLink" readonly class="input text-sm" aria-label="Share link" @focus="$event.target.select()" />
+        <input ref="linkBox" :value="shareLink" readonly class="input text-sm text-ink" aria-label="Share link" @focus="$event.target.select()" />
         <button class="btn shrink-0" @click="copyLink">{{ copied ? 'Copied!' : 'Copy link' }}</button>
       </div>
     </section>
@@ -179,7 +180,7 @@ async function copyLink() {
     <div class="grid gap-4 md:grid-cols-2">
       <!-- Menu: only while the order is still a cart -->
       <section v-if="isCart && isMember" class="card">
-        <h2 class="mb-2 font-bold">Menu</h2>
+        <h2 class="mb-2">Menu</h2>
         <p v-if="!stall" class="text-slate-500">Loading menu...</p>
         <p v-else-if="stall.menu.length === 0" class="text-slate-500">This stall has no menu yet.</p>
         <ul class="divide-y divide-slate-100">
@@ -193,7 +194,7 @@ async function copyLink() {
 
       <!-- The cart -->
       <section class="card">
-        <h2 class="mb-2 font-bold">{{ isCart ? 'Cart' : 'Order' }}</h2>
+        <h2 class="mb-2">{{ isCart ? 'Cart' : 'Order' }}</h2>
         <p v-if="order.items.length === 0" class="text-slate-500">Nothing yet. Add something from the menu.</p>
         <ul class="divide-y divide-slate-100">
           <li v-for="item in order.items" :key="item.lineId" class="flex items-center justify-between gap-2 py-2" data-testid="cart-item">
@@ -210,7 +211,7 @@ async function copyLink() {
             </div>
           </li>
         </ul>
-        <p class="mt-3 flex justify-between border-t border-slate-200 pt-3 text-lg font-bold">
+        <p class="mt-3 flex justify-between border-t-[3px] border-dashed border-ink pt-3 font-display text-2xl">
           <span>Total</span><span data-testid="order-total">{{ formatMoney(order.total) }}</span>
         </p>
       </section>
@@ -219,14 +220,14 @@ async function copyLink() {
     <!-- Split the bill -->
     <section v-if="order.items.length > 0" class="card">
       <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h2 class="font-bold">Split the bill</h2>
+        <h2>Split the bill</h2>
         <div class="flex gap-2">
-          <button class="btn text-sm" :class="{ 'btn-primary': splitMode === 'item' }" @click="splitMode = 'item'">By item</button>
-          <button class="btn text-sm" :class="{ 'btn-primary': splitMode === 'equal' }" @click="splitMode = 'equal'">Equally</button>
+          <button class="btn text-sm" :class="{ '!bg-ink !text-white': splitMode === 'item' }" @click="splitMode = 'item'">By item</button>
+          <button class="btn text-sm" :class="{ '!bg-ink !text-white': splitMode === 'equal' }" @click="splitMode = 'equal'">Equally</button>
         </div>
       </div>
       <ul>
-        <li v-for="share in shares" :key="share.uid" class="flex justify-between py-1" data-testid="share">
+        <li v-for="share in shares" :key="share.uid" class="stat mb-2 flex justify-between !text-left" data-testid="share">
           <span>{{ share.name }}<span v-if="share.uid === order.ownerUid" class="text-slate-500"> (pays)</span></span>
           <span class="font-semibold">{{ formatMoney(share.amount) }}</span>
         </li>
@@ -237,7 +238,7 @@ async function copyLink() {
     <!-- Pay / cancel -->
     <section v-if="isMember && (isCart || order.status === 'awaiting_payment')" class="card flex flex-wrap items-center gap-3">
       <template v-if="isOwner">
-        <button class="btn-primary" :disabled="busy || order.items.length === 0" @click="pay">
+        <button class="btn-primary min-h-14 font-display text-2xl font-normal" :disabled="busy || order.items.length === 0" @click="pay">
           Pay {{ formatMoney(order.total) }}
         </button>
         <button class="btn-danger" :disabled="busy" @click="cancel">Cancel order</button>
@@ -247,7 +248,7 @@ async function copyLink() {
 
     <!-- Where to pick it up -->
     <section v-if="stall" class="card space-y-2">
-      <h2 class="font-bold">Pickup location</h2>
+      <h2>Pickup location</h2>
       <p>{{ stall.name }}<br /><span class="text-sm text-slate-500">{{ stall.address }}</span></p>
       <MapView :center="[stall.lat, stall.lng]" :markers="[{ lat: stall.lat, lng: stall.lng, label: stall.name }]" />
       <a :href="directionsLink" target="_blank" rel="noopener" class="btn inline-block text-sm">Get directions</a>
@@ -255,7 +256,7 @@ async function copyLink() {
 
     <!-- Photo proof -->
     <section v-if="proofs.ready || proofs.collected" class="card">
-      <h2 class="mb-2 font-bold">Photo proof</h2>
+      <h2 class="mb-2">Photo proof</h2>
       <div class="grid gap-3 sm:grid-cols-2">
         <figure v-if="proofs.ready">
           <img :src="proofs.ready.photo" alt="Food when it was ready" class="h-48 w-full rounded-lg object-cover" data-testid="proof-photo" />
@@ -268,6 +269,6 @@ async function copyLink() {
       </div>
     </section>
 
-    <RouterLink :to="auth.isHawker ? '/hawker' : '/orders'" class="text-sm text-brand">← Back</RouterLink>
+    <RouterLink :to="auth.isHawker ? '/hawker' : '/orders'" class="btn text-sm">← Back</RouterLink>
   </div>
 </template>

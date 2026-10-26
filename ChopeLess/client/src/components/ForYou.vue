@@ -284,14 +284,14 @@ const savedCount = computed(() => Object.keys(saved.value).length)
     <!-- Header: title, tabs and refresh -->
     <div class="mb-3 flex flex-wrap items-end justify-between gap-2">
       <div>
-        <h2 class="text-2xl font-extrabold">{{ title }}</h2>
-        <p class="text-sm text-slate-500">{{ subtitle }}</p>
+        <h2 class="text-4xl">{{ title }}</h2>
+        <p class="font-extrabold">{{ subtitle }}</p>
       </div>
       <div class="flex items-center gap-2">
-        <div class="flex rounded-full bg-slate-100 p-1 text-sm font-semibold">
-          <button class="rounded-full px-3 py-1" :class="tab === 'foryou' ? 'bg-white shadow' : 'text-slate-500'"
+        <div class="flex gap-1 rounded-2xl border-[3px] border-ink bg-white p-1 text-sm font-black">
+          <button class="rounded-full px-3 py-1" :class="tab === 'foryou' ? 'bg-ink text-white' : ''"
                   @click="switchTab('foryou')">For you</button>
-          <button v-if="uid" class="rounded-full px-3 py-1" :class="tab === 'saved' ? 'bg-white shadow' : 'text-slate-500'"
+          <button v-if="uid" class="rounded-full px-3 py-1" :class="tab === 'saved' ? 'bg-ink text-white' : ''"
                   @click="switchTab('saved')">♥ Saved ({{ savedCount }})</button>
         </div>
           <button v-if="tab === 'foryou'" class="btn text-sm" aria-label="Refresh picks" data-testid="for-you-refresh"
@@ -310,11 +310,11 @@ const savedCount = computed(() => Object.keys(saved.value).length)
 
     <!-- Carousel: the sideways row, with ‹ › arrows on top and dots underneath -->
     <div v-else class="relative md:px-14">
-    <div ref="scroller" class="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 md:mx-0 md:px-0"
+    <div ref="scroller" class="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-4 pt-1 md:mx-0 md:px-0"
          style="scrollbar-width: none" @scroll="onScroll">
 
       <div v-for="r in visible" :key="r.place.id"
-           class="group relative h-80 w-60 shrink-0 snap-start overflow-hidden rounded-3xl shadow-md transition hover:-translate-y-1 hover:shadow-xl"
+           class="group relative h-80 w-60 shrink-0 snap-start overflow-hidden rounded-3xl border-4 border-ink shadow-[0_6px_0_#17213b] transition hover:-translate-y-1 hover:-rotate-1"
            :style="{ backgroundImage: gradientFor(r.place.name) }">
         <!-- Photo if there is one, otherwise a big emoji on the colour -->
         <img v-if="photoFor(r.place)" :src="photoFor(r.place)" :alt="r.place.name" loading="lazy"
@@ -328,30 +328,29 @@ const savedCount = computed(() => Object.keys(saved.value).length)
         <RouterLink :to="`/places/${r.place.id}`" class="absolute inset-0" :aria-label="`Open ${r.place.name}`"></RouterLink>
 
         <!-- Live queue badge -->
-        <span class="pointer-events-none absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-xs font-bold text-ink">
+        <span class="pointer-events-none absolute left-3 top-3 flex items-center gap-1.5 rounded-full border-2 border-ink bg-white px-2.5 py-1 text-xs font-black text-ink">
           <span class="h-2 w-2 animate-pulse rounded-full" :style="{ background: queueLevel(r.place).dot }"></span>
           {{ queueLevel(r.place).label }}
         </span>
 
         <!-- ♥ save and ✕ not for me -->
         <div class="absolute right-3 top-3 flex flex-col gap-2">
-          <button class="grid h-9 w-9 place-items-center rounded-full bg-white/90 text-lg shadow transition active:scale-90"
+          <button class="grid h-10 w-10 place-items-center rounded-full border-[3px] border-ink bg-white text-lg transition active:scale-90"
                   :aria-label="saved[r.place.id] ? 'Unsave' : 'Save for later'" data-testid="save-place"
                   @click="toggleSave(r.place)">
             <span :class="saved[r.place.id] ? 'text-red-500' : 'text-slate-400'">{{ saved[r.place.id] ? '♥' : '♡' }}</span>
           </button>
           <button v-if="uid && tab === 'foryou'"
-                  class="grid h-9 w-9 place-items-center rounded-full bg-white/90 text-sm text-slate-500 shadow transition active:scale-90"
+                  class="grid h-10 w-10 place-items-center rounded-full border-[3px] border-ink bg-white text-sm font-black transition active:scale-90"
                   aria-label="Not for me" title="Not for me" @click="hide(r.place.id)">✕</button>
         </div>
 
         <!-- Dark fade at the bottom so white text is always readable -->
-        <div class="pointer-events-none absolute inset-x-0 bottom-0 p-4 text-white"
-             style="background: linear-gradient(to top, rgba(0,0,0,0.8), rgba(0,0,0,0))">
+        <div class="pointer-events-none absolute inset-x-0 bottom-0 border-t-4 border-ink bg-white p-3 text-ink">
           <p class="mb-1 text-xs font-semibold uppercase tracking-wide opacity-80">{{ r.place.cuisine }}</p>
-          <h3 class="text-xl font-extrabold leading-tight">{{ r.place.name }}</h3>
+          <h3 class="font-display text-xl leading-tight">{{ r.place.name }}</h3>
           <p class="mt-1 text-sm opacity-90">${{ r.place.priceMin }}–{{ r.place.priceMax }}</p>
-          <p class="mt-2 inline-block rounded-full bg-white/20 px-2.5 py-1 text-xs font-semibold backdrop-blur">
+          <p class="mt-2 inline-block rounded-full border-2 border-ink bg-sky px-2.5 py-1 text-xs font-black">
             {{ r.reason }}
           </p>
         </div>
@@ -359,7 +358,7 @@ const savedCount = computed(() => Object.keys(saved.value).length)
 
       <!-- End of the feed: invisible marker that loads more, then an "all caught up" card -->
       <div ref="sentinel" class="w-px shrink-0"></div>
-      <div v-if="reachedEnd" class="grid h-80 w-60 shrink-0 snap-start place-items-center rounded-3xl border-2 border-dashed border-slate-300 p-6 text-center">
+      <div v-if="reachedEnd" class="grid h-80 w-60 shrink-0 snap-start place-items-center rounded-3xl border-4 border-dashed border-ink bg-white p-6 text-center">
         <div>
           <p class="text-4xl">🎉</p>
           <p class="mt-2 font-bold">You're all caught up</p>
@@ -374,13 +373,13 @@ const savedCount = computed(() => Object.keys(saved.value).length)
 
       <!-- ‹ arrow: left edge, middle of the cards -->
       <button v-show="!atStart" aria-label="Previous places" @click="scrollRow(-1)"
-      class="absolute left-0 top-40 z-10 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-brand/60 text-white shadow-md backdrop-blur-sm transition hover:scale-110 hover:bg-brand/90 md:grid">
+      class="absolute left-0 top-40 z-10 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full border-[3px] border-ink bg-accent text-ink shadow-[0_4px_0_#17213b] transition hover:scale-110 md:grid">
         <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
       </button>
 
       <!-- › arrow: right edge -->
       <button v-show="!atEnd" aria-label="Next places" @click="scrollRow(1)"
-      class="absolute right-0 top-40 z-10 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-brand/60 text-white shadow-md backdrop-blur-sm transition hover:scale-110 hover:bg-brand/90 md:grid">
+      class="absolute right-0 top-40 z-10 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full border-[3px] border-ink bg-accent text-ink shadow-[0_4px_0_#17213b] transition hover:scale-110 md:grid">
         <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6" /></svg>
       </button>
 
@@ -388,7 +387,7 @@ const savedCount = computed(() => Object.keys(saved.value).length)
       <div v-if="visible.length > 1 && visible.length <= 12" class="mt-3 flex justify-center gap-1.5">
         <button v-for="(r, i) in visible" :key="r.place.id" :aria-label="`Go to card ${i + 1}`" @click="goTo(i)"
                 class="h-1.5 rounded-full transition-all duration-300"
-                :class="i === activeIndex ? 'w-6 bg-brand' : 'w-3 bg-slate-300 hover:bg-slate-400'"></button>
+                :class="i === activeIndex ? 'w-6 bg-ink' : 'w-3 bg-white hover:bg-slate-300'"></button>
       </div>
       <p v-else-if="visible.length > 12" class="mt-3 text-center text-xs text-slate-400">
         {{ Math.min(activeIndex + 1, visible.length) }} / {{ visible.length }}

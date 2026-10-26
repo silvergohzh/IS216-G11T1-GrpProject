@@ -57,6 +57,7 @@ async function preOrder() {
   <div v-else class="space-y-4">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
+        <p class="kicker">Stall</p>
         <h1 class="page-title">{{ stall.name }}</h1>
         <p class="text-slate-600">{{ stall.cuisine }} · {{ stall.address }}</p>
         <p class="mt-1 flex flex-wrap gap-1">

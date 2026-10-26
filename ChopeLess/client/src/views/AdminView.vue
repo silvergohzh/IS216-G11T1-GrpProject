@@ -58,6 +58,7 @@ async function save(user) {
 </script>
 
 <template>
+  <p class="kicker">Harbour master</p>
   <h1 class="page-title">Admin</h1>
   <p v-if="error" class="error mb-4">{{ error }}</p>
 

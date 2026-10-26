@@ -46,6 +46,7 @@ async function clearAll() {
 </script>
 
 <template>
+  <p class="kicker">Your adventure log</p>
   <h1 class="page-title">Meal History</h1>
   <p class="mb-4 text-slate-600">Every place your groups picked.</p>
   <p v-if="error" class="error mb-3">{{ error }}</p>
@@ -53,25 +54,29 @@ async function clearAll() {
 
   <template v-else>
     <div class="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-      <div class="card text-center"><b class="block text-2xl">{{ stats.total }}</b>sessions</div>
+      <div class="card card-navy text-center"><b class="block font-display text-4xl font-normal text-accent">{{ stats.total }}</b>sessions</div>
       <div class="card text-center"><b class="block truncate">{{ stats.topPlace?.value || '–' }}</b>favourite place</div>
       <div class="card text-center"><b class="block">{{ stats.topCuisine?.value || '–' }}</b>favourite cuisine</div>
-      <div class="card text-center"><b class="block text-2xl">{{ stats.avgGroup }}</b>avg group size</div>
+            <div class="card text-center"><b class="block font-display text-4xl font-normal">{{ stats.avgGroup }}</b>avg group size</div>
     </div>
 
     <div class="card">
       <div class="mb-2 flex items-center justify-between">
-        <h2 class="font-bold">Past sessions</h2>
-        <button v-if="items.length" class="text-sm text-red-600" @click="clearAll">Clear all</button>
+        <h2>Past sessions</h2>
+        <button v-if="items.length" class="btn text-sm" @click="clearAll">Clear all</button>
       </div>
       <p v-if="!items.length" class="text-slate-500">No sessions yet. Finish a Makan Session and it'll show up here.</p>
-      <ul v-else class="divide-y divide-slate-100" data-testid="history-list">
-        <li v-for="h in items" :key="h.code" class="flex items-center justify-between py-2">
-          <span>
-            <b>{{ h.placeName }}</b>
-            <span class="text-sm text-slate-500"> · {{ h.cuisine }} · {{ h.groupSize }} people · {{ formatDate(h.at) }}</span>
+        <ul v-else class="flex flex-col gap-2" data-testid="history-list">
+        <li v-for="(h, i) in items" :key="h.code" class="flex items-center gap-3 rounded-2xl border-[3px] border-ink bg-sky px-3 py-2">
+          <!-- numbered tile, newest has the biggest number; colour cycles like the island stations -->
+          <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl border-[3px] border-ink font-display text-lg"
+                :style="{ background: ['#7bc96f', '#ffd23f', '#ff7a45', '#8fd3ff'][i % 4] }">{{ items.length - i }}</span>
+          <span class="min-w-0 flex-1">
+            <b class="block truncate">{{ h.placeName }}</b>
+            <!-- only show the parts we have, so an empty cuisine doesn't leave "· ·" -->
+            <span class="block text-sm font-bold">{{ [h.cuisine, `${h.groupSize} people`, formatDate(h.at)].filter(Boolean).join(' · ') }}</span>
           </span>
-          <button class="text-sm text-slate-400 hover:text-red-600" aria-label="Delete" @click="remove(h.code)">✕</button>
+          <button class="btn h-11 w-11 !p-0" :aria-label="`Delete ${h.placeName}`" @click="remove(h.code)">✕</button>
         </li>
       </ul>
     </div>
