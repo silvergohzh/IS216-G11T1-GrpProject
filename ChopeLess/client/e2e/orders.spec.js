@@ -39,6 +39,7 @@ async function startOrder(page) {
 
 const codeOf = orderId => '#' + orderId.slice(-4).toUpperCase()
 
+// [SILVER] START: Hawker centres, food courts, stalls & place tags (built by Myat, see HANDOVER.md)
 test('a hawker centre only shows the stalls inside it, with tags', async ({ page }) => {
   await signUp(page, 'browser')
   await page.goto('/orders')
@@ -53,6 +54,7 @@ test('a hawker centre only shows the stalls inside it, with tags', async ({ page
   await expect(page.getByTestId('stall-card').filter({ hasText: 'Makcik Nasi Padang' })).toBeVisible()
   await expect(page.getByTestId('place-card')).toHaveCount(0) // other places are hidden while inside the centre
 })
+// [SILVER] END
 
 test('full journey: pay, hawker readies with a photo, diner collects with a photo, both see history', async ({ page, browser, request }) => {
   // A diner orders one chicken rice ($4.50)
@@ -143,6 +145,7 @@ test('payments: diner receipt, hawker earnings and refund, admin delete', async 
   await expect(adminRow).toHaveCount(0)
 })
 
+// [NAWAZ] START: Fastpass & Makan Points in pre-orders (built by Myat, see HANDOVER.md)
 test('Fastpass: the group leader spends points and the order jumps the queue', async ({ page, browser }) => {
   // Someone else pays first, so there is a queue at the stall
   const early = await (await browser.newContext()).newPage()
@@ -183,6 +186,7 @@ test('Fastpass: the group leader spends points and the order jumps the queue', a
   await first.getByRole('button', { name: 'Start preparing' }).click()
   await expect(page.getByTestId('order-status')).toHaveText('Preparing')
 })
+// [NAWAZ] END
 
 test('Makan Session: pick a place together, then pre-order as a group', async ({ browser }) => {
   const host = await (await browser.newContext()).newPage()

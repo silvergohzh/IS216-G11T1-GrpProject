@@ -86,6 +86,7 @@ router.post('/apply', requireAuth, async (req, res, next) => {
 
     const serviceModes = Array.isArray(b.serviceModes) ? b.serviceModes.filter(m => SERVICE_MODES.includes(m)) : []
 
+    // [SILVER] START: Hawker centres, food courts, stalls & place tags (built by Myat, see HANDOVER.md)
     // Is the stall inside a hawker centre or food court? (optional)
     let parentId = null
     if (b.parentId) {
@@ -96,6 +97,7 @@ router.post('/apply', requireAuth, async (req, res, next) => {
       }
       parentId = parent.id
     }
+    // [SILVER] END
     await applications.doc(req.uid).set({
       uid: req.uid,
       applicantName: applicantName,

@@ -9,6 +9,7 @@ import { getApplications, approveApplication, rejectApplication } from '../servi
 const users = ref([])
 const places = ref([])
 const applications = ref([])   // hawker applications waiting for a decision
+// [SILVER] START: Hawker centres, food courts, stalls & place tags (built by Myat, see HANDOVER.md)
 const centres = ref([])        // hawker centres / food courts, to show which one a stall is inside
 
 // The name of a hawker centre / food court from its id
@@ -16,6 +17,7 @@ function centreName(id) {
   const found = centres.value.find(c => c.id === id)
   return found ? found.name : id
 }
+// [SILVER] END
 const reasons = ref({})        // uid -> reason typed for a rejection
 const error = ref('')
 const savedUid = ref('') // shows "Saved" next to the row that was just saved
@@ -25,6 +27,7 @@ async function loadAll() {
     applications.value = await getApplications()
     users.value = await api('/admin/users')
     places.value = await listOrderablePlaces()   // hawkers run a stall or a restaurant that takes orders
+    // [SILVER] centres for the Stall inside ... text
     centres.value = await listPlaces()
   } catch (err) {
     error.value = err.message
@@ -78,6 +81,7 @@ async function save(user) {
     <li v-for="a in applications" :key="a.uid" class="card space-y-2" data-testid="application">
       <p class="font-bold">{{ a.stallName }} <span class="font-normal text-slate-500">by {{ a.applicantName }}</span></p>
       <p class="text-sm text-slate-600">{{ a.cuisine }} · {{ a.address }} · {{ a.dietary.join(', ') || 'no diet tags' }} · {{ a.serviceModes.join(', ') }}</p>
+      <!-- [SILVER] where the application says which centre it is in -->
       <p class="text-sm font-bold">{{ a.parentId ? 'Stall inside ' + centreName(a.parentId) : 'Restaurant on its own' }}</p>
       <div class="flex flex-wrap items-center gap-2">
         <button class="btn-primary text-sm" @click="approve(a)">Approve</button>

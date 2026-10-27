@@ -52,6 +52,7 @@ router.post('/webhook', async (req, res) => {
 // ---------- UPDATE: refund a payment ----------
 // POST /api/payments/:id/refund   body: { reason }
 // Allowed: the hawker of that stall, or an admin.
+// [NAWAZ] TODO: when a Fastpass order is refunded, give the leader's Fastpass points back too
 router.post('/:id/refund', requireAuth, requireRole('hawker', 'admin'), async (req, res, next) => {
   try {
     const ref = payments.doc(req.params.id)

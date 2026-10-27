@@ -10,6 +10,7 @@ import { db, adminAuth } from '../firebase.js'
 
 const places = db.collection('places')
 
+// [SILVER] START: Hawker centres, food courts, stalls & place tags (built by Myat, see HANDOVER.md)
 // ---------- 1. Type tags ----------
 // The seeded places say their type in the "cuisine" field, so we use that
 const allPlaces = await places.get()
@@ -19,6 +20,7 @@ for (const doc of allPlaces.docs) {
   if (doc.data().cuisine === 'Food court') type = 'food-court'
   await doc.ref.update({ type: type })
 }
+// [SILVER] END
 
 // ---------- 2. Restaurant menus ----------
 // menus.json: { placeId: [{ id, name, price }] }   price is in CENTS (450 = $4.50)
@@ -28,6 +30,7 @@ for (const placeId in menus) {
   if (snap.exists) await snap.ref.update({ menu: menus[placeId] })
 }
 
+// [SILVER] START: Hawker centres, food courts, stalls & place tags (built by Myat, see HANDOVER.md)
 // ---------- 3. Stalls inside hawker centres and food courts ----------
 const stalls = JSON.parse(await readFile(new URL('./stalls.json', import.meta.url)))
 for (const stall of stalls) {
@@ -54,6 +57,7 @@ for (const stall of stalls) {
   })
 }
 console.log(`Added menus to ${Object.keys(menus).length} restaurants and ${stalls.length} stalls inside hawker centres / food courts`)
+// [SILVER] END
 
 // ---------- 4. Ready-made accounts ----------
 // So nobody has to sign up to try the app. They are listed in the README.
@@ -86,9 +90,11 @@ for (const account of accounts) {
     placeId: account.placeId
   }, { merge: true })
 
+  // [NAWAZ] START: Fastpass & Makan Points in pre-orders (built by Myat, see HANDOVER.md)
   // Starting Makan Points, so the diners can try buying a Fastpass (it costs 150 points).
   // Re-running the seed puts the balance back to this number.
   await db.collection('pointsAccounts').doc(user.uid).set({ balance: account.points, lifetimePoints: account.points })
+  // [NAWAZ] END
 }
 console.log(`Test accounts ready (password "${PASSWORD}"): ${accounts.map(a => a.email).join(', ')}`)
 

@@ -9,6 +9,7 @@ const error = ref('')
 
 const API_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/points`
 
+// [JANANIJ] TODO: pre-order points (+10, 'Collected a pre-order from ...') and Fastpass spends (-150, 'Fastpass for a pre-order at ...') now show here; give them a label or icon
 const reasonLabels = {
   SESSION_COMPLETE: 'Completed a Makan Session',
   HOST_BONUS: 'Hosted a Makan Session',

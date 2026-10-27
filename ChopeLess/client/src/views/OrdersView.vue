@@ -19,6 +19,7 @@ const route = useRoute()
 const router = useRouter()
 
 const places = ref([])        // places on the main list: hawker centres, food courts, restaurants
+// [SILVER] centre / centreStalls: the hawker centre or food court I opened
 const centre = ref(null)      // the hawker centre / food court I opened (null = none)
 const centreStalls = ref([])  // the stalls inside it
 const session = ref(null)     // the Makan Session, if I came from one
@@ -33,10 +34,12 @@ const activeOrders = computed(() => myOrders.value.filter(o => !isFinished(o)))
 const pastOrders = computed(() => myOrders.value.filter(o => isFinished(o)))
 const groupSize = computed(() => (session.value ? Object.keys(session.value.members).length : 0))
 
+// [SILVER] START: Hawker centres, food courts, stalls & place tags (built by Myat, see HANDOVER.md)
 // A hawker centre or food court has stalls inside it instead of its own menu
 function isCentre(place) {
   return place.type === 'hawker-centre' || place.type === 'food-court'
 }
+// [SILVER] END
 
 // The cheapest dish on a menu, e.g. "from $1.80"
 function cheapest(place) {
@@ -47,6 +50,7 @@ function cheapest(place) {
   return formatMoney(lowest)
 }
 
+// [SILVER] START: Hawker centres, food courts, stalls & place tags (built by Myat, see HANDOVER.md)
 // Open a hawker centre or food court: show only the stalls inside it
 async function openCentre(place) {
   centre.value = place
@@ -57,6 +61,7 @@ function closeCentre() {
   centre.value = null
   centreStalls.value = []
 }
+// [SILVER] END
 
 onMounted(async () => {
   // Live list of my orders: updates by itself when a hawker changes the status
@@ -74,6 +79,7 @@ onMounted(async () => {
       error.value = "The place your group picked can't take pre-orders."
       return
     }
+    // [SILVER] a Makan Session that picked a centre opens its stalls
     if (isCentre(winner)) await openCentre(winner)
     else if (winner.menu.length > 0) places.value = [winner]
     else error.value = `${winner.name} doesn't take pre-orders yet. You can still head there!`
@@ -151,6 +157,7 @@ const join = () => run(async () => {
       <li v-for="o in activeOrders" :key="o.id">
         <RouterLink :to="`/orders/${o.id}`" class="card flex items-center justify-between gap-3 !bg-[#7bc96f] transition hover:translate-x-1" data-testid="active-order">
           <div>
+            <!-- [NAWAZ] ⚡ on the next line = this order has a Fastpass -->
             <p class="font-bold">{{ o.placeName }} <span class="text-slate-400">{{ orderCode(o.id) }}</span> <span v-if="o.priority">⚡</span></p>
             <p class="text-sm text-slate-500">{{ o.items.length }} item(s) · {{ formatMoney(o.total) }}</p>
           </div>
@@ -160,6 +167,7 @@ const join = () => run(async () => {
     </ul>
   </section>
 
+  <!-- [SILVER] START: Hawker centres, food courts, stalls & place tags (built by Myat, see HANDOVER.md) -->
   <!-- Inside a hawker centre / food court: only its stalls -->
   <section v-if="centre" class="mb-6">
     <div class="mb-2 flex flex-wrap items-center gap-2">
@@ -183,6 +191,7 @@ const join = () => run(async () => {
       </li>
     </ul>
   </section>
+  <!-- [SILVER] END -->
 
   <!-- All places: hawker centres, food courts and restaurants -->
   <section v-else class="mb-6">
@@ -192,6 +201,7 @@ const join = () => run(async () => {
       <li v-for="p in places" :key="p.id" class="card flex flex-col justify-between gap-2 !pt-0 overflow-hidden" data-testid="place-card">
         <div>
           <div class="-mx-5 mb-3 h-3 border-b-[3px] border-ink bg-accent" aria-hidden="true"></div>
+          <!-- [SILVER] place tag; centres get a See stalls button below -->
           <PlaceTag :type="p.type" />
           <h3 class="mt-1 text-xl leading-tight">{{ p.name }}</h3>
           <p v-if="isCentre(p)" class="text-sm font-bold">Many stalls inside</p>

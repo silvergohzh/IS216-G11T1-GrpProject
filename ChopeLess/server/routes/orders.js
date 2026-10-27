@@ -26,17 +26,22 @@ import { FieldValue } from 'firebase-admin/firestore'
 import { db } from '../firebase.js'
 import { requireAuth, requireRole } from '../middleware/auth.js'
 import { stripe, stripeEnabled, markOrderPaid } from '../services/payments.js'
+// [NAWAZ] START: Fastpass & Makan Points in pre-orders (built by Myat, see HANDOVER.md)
 import { awardPoints, spendPointsInTx, POINT_RULES } from '../services/points.js'   // Janani's Makan Points
 import { sortPriorityQueue } from '../services/priorityQueue.js'                    // Janani's priority queue
+// [NAWAZ] END
 
 const router = Router()
 const orders = db.collection('orders')
 
+// [NAWAZ] START: Fastpass & Makan Points in pre-orders (built by Myat, see HANDOVER.md)
 // A Fastpass costs the same as Janani's "priority" level in the points rules (150 points)
+// [JJYAYY] TODO: add FASTPASS and PREORDER_COLLECTED to POINT_RULES in services/points.js, then use them here
 const FASTPASS_COST = POINT_RULES.PRIORITY
 
 // Points each person in the group earns when a pre-order is collected
 const PREORDER_POINTS = 10
+// [NAWAZ] END
 
 // An order moves through these steps, in this order:
 //   cart -> awaiting_payment -> paid -> preparing -> ready -> collected
@@ -180,6 +185,7 @@ router.post('/', async (req, res, next) => {
       members: members,
       memberUids: members.map(m => m.uid),
       sessionCode: sessionCode,
+      // [NAWAZ] the Fastpass flag on every new order
       priority: false,   // true after the group leader buys a Fastpass
       items: [],
       total: 0,
@@ -288,6 +294,7 @@ router.delete('/:id/items/:lineId', async (req, res, next) => {
 })
 
 // CANCEL: POST /api/orders/:id/cancel
+// [NAWAZ] TODO: if this order had a Fastpass, give the points back (JJyayy's reversePoints in services/points.js)
 // Only the owner, and only before paying. We keep the order (status "cancelled") instead of deleting it.
 router.post('/:id/cancel', async (req, res, next) => {
   try {
@@ -394,11 +401,13 @@ router.post('/:id/collect', async (req, res, next) => {
     })
     await saveProof(req.params.id, 'collected', req.body.photo, req.uid)
 
+    // [NAWAZ] START: Fastpass & Makan Points in pre-orders (built by Myat, see HANDOVER.md)
     // Everyone in the group earns Makan Points for a finished pre-order (Janani's points system).
     // The eventId makes sure each person only gets the points once for this order.
     // (If the points fail for some reason, the order is still collected.)
     for (const uid of order.memberUids) {
       try {
+        // [JJYAYY] check: this uses your awardPoints, one ledger entry per person (eventId preorder_<orderId>)
         await awardPoints({
           uid: uid,
           eventId: `preorder_${req.params.id}`,
@@ -410,11 +419,13 @@ router.post('/:id/collect', async (req, res, next) => {
       }
     }
     res.json({ ok: true, pointsEach: PREORDER_POINTS })
+    // [NAWAZ] END
   } catch (err) {
     next(err)
   }
 })
 
+// [NAWAZ] START: Fastpass & Makan Points in pre-orders (built by Myat, see HANDOVER.md)
 // ---------- Fastpass: skip the queue with Makan Points ----------
 // POST /api/orders/:id/fastpass
 // The group leader (the person who started the order) spends Makan Points so the hawker
@@ -435,6 +446,7 @@ router.post('/:id/fastpass', async (req, res, next) => {
       const allowed = ['cart', 'awaiting_payment', 'paid']
       if (!allowed.includes(order.status)) throw httpError(409, 'Too late: the hawker has already started this order')
 
+      // [JJYAYY] check: this uses your spendPointsInTx inside the Fastpass transaction
       await spendPointsInTx(tx, {
         uid: req.uid,
         eventId: `fastpass_${req.params.id}`,
@@ -463,6 +475,7 @@ router.get('/:id/queue', async (req, res, next) => {
     // Every order at the same stall, put in queue order
     const stallOrders = await orders.where('placeId', '==', order.placeId).get()
     const all = stallOrders.docs.map(d => ({ id: d.id, ...d.data() }))
+    // [JJYAYY] check: this uses your sortPriorityQueue (services/priorityQueue.js)
     const queue = sortPriorityQueue(all)
 
     // findIndex gives 0 for the first one, so add 1 (0 means "not in the queue")
@@ -472,5 +485,6 @@ router.get('/:id/queue', async (req, res, next) => {
     next(err)
   }
 })
+// [NAWAZ] END
 
 export default router

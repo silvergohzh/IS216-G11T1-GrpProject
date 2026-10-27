@@ -21,6 +21,7 @@ async function applyAsNewHawker(page, stallName, insideCentre = '') {
   await expect(page.getByTestId('application-status')).toContainText('Application sent')
 }
 
+// [SILVER] this test also checks the inside-a-centre parts of sign-up and approval
 test('hawker signs up inside a hawker centre, admin approves, hawker builds the menu, and it shows online', async ({ page, browser }) => {
   const stallName = 'Test Stall ' + Date.now()
   await applyAsNewHawker(page, stallName, CENTRE)

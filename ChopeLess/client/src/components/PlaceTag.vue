@@ -1,6 +1,7 @@
 <!-- A small coloured tag that says what kind of place it is. Owner: M6
      Usage: <PlaceTag :type="place.type" />
      type: 'hawker-centre', 'food-court', 'stall' (inside a centre) or 'restaurant' (the default) -->
+<!-- [SILVER] this whole component (the coloured place tags) -->
 <script setup>
 import { computed } from 'vue'
 

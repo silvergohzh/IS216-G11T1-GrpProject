@@ -59,6 +59,7 @@ async function preOrder() {
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
         <p class="kicker">Stall</p>
+        <!-- [SILVER] tag here and the Inside line below -->
         <PlaceTag :type="stall.type" />
         <h1 class="page-title">{{ stall.name }}</h1>
         <p class="text-slate-600">{{ stall.cuisine }} · {{ stall.address }}</p>

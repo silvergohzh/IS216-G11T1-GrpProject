@@ -31,6 +31,7 @@ export function orderCode(orderId) {
 
 // A place's details for ordering and pickup:
 //   { id, name, type, parentId, parentName, address, lat, lng, menu: [{ id, name, price }] }
+// [SILVER] getStall also returns type, parentId and parentName for the tags
 // type is 'hawker-centre', 'food-court', 'stall' (inside a centre) or 'restaurant'
 export async function getStall(placeId) {
   const snap = await getDoc(doc(db, 'places', placeId))
@@ -49,6 +50,7 @@ export async function getStall(placeId) {
   }
 }
 
+// [SILVER] START: Hawker centres, food courts, stalls & place tags (built by Myat, see HANDOVER.md)
 // The stalls inside a hawker centre or food court
 export async function listStallsInside(parentId) {
   const snap = await getDocs(query(collection(db, 'places'), where('parentId', '==', parentId)))
@@ -61,6 +63,7 @@ export async function listOrderablePlaces() {
   const all = snap.docs.map(d => ({ id: d.id, ...d.data() }))
   return all.filter(p => p.menu && p.menu.length > 0)
 }
+// [SILVER] END
 
 // A Makan Session (to pre-order from the place the group picked)
 export async function getSession(code) {
@@ -119,6 +122,7 @@ export const checkout = orderId => api(`/orders/${orderId}/checkout`, { method: 
 export const startPreparing = orderId => api(`/orders/${orderId}/preparing`, { method: 'POST' })
 export const markReady = (orderId, photo) => api(`/orders/${orderId}/ready`, { method: 'POST', body: { photo } })
 
+// [NAWAZ] START: Fastpass & Makan Points in pre-orders (built by Myat, see HANDOVER.md)
 // Group leader: spend Makan Points on a Fastpass, so the hawker prepares this order first
 export const buyFastpass = orderId => api(`/orders/${orderId}/fastpass`, { method: 'POST' })
 
@@ -127,6 +131,7 @@ export const getQueuePosition = orderId => api(`/orders/${orderId}/queue`)
 
 // My Makan Points balance (Janani's points API): { balance, ... }
 export const getMyPoints = () => api('/points/me')
+// [NAWAZ] END
 
 // Diner: mark collected with a photo of the food they picked up
 export const markCollected = (orderId, photo) => api(`/orders/${orderId}/collect`, { method: 'POST', body: { photo } })
