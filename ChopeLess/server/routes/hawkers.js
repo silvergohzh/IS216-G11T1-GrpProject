@@ -13,7 +13,6 @@ import { randomUUID } from 'crypto'
 import { FieldValue } from 'firebase-admin/firestore'
 import { db } from '../firebase.js'
 import { requireAuth, requireRole, getRole } from '../middleware/auth.js'
-import { readMenuPhoto } from '../services/menuScan.js'
 
 const router = Router()
 const applications = db.collection('hawkerApplications')
@@ -86,6 +85,17 @@ router.post('/apply', requireAuth, async (req, res, next) => {
     }
 
     const serviceModes = Array.isArray(b.serviceModes) ? b.serviceModes.filter(m => SERVICE_MODES.includes(m)) : []
+
+    // Is the stall inside a hawker centre or food court? (optional)
+    let parentId = null
+    if (b.parentId) {
+      const parent = await db.collection('places').doc(b.parentId).get()
+      const parentType = parent.exists ? parent.data().type : ''
+      if (parentType !== 'hawker-centre' && parentType !== 'food-court') {
+        throw httpError(400, 'Choose a hawker centre or food court from the list')
+      }
+      parentId = parent.id
+    }
     await applications.doc(req.uid).set({
       uid: req.uid,
       applicantName: applicantName,
@@ -96,6 +106,7 @@ router.post('/apply', requireAuth, async (req, res, next) => {
       lng: lng,
       dietary: Array.isArray(b.dietary) ? b.dietary.filter(d => DIETARY.includes(d)) : [],
       serviceModes: serviceModes.length ? serviceModes : SERVICE_MODES,
+      parentId: parentId,
       status: 'pending',
       reason: '',
       createdAt: FieldValue.serverTimestamp()
@@ -129,7 +140,7 @@ router.post('/menu', requireAuth, requireRole('hawker'), async (req, res, next) 
   }
 })
 
-// ADD MANY dishes at once (the reviewed AI scan): POST /api/hawkers/menu/many   body: { items: [{ name, price }] }
+// ADD MANY dishes at once: POST /api/hawkers/menu/many   body: { items: [{ name, price }] }
 router.post('/menu/many', requireAuth, requireRole('hawker'), async (req, res, next) => {
   try {
     const items = Array.isArray(req.body.items) ? req.body.items : []
@@ -174,20 +185,6 @@ router.delete('/menu/:dishId', requireAuth, requireRole('hawker'), async (req, r
       menu.splice(index, 1)
     })
     res.json({ ok: true })
-  } catch (err) {
-    next(err)
-  }
-})
-
-// AI SCAN: POST /api/hawkers/menu/scan   body: { photo }
-// Reads a photo of the menu board and returns a DRAFT list. Nothing is saved yet:
-// the hawker checks the draft first (AI can misread prices), then saves it with /menu/many.
-router.post('/menu/scan', requireAuth, requireRole('hawker'), async (req, res, next) => {
-  try {
-    const photo = req.body.photo
-    if (typeof photo !== 'string' || !photo.startsWith('data:image/')) throw httpError(400, 'Please choose a photo of your menu')
-    const items = await readMenuPhoto(photo)
-    res.json({ items: items })
   } catch (err) {
     next(err)
   }

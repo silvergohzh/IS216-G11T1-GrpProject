@@ -36,7 +36,8 @@ const routes = [
   { path: '/admin', name: 'admin', component: () => import('../views/AdminView.vue'), meta: { requiresAuth: true, role: 'admin', title: 'Admin' } },
   { path: '/hawker/signup', name: 'hawker-signup', component: () => import('../views/HawkerSignupView.vue'), meta: { title: 'Sell on ChopeLess' } },
   { path: '/hawker/menu', name: 'hawker-menu', component: () => import('../views/MenuView.vue'), meta: { requiresAuth: true, role: 'hawker', title: 'My menu' } },
-  { path: '/stalls/:id', name: 'stall', component: () => import('../views/StallView.vue'), meta: { title: 'Stall' } }
+  { path: '/stalls/:id', name: 'stall', component: () => import('../views/StallView.vue'), meta: { title: 'Stall' } },
+  { path: '/payments', name: 'payments', component: () => import('../views/PaymentsView.vue'), meta: { requiresAuth: true, title: 'Payments' } }
 ]
 
 const router = createRouter({ history: createWebHistory(), routes })

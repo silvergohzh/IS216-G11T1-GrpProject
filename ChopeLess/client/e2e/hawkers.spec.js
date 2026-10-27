@@ -2,15 +2,11 @@
 import { test, expect } from '@playwright/test'
 import { signUp, logIn } from './helpers.js'
 
-// A tiny 2x2 PNG, used as the "menu photo" (the test server has no OpenAI key, so the AI returns sample dishes)
-const PHOTO = {
-  name: 'menu.png',
-  mimeType: 'image/png',
-  buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP8z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg==', 'base64')
-}
+const CENTRE = 'Albert Centre Market & Food Centre'
 
-// Fill in the hawker sign-up form as a brand-new visitor, and apply
-async function applyAsNewHawker(page, stallName) {
+// Fill in the hawker sign-up form as a brand-new visitor, and apply.
+// insideCentre: the hawker centre the stall is in ('' = a restaurant on its own)
+async function applyAsNewHawker(page, stallName, insideCentre = '') {
   await page.goto('/hawker/signup')
   await page.getByLabel('Email').fill(`hawker-${Date.now()}-${Math.floor(Math.random() * 1e6)}@test.com`)
   await page.getByLabel('Password').fill('test1234')
@@ -18,15 +14,16 @@ async function applyAsNewHawker(page, stallName) {
   await page.getByLabel('Stall name').fill(stallName)
   await page.getByLabel('Cuisine').fill('Chinese')
   await page.getByLabel('Address').fill('1 Test Street')
+  if (insideCentre) await page.getByLabel('Is your stall inside a hawker centre or food court?').selectOption({ label: insideCentre })
   await page.getByTestId('map').click() // pick the stall's location
   await page.getByLabel('halal').check()
   await page.getByRole('button', { name: 'Apply' }).click()
   await expect(page.getByTestId('application-status')).toContainText('Application sent')
 }
 
-test('hawker signs up, admin approves, hawker builds the menu, and it shows online', async ({ page, browser }) => {
+test('hawker signs up inside a hawker centre, admin approves, hawker builds the menu, and it shows online', async ({ page, browser }) => {
   const stallName = 'Test Stall ' + Date.now()
-  await applyAsNewHawker(page, stallName)
+  await applyAsNewHawker(page, stallName, CENTRE)
 
   // The admin approves the application
   const admin = await (await browser.newContext()).newPage()
@@ -53,12 +50,11 @@ test('hawker signs up, admin approves, hawker builds the menu, and it shows onli
   await laksa.getByRole('button', { name: 'Save' }).click()
   await expect(page.getByText('Saved')).toBeVisible()
 
-  // Scan a menu photo: the AI's dishes appear as a draft, then get added
-  await page.getByTestId('proof-input').setInputFiles(PHOTO)
-  await page.getByRole('button', { name: 'Read my menu' }).click()
-  await expect(page.getByTestId('draft-row')).toHaveCount(3)
-  await page.getByRole('button', { name: 'Add 3 dishes to my menu' }).click()
-  await expect(page.getByTestId('menu-dish')).toHaveCount(4)
+  // Add a second dish
+  await page.locator('#dish-name').fill('Mee goreng')
+  await page.locator('#dish-price').fill('4.50')
+  await page.getByRole('button', { name: 'Add dish' }).click()
+  await expect(page.getByTestId('menu-dish')).toHaveCount(2)
 
   // Mark the laksa sold out
   await laksa.getByRole('button', { name: 'Sold out' }).click()
@@ -67,21 +63,27 @@ test('hawker signs up, admin approves, hawker builds the menu, and it shows onli
   // The public stall page shows the menu, with the new price and the sold-out dish
   await page.getByTestId('public-page-link').click()
   await expect(page.getByRole('heading', { name: stallName })).toBeVisible()
+  await expect(page.getByText(`Inside ${CENTRE}`)).toBeVisible() // it's a stall inside the hawker centre
   const stallUrl = page.url()
-  await expect(page.getByTestId('public-dish')).toHaveCount(4)
+  await expect(page.getByTestId('public-dish')).toHaveCount(2)
   await expect(page.getByTestId('public-dish').filter({ hasText: 'Laksa' })).toContainText('Sold out')
 
   // Anyone can see the page without logging in, and a diner can pre-order from it
   const diner = await (await browser.newContext()).newPage()
   await diner.goto(stallUrl)
-  await expect(diner.getByTestId('public-dish')).toHaveCount(4)
+  await expect(diner.getByTestId('public-dish')).toHaveCount(2)
   await signUp(diner, 'stallfan')
   await diner.goto(stallUrl)
   await diner.getByRole('button', { name: 'Pre-order for pickup' }).click()
   await expect(diner).toHaveURL(/\/orders\/\w+$/)
   await expect(diner.getByRole('button', { name: 'Add Laksa' })).toHaveCount(0) // sold out
-  await diner.getByRole('button', { name: 'Add Sample dish: Chicken rice' }).click()
+  await diner.getByRole('button', { name: 'Add Mee goreng' }).click()
   await expect(diner.getByTestId('order-total')).toHaveText('$4.50')
+
+  // The new stall is listed inside the hawker centre on the Pre-order page
+  await diner.goto('/orders')
+  await diner.getByTestId('place-card').filter({ hasText: CENTRE }).getByRole('button', { name: 'See stalls' }).click()
+  await expect(diner.getByTestId('stall-card').filter({ hasText: stallName })).toBeVisible()
 })
 
 test('a rejected application shows the reason', async ({ page, browser }) => {

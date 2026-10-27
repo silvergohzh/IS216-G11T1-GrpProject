@@ -36,8 +36,19 @@ router.post('/applications/:uid/approve', async (req, res, next) => {
     }
     const a = snap.data()
 
+    // Inside a hawker centre / food court? Then it's a "stall" there, at the centre's address.
+    // Otherwise it's a restaurant on its own.
+    let parent = null
+    if (a.parentId) {
+      const parentSnap = await db.collection('places').doc(a.parentId).get()
+      if (parentSnap.exists) parent = { id: parentSnap.id, ...parentSnap.data() }
+    }
+
     // The same fields as the seeded places (server/seed/places.json), so every page can use it
     const placeRef = await db.collection('places').add({
+      type: parent ? 'stall' : 'restaurant',
+      parentId: parent ? parent.id : null,
+      parentName: parent ? parent.name : null,
       name: a.stallName,
       cuisine: a.cuisine,
       address: a.address,

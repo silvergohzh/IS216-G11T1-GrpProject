@@ -9,6 +9,8 @@ test('add, edit and delete a gem', async ({ page }) => {
   const name = 'Test Stall ' + Date.now()
   await page.getByLabel('Stall or shop').fill(name)
   await page.getByLabel('Must try').fill('Mee rebus')
+  await page.getByLabel('Cuisine').fill('Malay')          // the gem form now needs a cuisine and an address
+  await page.getByLabel('Address').fill('1 Test Street')
   await page.getByTestId('map').click() // a gem needs a location: click the map to pick one
   await page.getByRole('button', { name: 'Add gem' }).click()
   const row = page.getByTestId('gem-row').filter({ hasText: name })

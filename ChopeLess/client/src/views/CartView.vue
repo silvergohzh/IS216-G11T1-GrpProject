@@ -2,12 +2,13 @@
      Diners in the order, the stall's hawker and admins can all open this page.
      Buttons only show for the people allowed to use them. -->
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import {
   watchOrder, watchProofs, getStall, addItem, changeQty, removeItem,
-  cancelOrder, checkout, markCollected, orderCode, STATUS_LABELS
+  cancelOrder, checkout, markCollected, orderCode, STATUS_LABELS,
+  buyFastpass, getQueuePosition, getMyPoints
 } from '../services/orders'
 import { splitByItem, splitEqually, formatMoney } from '../lib/splitBill'
 import { askNotificationPermission } from '../lib/notify'
@@ -30,10 +31,20 @@ const linkBox = ref(null)            // the text box with the share link
 let stopOrder = null
 let stopProofs = null
 
+// ---------- Fastpass ----------
+// The group leader can spend Makan Points so the hawker prepares this order first.
+// (The server checks everything again: who you are, your points, and the order's status.)
+const FASTPASS_COST = 150
+const myPoints = ref(null)           // my Makan Points balance (only loaded for the group leader)
+const queue = ref(null)              // { position, waiting } once the order is paid
+
 // Handy true/false values for the template
 const isMember = computed(() => order.value && order.value.memberUids.includes(auth.user.uid))
 const isOwner = computed(() => order.value && order.value.ownerUid === auth.user.uid)
 const isCart = computed(() => order.value && order.value.status === 'cart')
+const canBuyFastpass = computed(() =>
+  isOwner.value && !order.value.priority && ['cart', 'awaiting_payment', 'paid'].includes(order.value.status)
+)
 const justPaid = route.query.paid === '1' // Stripe sends people back here with ?paid=1
 
 // The link friends open to join, e.g. http://localhost:5173/orders?join=KQWTRM
@@ -60,6 +71,20 @@ onMounted(() => {
 
   stopProofs = watchProofs(orderId, data => (proofs.value = data), () => {})
 })
+
+// When the order changes: load my points (group leader), and my place in the queue (once paid)
+watch(order, async now => {
+  if (!now) return
+  if (now.ownerUid === auth.user.uid && myPoints.value === null) {
+    const account = await getMyPoints()
+    myPoints.value = account.balance
+  }
+  if (now.status === 'paid' && now.memberUids.includes(auth.user.uid)) {
+    queue.value = await getQueuePosition(orderId)
+  } else {
+    queue.value = null
+  }
+})
 onUnmounted(() => {
   if (stopOrder) stopOrder()
   if (stopProofs) stopProofs()
@@ -83,6 +108,13 @@ const plus = item => run(() => changeQty(orderId, item.lineId, item.qty + 1))
 const minus = item => run(() => (item.qty > 1 ? changeQty(orderId, item.lineId, item.qty - 1) : removeItem(orderId, item.lineId)))
 const cancel = () => run(() => cancelOrder(orderId))
 const collect = photo => run(() => markCollected(orderId, photo))
+
+// Spend points on a Fastpass, then show my new balance
+const fastpass = () => run(async () => {
+  await buyFastpass(orderId)
+  const account = await getMyPoints()
+  myPoints.value = account.balance
+})
 
 // Pay: Stripe's payment page opens in a NEW TAB, and this page stays open.
 // When Stripe confirms the payment (webhook), this page turns "Paid" by itself.
@@ -149,6 +181,25 @@ async function copyLink() {
     <p v-if="justPaid && order.status === 'paid'" class="card text-sm font-semibold text-brand">Payment done! You can close this tab.</p>
     <p v-if="payingInOtherTab && order.status === 'awaiting_payment'" class="card text-sm" data-testid="paying-notice">
       Finish paying in the Stripe tab. This page will change to "Paid" by itself.
+    </p>
+
+    <!-- Fastpass: everyone in the group order sees it once it's on -->
+    <section v-if="order.priority" class="card card-sun" data-testid="fastpass-on">
+      <p class="font-bold">⚡ Fastpass on</p>
+      <p class="text-sm">{{ order.priorityBy }} used Makan Points, so the hawker prepares this group order first.</p>
+    </section>
+    <section v-else-if="canBuyFastpass" class="card space-y-2" data-testid="fastpass-offer">
+      <p class="font-bold">⚡ Skip the queue with a Fastpass</p>
+      <p class="text-sm">Use {{ FASTPASS_COST }} Makan Points and the hawker prepares your order first. Everyone in this group order gets it.</p>
+      <p class="text-sm">You have <b>{{ myPoints ?? '...' }}</b> points.</p>
+      <button class="btn-primary" :disabled="busy || myPoints === null || myPoints < FASTPASS_COST" @click="fastpass">
+        {{ myPoints !== null && myPoints < FASTPASS_COST ? 'Not enough points' : `Use ${FASTPASS_COST} points` }}
+      </button>
+    </section>
+
+    <!-- Place in the queue (Janani's priority queue: Fastpass first, then first come first served) -->
+    <p v-if="queue && queue.position > 0" class="card font-semibold" data-testid="queue-position">
+      You're #{{ queue.position }} of {{ queue.waiting }} in the queue at this stall.
     </p>
 
     <!-- Ready: countdown, and the diner collects it with a photo -->

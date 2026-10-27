@@ -29,8 +29,9 @@ app.use(cors({
   origin: (process.env.CLIENT_URL || 'http://localhost:5173').split(',')
 }))
 
-// The Stripe webhook must come BEFORE express.json(): it needs the raw body to check Stripe's signature
-app.use('/api/payments', express.raw({ type: 'application/json' }), paymentsRouter)
+// The Stripe webhook needs the RAW body to check Stripe's signature,
+// so it gets express.raw() BEFORE express.json() reads the body as JSON
+app.use('/api/payments/webhook', express.raw({ type: 'application/json' }))
 
 app.use(express.json({ limit: '5mb' }))
 
@@ -61,6 +62,7 @@ app.use('/api/crowd-reports', crowdReportVerificationRouter)
 
 // Orders, payments and admin (M6)
 app.use('/api/orders', ordersRouter)
+app.use('/api/payments', paymentsRouter)   // webhook + refund + delete
 app.use('/api/admin', adminRouter)
 app.use('/api/hawkers', hawkersRouter)
 

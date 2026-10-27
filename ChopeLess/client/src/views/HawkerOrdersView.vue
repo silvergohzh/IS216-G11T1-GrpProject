@@ -15,10 +15,21 @@ const error = ref('')
 const busy = ref(false)
 let stopWatching = null
 
-// Active: paid orders the hawker still has to deal with. History: collected orders.
-const activeOrders = computed(() =>
-  orders.value.filter(o => o.status === 'paid' || o.status === 'preparing' || o.status === 'ready')
-)
+// Active orders, in the order the hawker should deal with them:
+//   1. Paid orders WAITING to be cooked, in queue order: Fastpass (priority) first,
+//      then first come, first served (the list is already oldest first).
+//      This is the same rule as Janani's priority queue (server/services/priorityQueue.js).
+//   2. Orders being prepared
+//   3. Orders ready for pickup
+const activeOrders = computed(() => {
+  const waiting = orders.value.filter(o => o.status === 'paid')
+  const fastpass = waiting.filter(o => o.priority)
+  const normal = waiting.filter(o => !o.priority)
+  const preparing = orders.value.filter(o => o.status === 'preparing')
+  const ready = orders.value.filter(o => o.status === 'ready')
+  return [...fastpass, ...normal, ...preparing, ...ready]
+})
+// History: collected orders
 const historyOrders = computed(() =>
   orders.value.filter(o => o.status === 'collected').reverse() // newest first
 )
@@ -66,7 +77,7 @@ const ready = (order, photo) => run(() => markReady(order.id, photo))
       <li v-for="o in activeOrders" :key="o.id" class="card space-y-2" data-testid="board-order"
           :class="{ 'card-sun': o.status === 'paid', '!bg-amber-100': o.status === 'preparing', '!bg-green-200': o.status === 'ready' }">
         <div class="flex items-center justify-between">
-          <p class="font-display text-3xl">{{ orderCode(o.id) }}</p>
+          <p class="font-display text-3xl">{{ orderCode(o.id) }} <span v-if="o.priority" class="chip !bg-accent !text-sm" data-testid="fastpass-badge">⚡ Fastpass</span></p>
           <span class="chip !text-sm">{{ STATUS_LABELS[o.status] }}</span>
         </div>
          <ul class="text-base font-extrabold">

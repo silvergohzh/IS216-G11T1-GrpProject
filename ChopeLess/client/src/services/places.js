@@ -13,7 +13,8 @@ import { api } from '../lib/api'
 //            latest: { peopleInQueue, waitMins, seatOccupancy, confidence, at } }, ...]
 export async function listPlaces() {
   const snap = await getDocs(collection(db, 'places')) 
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+  // Stalls inside a hawker centre or food court (parentId) are listed under their centre, not here (M6)
+  return snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => !p.parentId)
 }
 
 // One place plus the average wait for each hour (for the chart)
