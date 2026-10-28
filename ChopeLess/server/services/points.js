@@ -12,7 +12,9 @@ export const POINT_RULES = {
   PRIORITY: 150,
   EXTRA_SUPER_LIKE: 20,
   MAX_DAILY_REWARDED_SESSIONS: 3,
-  EXTRA_SUPER: 20  // each extra Super Like costs 20 points (max: half the cards per session, free one included)
+  EXTRA_SUPER: 20,  // each extra Super Like costs 20 points (max: half the cards per session, free one included)
+  FASTPASS: 150,
+  PREORDER_COLLECTED: 10
 };
 
 const fail = (status, message) =>

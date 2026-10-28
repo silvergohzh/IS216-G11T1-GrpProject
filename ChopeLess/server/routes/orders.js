@@ -35,12 +35,11 @@ const router = Router()
 const orders = db.collection('orders')
 
 // [NAWAZ] START: Fastpass & Makan Points in pre-orders (built by Myat, see HANDOVER.md)
-// A Fastpass costs the same as Janani's "priority" level in the points rules (150 points)
-// [JJYAYY] TODO: add FASTPASS and PREORDER_COLLECTED to POINT_RULES in services/points.js, then use them here
-const FASTPASS_COST = POINT_RULES.PRIORITY
+// Fastpass costs 150 Makan Points
+const FASTPASS_COST = POINT_RULES.FASTPASS
 
 // Points each person in the group earns when a pre-order is collected
-const PREORDER_POINTS = 10
+const PREORDER_POINTS = POINT_RULES.PREORDER_COLLECTED
 // [NAWAZ] END
 
 // An order moves through these steps, in this order:
