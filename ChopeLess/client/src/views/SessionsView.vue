@@ -10,7 +10,9 @@ import { getProfile } from '../services/users'
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
-const DIETS = ['halal', 'vegetarian', 'no-beef']
+// Only the diets our places are tagged with. ('no-beef' was removed: no place has that tag,
+// so ticking it filtered out every place and voting could never start.)
+const DIETS = ['halal', 'vegetarian']
 
 const me = ref({ name: auth.user?.name || '', budget: 8, dietary: [] })
 const joinCode = ref(route.query.join || '') // filled in when opening a shared link
@@ -21,7 +23,8 @@ const error = ref('')
 // Pre-fill from the profile (M6)
 onMounted(async () => {
   const profile = await getProfile(auth.user.uid).catch(() => null)
-  if (profile) me.value = { name: profile.name || '', budget: profile.defaultBudget || 8, dietary: profile.dietary || [] }
+  // (old profiles may still have 'no-beef' saved, so keep only the diets above)
+  if (profile) me.value = { name: profile.name || '', budget: profile.defaultBudget || 8, dietary: (profile.dietary || []).filter(d => DIETS.includes(d)) }
 })
 
 // Check the form before talking to the database

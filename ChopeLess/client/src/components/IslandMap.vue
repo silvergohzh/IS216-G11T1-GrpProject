@@ -1,11 +1,13 @@
 <!-- Makan Quest home map: one island, one station per feature. Owner: M3
      - Tap a station: the side panel explains it and links in (every station is always open)
-     - A tick means you've been there (saved per account in localStorage; guests start fresh)
+     - A tick means you've been there today (saved per account in localStorage, reset at midnight; guests start fresh)
      - The island is a plain SVG; stations are real buttons placed on top with % positions -->
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { todaySG } from '../lib/today'
+import TodayQuests from './TodayQuests.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -26,15 +28,29 @@ const STATIONS = [
     text: 'Your points, badges and this week’s leaderboard.', rewards: [['Extra Super Like', '-20 pts']] }
 ]
 
-// ---------- visited ticks: saved per account ----------
-// Logged in: saved under your uid, so each account has its own progress (kept after refresh).
+// ---------- visited ticks: saved per account, reset every day ----------
+// Logged in: saved under your uid AND today's date, e.g. chopeless:visited:abc123:2026-10-28,
+// so each account has its own ticks and they start empty again at midnight (a new day = a new run).
 // Guest: nothing is saved, so the ticks start empty every visit.
-const key = computed(() => auth.user?.uid ? `chopeless:visited:${auth.user.uid}` : null)
+const day = ref(todaySG())
+const key = computed(() => auth.user?.uid ? `chopeless:visited:${auth.user.uid}:${day.value}` : null)
 
 function load() {
   if (!key.value) return []
-  try { return JSON.parse(localStorage.getItem(key.value)) || [] } catch { return [] }
+  try {
+    // tidy up: delete my ticks from earlier days, so old keys don't pile up
+    const mine = `chopeless:visited:${auth.user.uid}`
+    Object.keys(localStorage)
+      .filter(k => k.startsWith(mine) && k !== key.value)
+      .forEach(k => localStorage.removeItem(k))
+    return JSON.parse(localStorage.getItem(key.value)) || []
+  } catch { return [] }
 }
+
+// Tab left open past midnight? Check the date again whenever you come back to it
+const checkDay = () => { day.value = todaySG() }
+onMounted(() => window.addEventListener('focus', checkDay))
+onUnmounted(() => window.removeEventListener('focus', checkDay))
 
 const visited = ref(load())
 
@@ -66,8 +82,8 @@ const isDone = s => visited.value.includes(s.id)
           <p class="font-black">World 1 · Bras Basah, near SMU</p>
           <h1 id="world" class="text-4xl leading-none sm:text-5xl">Where we makan today?</h1>
         </div>
-        <span class="rounded-full border-[3px] border-ink bg-white px-3 py-1 font-black">
-          {{ visited.length }} of {{ STATIONS.length }} stations visited
+        <span class="rounded-full border-[3px] border-ink bg-white px-3 py-1 font-black" data-testid="visited-count">
+          {{ visited.length }} of {{ STATIONS.length }} stations visited today
         </span>
       </div>
 
@@ -107,7 +123,9 @@ const isDone = s => visited.value.includes(s.id)
                 :style="{ left: pos(s).left, top: `calc(${pos(s).top} + ${s.id === selectedId ? 52 : 44}px)` }">{{ s.name }}</span>
         </template>
       </div>
-      <p class="mt-2 font-extrabold">Tap any station. All are open: a tick just means you've been there.</p>
+      <!-- 3 daily goals, reset at midnight (same as the HTML design) -->
+      <TodayQuests />
+      <p class="mt-2 font-extrabold">Tap any station. All are open: a tick means you've been there today. Ticks reset at midnight, so come back for a new run!</p>
     </section>
 
     <!-- station panel -->

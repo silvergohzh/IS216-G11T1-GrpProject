@@ -42,7 +42,9 @@ watch(() => group.value?.activeSession, sessionCode => {
 // My name, budget and diet from my Profile, so nobody has to type them again
 async function myDetails() {
   const p = await getProfile(auth.user.uid).catch(() => null)
-  return { name: p?.name || auth.user.name, budget: p?.defaultBudget ?? 8, dietary: p?.dietary || [] }
+  // only diets places are tagged with (an old 'no-beef' would filter out every place)
+  const dietary = (p?.dietary || []).filter(d => ['halal', 'vegetarian'].includes(d))
+  return { name: p?.name || auth.user.name, budget: p?.defaultBudget ?? 8, dietary }
 }
 
 async function run(action) {  // small helper: shows errors and stops double clicks
