@@ -102,6 +102,22 @@ service cloud.firestore {
       }
     }
 
+    // ---------- payments (M6) ----------
+    // One record per paid order. Who can READ it:
+    //   - the people in that group order (their receipt)
+    //   - the hawker of that stall (their earnings)
+    //   - admins
+    // Nobody can WRITE from the browser: only the server creates, refunds or deletes them
+    // (server/routes/payments.js), so nobody can fake a payment or a refund.
+    match /payments/{paymentId} {
+      allow read: if signedIn() && (
+        request.auth.uid in resource.data.memberUids
+        || isHawkerOf(resource.data.placeId)
+        || isAdmin()
+      );
+      allow write: if false;
+    }
+
     // ---------- hawker applications (M6) ----------
     // Applicants can READ their own application (so the app can tell them when it's approved or rejected).
     // Only the server WRITES them (routes/hawkers.js and routes/admin.js).

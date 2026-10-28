@@ -8,6 +8,7 @@ import { watchStall } from '../services/hawkers'
 import { createOrder } from '../services/orders'
 import { formatMoney } from '../lib/splitBill'
 import MapView from '../components/MapView.vue'
+import PlaceTag from '../components/PlaceTag.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -58,12 +59,16 @@ async function preOrder() {
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
         <p class="kicker">Stall</p>
+        <!-- [SILVER] tag here and the Inside line below -->
+        <PlaceTag :type="stall.type" />
         <h1 class="page-title">{{ stall.name }}</h1>
         <p class="text-slate-600">{{ stall.cuisine }} · {{ stall.address }}</p>
+        <p v-if="stall.parentName" class="text-sm font-bold">Inside {{ stall.parentName }}</p>
         <p class="mt-1 flex flex-wrap gap-1">
-          <span v-for="d in stall.dietary" :key="d" class="rounded-full bg-brand-light px-2 py-0.5 text-xs font-semibold text-brand">{{ d }}</span>
-          <span v-for="m in stall.serviceModes" :key="m" class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">{{ m }}</span>
+          <span v-for="d in stall.dietary" :key="d" class="chip !bg-brand-light !text-brand">{{ d }}</span>
+          <span v-for="m in stall.serviceModes" :key="m" class="chip">{{ m }}</span>
         </p>
+        <!-- [SILVER] diet and service tags use the Makan Quest chip style -->
       </div>
       <RouterLink v-if="isMyStall" to="/hawker/menu" class="btn">Edit my menu</RouterLink>
       <button v-else-if="stall.menu.length > 0" class="btn-primary" @click="preOrder">Pre-order for pickup</button>

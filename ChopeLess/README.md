@@ -63,11 +63,12 @@ Browser (Vue)  ──── reads/writes directly ────▶  Firestore  (p
 | Collection | Fields | Who writes it |
 |---|---|---|
 | `users/{uid}` | name, defaultBudget, dietary[], role (`diner` / `hawker` / `admin`), placeId (hawkers only) | The user (name, budget, diet); **only the server** sets role and placeId (M6) |
-| `orders/{id}` | placeId, placeName, ownerUid, joinCode, members[{uid, name}], memberUids[], items[{lineId, itemId, name, price, qty, addedBy, addedByName}], total, status (cart / awaiting_payment / paid / preparing / ready / collected / cancelled), readyAt, pickupBy (15 min after ready), collectedAt, collectedByName, createdAt, paidAt. **Money is in cents.** | Only the server (M6). The group, the stall's hawker and admins can read it |
+| `orders/{id}` | placeId, placeName, ownerUid (the group leader), joinCode, sessionCode (if made from a Makan Session), priority (Fastpass), priorityBy, members[{uid, name}], memberUids[], items[{lineId, itemId, name, price, qty, addedBy, addedByName}], total, status (cart / awaiting_payment / paid / preparing / ready / collected / cancelled), readyAt, pickupBy (15 min after ready), collectedAt, collectedByName, createdAt, paidAt. **Money is in cents.** | Only the server (M6). The group, the stall's hawker and admins can read it |
+| `payments/{orderId}` | orderId, placeId, placeName, payerUid, payerName, memberUids[], amount (cents), method (`stripe` / `demo`), paymentIntent, status (`paid` / `refunded`), refundReason, paidAt, updatedAt | **Only the server** (M6): created when an order is paid; refunded by the stall's hawker or an admin; deleted by an admin. Readable by the group, the stall's hawker and admins |
 | `orders/{id}/proofs/{ready \| collected}` | photo (small JPEG as text), byUid, byName, at | Only the server: the hawker's photo when ready, the diner's photo when collected (M6) |
 | `hawkerApplications/{uid}` | uid, applicantName, stallName, cuisine, address, lat, lng, dietary[], serviceModes[], status (pending / approved / rejected), reason, placeId (once approved) | Only the server: the applicant applies, an admin approves or rejects (M6) |
 | `sessions/{code}` | hostUid, status (lobby / voting / done), serviceMode, maxWalkMins, maxWaitMins, meetingPoint, members{uid: {name, budget, dietary}}, shortlist[], votes{placeId: {uid: true/false}}, winner, expiresAt | Browser in the lobby (M3, rules by M1); server for shortlist, votes and winner (M1) |
-| `places/{id}` | name, cuisine, address, lat, lng, priceMin, priceMax, dietary[], serviceModes[], latest{waitMins, seatOccupancy, ...}, menu[{id, name, price (cents), available}], ownerUid (stalls created by hawker sign-up) | Seed script (M5, menus by M6); hawker sign-up after admin approval and **My menu** (M6); server updates `latest` (M4) |
+| `places/{id}` | name, cuisine, address, lat, lng, priceMin, priceMax, dietary[], serviceModes[], latest{waitMins, seatOccupancy, ...}, menu[{id, name, price (cents), available}], type (`hawker-centre` / `food-court` / `stall` / `restaurant`), parentId + parentName (stalls inside a centre), ownerUid (stalls created by hawker sign-up) | Seed script (M5, menus by M6); hawker sign-up after admin approval and **My menu** (M6); server updates `latest` (M4) |
 | `places/{id}/analyses/{id}` | hour, peopleInQueue, waitMins, seatOccupancy, confidence | Seed script and server (M4) |
 | `gems/{id}` | name, mustTry, price, address, lat, lng, dietary[], submittedBy, upvoters[] | The user (M5) |
 
@@ -113,15 +114,15 @@ cd client && npm run dev
 
 ### Test accounts
 
-`npm run seed` creates ready-made accounts, so nobody has to sign up. The login page has a **one-tap button** for each (password **test1234** for all):
+`npm run seed` creates ready-made **demo accounts**, so nobody has to sign up (they are only listed here, not on the login page). Password for all: **test1234**
 
 | Email | Name | Role |
 |---|---|---|
-| `alice@chopeless.test` | Alice Tan | Diner |
-| `ben@chopeless.test` | Ben Lim | Diner |
-| `chloe@chopeless.test` | Chloe Ng | Diner |
-| `hawker@chopeless.test` | Albert Centre Hawker | Hawker, **Order board** for Albert Centre |
-| `hawker2@chopeless.test` | Waterloo Centre Hawker | Hawker, **Order board** for Waterloo Centre |
+| `alice@chopeless.test` | Alice Tan | Diner with **1000 Makan Points** (enough to buy a Fastpass) |
+| `ben@chopeless.test` | Ben Lim | Diner with 300 Makan Points |
+| `chloe@chopeless.test` | Chloe Ng | Diner with 300 Makan Points |
+| `hawker@chopeless.test` | Ah Seng (hawker) | Hawker of **Ah Seng Chicken Rice**, a stall inside Albert Centre: Order board, My menu, Earnings |
+| `hawker2@chopeless.test` | Waterloo Nasi Lemak (hawker) | Hawker of **Waterloo Nasi Lemak**, a stall inside Waterloo Centre |
 | `admin@chopeless.test` | Admin | Admin, can change anyone's role |
 | `dan@chopeless.test` | Dan Koh | Diner with a **hawker application waiting** (Dan's Nasi Lemak), so the admin has one to approve |
 
@@ -131,7 +132,15 @@ New sign-ups are always diners. An admin can make someone a hawker on the Admin 
 
 **Group orders:** the person who starts an order shares its **6-letter code** (or the link `/orders?join=CODE`). Friends enter it under *Join a group order* on the Pre-order page.
 
-**Hawker sign-up and menus:** a hawker applies at `/hawker/signup` (account + stall name, cuisine, address, map location, diet tags). An **admin approves** it on the Admin page, which creates the stall in `places` and makes the account its hawker; a rejection shows the applicant the reason. The hawker then builds the menu on **My menu**: add, edit, delete, mark sold out, or **scan a photo of the menu board** — OpenAI GPT-4o reads dishes and prices into a draft the hawker checks before saving (without `OPENAI_API_KEY`, sample dishes). Every stall has a **public page** `/stalls/<id>` (no login needed) with the menu, map and a Pre-order button. Menu changes appear live there and in pre-orders; sold-out dishes can't be ordered.
+**Hawker sign-up and menus:** a hawker applies at `/hawker/signup` (account + stall name, cuisine, address, map location, diet tags, and optionally *which hawker centre or food court it is inside*). An **admin approves** it on the Admin page, which creates the stall in `places` and makes the account its hawker; a rejection shows the applicant the reason. The hawker builds the menu on **My menu**: add, edit, delete and mark sold out. Every stall has a **public page** `/stalls/<id>` (no login needed) with the menu, map and a Pre-order button.
+
+**Hawker centres and food courts (parent sets):** Albert Centre and Waterloo Centre (tag *Hawker centre*) and Bras Basah Complex (tag *Food court*) each contain 3 **stalls** with their own menus (`server/seed/stalls.json`). Other places are tagged *Restaurant*. On the Pre-order page, opening a centre shows **only its stalls**. Groups vote on the centre in a Makan Session; stalls inside it are not shown on their own in voting or QueueLess.
+
+**Makan Session → group pre-order:** make the group → vote to confirm the food spot → on the winner page tap **Pre-order as a group**. Only the place the group picked is shown (its stalls, if it's a hawker centre), and **everyone in the session is added to the order automatically**. Not pre-ordering? Skip it and use the walking directions on the winner page.
+
+**Fastpass (Makan Points):** the group leader (who started the order) can spend **150 Makan Points** (Janani's `POINT_RULES.PRIORITY`) on a Fastpass. It uses `spendPointsInTx`, sets `priority: true`, and **Janani's `sortPriorityQueue`** then puts the order first in the stall's queue, for everyone in the group. Members see "You're #1 in the queue"; the hawker sees ⚡ first on the Order board. Collecting a pre-order earns **10 points** each.
+
+**Payments (CRUD):** every paid order gets a record in `payments`. **Create:** the server, when Stripe (or demo mode) confirms. **Read:** the *Payments* page shows diners their receipts, hawkers their **Earnings** (with a total), admins everything. **Update:** the stall's hawker or an admin **refunds** with a reason (Stripe test refunds too). **Delete:** admins remove records. Browsers can never write payments.
 
 ## Testing
 
@@ -149,8 +158,8 @@ npm run test:e2e
 | `sessions.spec.js` | M3 / M1 | **Two browsers:** host creates, guest joins live, host starts voting, both vote yes, both see the same winner |
 | `queueless.spec.js` | M4 | Seeded places show a crowd level; the place page shows the hourly chart |
 | `gems.spec.js` | M5 | Add, edit and delete a gem |
-| `orders.spec.js` | M6 | Full journey: pay (signed Stripe webhook) → hawker readies with a photo → diner gets a pop-up and collects with a photo → both histories; fake payment rejected; group order by code and by link with split bill; same stall reopens the same cart; one-tap demo login; diners can't open hawker/admin pages |
-| `hawkers.spec.js` | M6 | Hawker applies → admin approves → hawker adds and edits a dish, scans a menu photo, marks one sold out → public page shows it without login → a diner pre-orders from it; a rejection shows the reason; diners can't open My menu |
+| `orders.spec.js` | M6 | Centres show only their stalls (with tags); full journey (signed Stripe webhook → ready with photo → collected with photo → both histories); fake payment rejected; **payments**: receipt, hawker refund, admin delete; **Fastpass** jumps the queue for the whole group; **Makan Session → group pre-order**; group order by code with split bill; share link; diners can't open hawker/admin pages |
+| `hawkers.spec.js` | M6 | Hawker applies **inside a hawker centre** → admin approves (applicant notified live) → adds, edits and sells out dishes → public page without login → diner pre-orders → stall listed inside the centre; a rejection shows the reason; diners can't open My menu |
 
 Unit tests for the split-bill algorithm: `cd client && npm run test:unit` (Node's built-in test runner).
 
@@ -179,7 +188,7 @@ Everything else goes through Firestore directly. All routes need a logged-in use
 | POST | `/api/sessions/:code/vote` | M1 | Vote `{ placeId, yes }`. The first place with all yes wins |
 | GET | `/api/shortlist/:code` | M2 | Preview the shortlist without starting voting |
 | POST | `/api/places/:id/analyse` | M4 | No login needed (10 photos per 10 min per visitor). Send `{ imageBase64, mimeType }`; OpenAI estimates queue length, wait, seats taken and confidence |
-| POST | `/api/orders` | M6 | Start a cart for a stall `{ placeId }` (reopens your open cart there if you have one) |
+| POST | `/api/orders` | M6 | Start a cart for a stall `{ placeId, sessionCode? }` (reopens your open cart there; with a Makan Session code, the whole group is added) |
 | POST | `/api/orders/join` | M6 | Join a group cart with its code `{ code }` |
 | POST / PATCH / DELETE | `/api/orders/:id/items[/:lineId]` | M6 | Add `{ itemId, qty }`, change `{ qty }` or remove a cart item. Prices come from the menu on the server |
 | POST | `/api/orders/:id/cancel` | M6 | Owner only, before paying |
@@ -187,14 +196,17 @@ Everything else goes through Firestore directly. All routes need a logged-in use
 | POST | `/api/orders/:id/preparing` | M6 | Hawker of that stall (or admin): paid → preparing |
 | POST | `/api/orders/:id/ready` | M6 | Hawker of that stall (or admin), with `{ photo }`: preparing → ready, starts the 15-minute pickup timer |
 | POST | `/api/orders/:id/collect` | M6 | Someone in the order, with `{ photo }`: ready → collected |
-| POST | `/api/payments/webhook` | M6 | Called **by Stripe**, checked with the signing secret. Marks the order paid |
+| POST | `/api/payments/webhook` | M6 | Called **by Stripe**, checked with the signing secret. Marks the order paid and **creates the payment record** |
+| POST | `/api/payments/:id/refund` | M6 | Stall's hawker or admin, with `{ reason }`: refunds the payment (Stripe test refund too) and cancels an uncollected order |
+| DELETE | `/api/payments/:id` | M6 | Admin only: delete a payment record |
+| POST | `/api/orders/:id/fastpass` | M6 | Group leader: spend 150 Makan Points so the order is prepared first |
+| GET | `/api/orders/:id/queue` | M6 | Someone in the order: `{ position, waiting }` from the priority queue |
 | GET / PATCH | `/api/admin/users[/:uid]` | M6 | Admin only: list accounts, change a role `{ role, placeId }` |
 | GET | `/api/admin/applications` | M6 | Admin only: hawker applications waiting |
 | POST | `/api/admin/applications/:uid/approve` · `/reject` | M6 | Admin only: approve (creates the stall) or reject `{ reason }` |
 | POST / GET | `/api/hawkers/apply` · `/api/hawkers/application` | M6 | Apply to be a hawker with stall details; see my application |
 | POST / PATCH / DELETE | `/api/hawkers/menu[/:dishId]` | M6 | Hawker only, own stall: add `{ name, price }` (dollars), edit `{ name, price, available }`, delete |
-| POST | `/api/hawkers/menu/many` | M6 | Hawker only: add the reviewed AI draft `{ items }` |
-| POST | `/api/hawkers/menu/scan` | M6 | Hawker only: `{ photo }` → OpenAI reads the menu board → draft `{ items }` (not saved) |
+| POST | `/api/hawkers/menu/many` | M6 | Hawker only: add several dishes at once `{ items }` |
 
 ## Deployment (M6, Week 11)
 

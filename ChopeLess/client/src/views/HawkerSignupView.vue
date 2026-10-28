@@ -6,6 +6,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { applyAsHawker, watchMyApplication } from '../services/hawkers'
 import MapView from '../components/MapView.vue'
+import { listPlaces } from '../services/places'
 
 const auth = useAuthStore()
 const DIETS = ['halal', 'vegetarian', 'no-beef']
@@ -23,7 +24,9 @@ const form = ref({
   lat: null,
   lng: null,
   dietary: [],
-  serviceModes: ['dine-in', 'takeaway']
+  serviceModes: ['dine-in', 'takeaway'],
+  // [SILVER] parentId field
+  parentId: ''      // the hawker centre / food court it is inside ('' = none, a restaurant on its own)
 })
 
 const application = ref(null)   // my application, if I already applied
@@ -45,7 +48,16 @@ function watchApplication() {
     loading.value = false
   })
 }
-onMounted(() => {
+// [SILVER] START: Hawker centres, food courts, stalls & place tags (built by Myat, see HANDOVER.md)
+// Hawker centres and food courts, for "Is your stall inside one?"
+const centres = ref([])
+// [SILVER] END
+
+onMounted(async () => {
+  const all = await listPlaces()
+  // [SILVER] load the centres for the dropdown
+  centres.value = all.filter(p => p.type === 'hawker-centre' || p.type === 'food-court')
+
   if (auth.isLoggedIn) watchApplication()
   else loading.value = false
 })
@@ -126,6 +138,15 @@ function reload() {
     <div><label class="label" for="h-stall">Stall name</label><input id="h-stall" v-model="form.stallName" required class="input" /></div>
     <div><label class="label" for="h-cuisine">Cuisine</label><input id="h-cuisine" v-model="form.cuisine" required placeholder="e.g. Chinese, Malay, Western" class="input" /></div>
     <div><label class="label" for="h-address">Address</label><input id="h-address" v-model="form.address" required class="input" /></div>
+    <div>
+      <!-- [SILVER] START: Hawker centres, food courts, stalls & place tags (built by Myat, see HANDOVER.md) -->
+      <label class="label" for="h-parent">Is your stall inside a hawker centre or food court?</label>
+      <select id="h-parent" v-model="form.parentId" class="input">
+        <option value="">No, it's a restaurant on its own</option>
+        <option v-for="c in centres" :key="c.id" :value="c.id">{{ c.name }}</option>
+      </select>
+      <!-- [SILVER] END -->
+    </div>
 
     <div>
       <p class="label">Where is your stall? Click the map</p>

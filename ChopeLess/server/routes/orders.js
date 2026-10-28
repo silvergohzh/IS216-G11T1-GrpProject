@@ -26,9 +26,21 @@ import { FieldValue } from 'firebase-admin/firestore'
 import { db } from '../firebase.js'
 import { requireAuth, requireRole } from '../middleware/auth.js'
 import { stripe, stripeEnabled, markOrderPaid } from '../services/payments.js'
+// [NAWAZ] START: Fastpass & Makan Points in pre-orders (built by Myat, see HANDOVER.md)
+import { awardPoints, spendPointsInTx, POINT_RULES } from '../services/points.js'   // Janani's Makan Points
+import { sortPriorityQueue } from '../services/priorityQueue.js'                    // Janani's priority queue
+// [NAWAZ] END
 
 const router = Router()
 const orders = db.collection('orders')
+
+// [NAWAZ] START: Fastpass & Makan Points in pre-orders (built by Myat, see HANDOVER.md)
+// Fastpass costs 150 Makan Points
+const FASTPASS_COST = POINT_RULES.FASTPASS
+
+// Points each person in the group earns when a pre-order is collected
+const PREORDER_POINTS = POINT_RULES.PREORDER_COLLECTED
+// [NAWAZ] END
 
 // An order moves through these steps, in this order:
 //   cart -> awaiting_payment -> paid -> preparing -> ready -> collected
@@ -118,13 +130,19 @@ async function updateOrder(orderId, change) {
 // Every route below needs a logged-in user
 router.use(requireAuth)
 
-// CREATE: POST /api/orders   body: { placeId }
-// Starts a new, empty cart for one stall. You are the owner and the first member.
+// CREATE: POST /api/orders   body: { placeId, sessionCode (optional) }
+// Starts a new, empty cart for one stall. You are the owner (the "group leader") and the first member.
 // If you already have an open cart at this stall, you get that one back instead of a second cart.
+//
+// From a Makan Session: send its sessionCode, and EVERYONE in the session is added to the order
+// straight away (no join code needed). The stall must be the session's winner, or a stall inside it.
 router.post('/', async (req, res, next) => {
   try {
     const place = await db.collection('places').doc(req.body.placeId || 'none').get()
     if (!place.exists) throw httpError(400, 'Choose a stall to order from')
+    if (!place.data().menu || place.data().menu.length === 0) {
+      throw httpError(400, 'This place has no menu. If it is a hawker centre, choose one of its stalls.')
+    }
 
     const open = await orders
       .where('ownerUid', '==', req.uid)
@@ -134,14 +152,40 @@ router.post('/', async (req, res, next) => {
       .get()
     if (!open.empty) return res.json({ id: open.docs[0].id })
 
-    const name = await getName(req.uid)
+    // Who is in the order: just me, or my whole Makan Session group
+    const myName = await getName(req.uid)
+    let members = [{ uid: req.uid, name: myName }]
+    let sessionCode = null
+
+    if (req.body.sessionCode) {
+      const session = await db.collection('sessions').doc(req.body.sessionCode).get()
+      if (!session.exists) throw httpError(404, 'Makan Session not found')
+      const s = session.data()
+      if (!s.members[req.uid]) throw httpError(403, 'You are not in this Makan Session')
+      if (!s.winner) throw httpError(409, 'This Makan Session has no winner yet')
+
+      // You can only pre-order from the place the group picked (or a stall inside it)
+      const isWinner = place.id === s.winner.id
+      const isInsideWinner = place.data().parentId === s.winner.id
+      if (!isWinner && !isInsideWinner) throw httpError(400, 'Your group picked a different place')
+
+      // Me first (I'm the group leader), then everyone else in the session
+      for (const uid in s.members) {
+        if (uid !== req.uid) members.push({ uid: uid, name: s.members[uid].name })
+      }
+      sessionCode = req.body.sessionCode
+    }
+
     const order = {
       placeId: place.id,
       placeName: place.data().name,
       ownerUid: req.uid,
       joinCode: await makeJoinCode(),
-      members: [{ uid: req.uid, name: name }],
-      memberUids: [req.uid],
+      members: members,
+      memberUids: members.map(m => m.uid),
+      sessionCode: sessionCode,
+      // [NAWAZ] the Fastpass flag on every new order
+      priority: false,   // true after the group leader buys a Fastpass
       items: [],
       total: 0,
       status: 'cart',
@@ -249,6 +293,7 @@ router.delete('/:id/items/:lineId', async (req, res, next) => {
 })
 
 // CANCEL: POST /api/orders/:id/cancel
+// [NAWAZ] TODO: if this order had a Fastpass, give the points back (JJyayy's reversePoints in services/points.js)
 // Only the owner, and only before paying. We keep the order (status "cancelled") instead of deleting it.
 router.post('/:id/cancel', async (req, res, next) => {
   try {
@@ -346,18 +391,99 @@ router.post('/:id/collect', async (req, res, next) => {
   try {
     checkPhoto(req.body.photo)
     const name = await getName(req.uid)
-    await updateOrder(req.params.id, order => {
-      if (!order.memberUids.includes(req.uid)) throw httpError(403, 'Only people in this order can collect it')
-      if (order.status !== 'ready') throw httpError(409, 'This order is not ready yet')
-      order.status = 'collected'
-      order.collectedAt = Date.now()
-      order.collectedByName = name
+    const order = await updateOrder(req.params.id, o => {
+      if (!o.memberUids.includes(req.uid)) throw httpError(403, 'Only people in this order can collect it')
+      if (o.status !== 'ready') throw httpError(409, 'This order is not ready yet')
+      o.status = 'collected'
+      o.collectedAt = Date.now()
+      o.collectedByName = name
     })
     await saveProof(req.params.id, 'collected', req.body.photo, req.uid)
-    res.json({ ok: true })
+
+    // [NAWAZ] START: Fastpass & Makan Points in pre-orders (built by Myat, see HANDOVER.md)
+    // Everyone in the group earns Makan Points for a finished pre-order (Janani's points system).
+    // The eventId makes sure each person only gets the points once for this order.
+    // (If the points fail for some reason, the order is still collected.)
+    for (const uid of order.memberUids) {
+      try {
+        // [JJYAYY] check: this uses your awardPoints, one ledger entry per person (eventId preorder_<orderId>)
+        await awardPoints({
+          uid: uid,
+          eventId: `preorder_${req.params.id}`,
+          points: PREORDER_POINTS,
+          reason: `Collected a pre-order from ${order.placeName}`
+        })
+      } catch (err) {
+        console.error('[Makan Points] Could not award pre-order points:', err.message)
+      }
+    }
+    res.json({ ok: true, pointsEach: PREORDER_POINTS })
+    // [NAWAZ] END
   } catch (err) {
     next(err)
   }
 })
+
+// [NAWAZ] START: Fastpass & Makan Points in pre-orders (built by Myat, see HANDOVER.md)
+// ---------- Fastpass: skip the queue with Makan Points ----------
+// POST /api/orders/:id/fastpass
+// The group leader (the person who started the order) spends Makan Points so the hawker
+// prepares this order first. Everyone in the group order gets the priority, because it is one order.
+// It uses Janani's points system: spendPointsInTx takes the points safely (never below 0,
+// never twice for the same order), in the SAME transaction that turns the Fastpass on.
+router.post('/:id/fastpass', async (req, res, next) => {
+  try {
+    const ref = orders.doc(req.params.id)
+    const leaderName = await getName(req.uid)
+    await db.runTransaction(async tx => {
+      const snap = await tx.get(ref)
+      if (!snap.exists) throw httpError(404, 'Order not found')
+      const order = snap.data()
+
+      if (order.ownerUid !== req.uid) throw httpError(403, 'Only the group leader can buy a Fastpass')
+      if (order.priority) throw httpError(409, 'This order already has a Fastpass')
+      const allowed = ['cart', 'awaiting_payment', 'paid']
+      if (!allowed.includes(order.status)) throw httpError(409, 'Too late: the hawker has already started this order')
+
+      // [JJYAYY] check: this uses your spendPointsInTx inside the Fastpass transaction
+      await spendPointsInTx(tx, {
+        uid: req.uid,
+        eventId: `fastpass_${req.params.id}`,
+        points: FASTPASS_COST,
+        reason: `Fastpass for a pre-order at ${order.placeName}`
+      })
+      tx.update(ref, { priority: true, priorityBy: leaderName })
+    })
+    res.json({ ok: true, cost: FASTPASS_COST })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// ---------- Where am I in the queue? ----------
+// GET /api/orders/:id/queue  ->  { position, waiting }
+// Uses Janani's priority queue (services/priorityQueue.js): Fastpass orders first,
+// then first come, first served. Only paid orders that are waiting to be prepared are in the queue.
+router.get('/:id/queue', async (req, res, next) => {
+  try {
+    const snap = await orders.doc(req.params.id).get()
+    if (!snap.exists) throw httpError(404, 'Order not found')
+    const order = snap.data()
+    if (!order.memberUids.includes(req.uid)) throw httpError(403, 'This is not your order')
+
+    // Every order at the same stall, put in queue order
+    const stallOrders = await orders.where('placeId', '==', order.placeId).get()
+    const all = stallOrders.docs.map(d => ({ id: d.id, ...d.data() }))
+    // [JJYAYY] check: this uses your sortPriorityQueue (services/priorityQueue.js)
+    const queue = sortPriorityQueue(all)
+
+    // findIndex gives 0 for the first one, so add 1 (0 means "not in the queue")
+    const position = queue.findIndex(o => o.id === req.params.id) + 1
+    res.json({ position: position, waiting: queue.length })
+  } catch (err) {
+    next(err)
+  }
+})
+// [NAWAZ] END
 
 export default router

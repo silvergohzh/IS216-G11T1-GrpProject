@@ -1,0 +1,71 @@
+[
+  {
+    "id": "ah-seng-chicken-rice", "parentId": "albert-centre", "name": "Ah Seng Chicken Rice", "cuisine": "Chinese", "dietary": [],
+    "menu": [
+      { "id": "chicken-rice", "name": "Chicken rice", "price": 450 },
+      { "id": "roast-pork-rice", "name": "Roast pork rice", "price": 500 },
+      { "id": "steamed-egg", "name": "Steamed egg", "price": 150 },
+      { "id": "lime-juice", "name": "Lime juice", "price": 180 }
+    ]
+  },
+  {
+    "id": "albert-laksa", "parentId": "albert-centre", "name": "Albert Laksa & Noodles", "cuisine": "Peranakan", "dietary": [],
+    "menu": [
+      { "id": "laksa", "name": "Laksa", "price": 500 },
+      { "id": "mee-siam", "name": "Mee siam", "price": 450 },
+      { "id": "veg-bee-hoon", "name": "Vegetarian bee hoon", "price": 350 }
+    ]
+  },
+  {
+    "id": "makcik-nasi-padang", "parentId": "albert-centre", "name": "Makcik Nasi Padang", "cuisine": "Malay", "dietary": ["halal"],
+    "menu": [
+      { "id": "nasi-padang", "name": "Nasi padang set", "price": 550 },
+      { "id": "mee-rebus", "name": "Mee rebus", "price": 400 },
+      { "id": "teh-tarik", "name": "Teh tarik", "price": 160 }
+    ]
+  },
+  {
+    "id": "waterloo-nasi-lemak", "parentId": "waterloo-centre", "name": "Waterloo Nasi Lemak", "cuisine": "Malay", "dietary": ["halal"],
+    "menu": [
+      { "id": "nasi-lemak", "name": "Nasi lemak", "price": 450 },
+      { "id": "mee-goreng", "name": "Mee goreng", "price": 500 },
+      { "id": "teh-tarik", "name": "Teh tarik", "price": 160 }
+    ]
+  },
+  {
+    "id": "fuzhou-fishball", "parentId": "waterloo-centre", "name": "Fuzhou Fishball Noodles", "cuisine": "Chinese", "dietary": [],
+    "menu": [
+      { "id": "fishball-noodles", "name": "Fishball noodles", "price": 400 },
+      { "id": "wanton-soup", "name": "Wanton soup", "price": 350 }
+    ]
+  },
+  {
+    "id": "waterloo-vegetarian", "parentId": "waterloo-centre", "name": "Waterloo Vegetarian", "cuisine": "Chinese", "dietary": ["vegetarian"],
+    "menu": [
+      { "id": "veg-curry-rice", "name": "Vegetarian curry rice", "price": 450 },
+      { "id": "veg-noodles", "name": "Vegetarian noodles", "price": 350 }
+    ]
+  },
+  {
+    "id": "bb-mixed-rice", "parentId": "bras-basah-complex", "name": "Bras Basah Mixed Rice", "cuisine": "Chinese", "dietary": [],
+    "menu": [
+      { "id": "mixed-rice", "name": "Mixed rice (2 veg 1 meat)", "price": 450 },
+      { "id": "extra-egg", "name": "Extra egg", "price": 100 }
+    ]
+  },
+  {
+    "id": "bb-wanton-mee", "parentId": "bras-basah-complex", "name": "Bras Basah Wanton Mee", "cuisine": "Chinese", "dietary": [],
+    "menu": [
+      { "id": "wanton-mee", "name": "Wanton mee", "price": 500 },
+      { "id": "dumpling-soup", "name": "Dumpling soup", "price": 400 }
+    ]
+  },
+  {
+    "id": "bb-kopi-corner", "parentId": "bras-basah-complex", "name": "Kopi Corner", "cuisine": "Drinks", "dietary": ["vegetarian"],
+    "menu": [
+      { "id": "kopi", "name": "Kopi", "price": 150 },
+      { "id": "iced-milo", "name": "Iced Milo", "price": 220 },
+      { "id": "kaya-toast", "name": "Kaya toast set", "price": 250 }
+    ]
+  }
+]

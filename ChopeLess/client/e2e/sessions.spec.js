@@ -29,6 +29,10 @@ test('two members join, vote yes on the same place, and both see the winner', as
   await host.getByTestId('vote-yes').click()      // host taps the ✓ button
   await guest.keyboard.press('ArrowRight')         // guest uses the keyboard shortcut
 
+  // The winner page shows a capsule first: tap it to reveal the winner (it may also open by itself)
+  await host.getByRole('button', { name: 'Open the capsule' }).click({ timeout: 5000 }).catch(() => {})
+  await guest.getByRole('button', { name: 'Open the capsule' }).click({ timeout: 5000 }).catch(() => {})
+
   await expect(host.getByTestId('winner-name')).toContainText(firstPlace)
   await expect(guest.getByTestId('winner-name')).toContainText(firstPlace)
   await expect(host.getByRole('link', { name: 'Get walking directions' })).toBeVisible()

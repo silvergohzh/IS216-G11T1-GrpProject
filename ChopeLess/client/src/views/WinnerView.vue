@@ -121,7 +121,9 @@ watch(
 
       <div class="flex flex-wrap gap-3">
         <a :href="directionsUrl" target="_blank" rel="noopener" class="btn-primary font-display text-xl font-normal">Get walking directions</a>
-        <RouterLink to="/orders" class="btn">Pre-order here</RouterLink>
+        <!-- M6: group pre-order. Everyone in this session is added to the order automatically.
+             Not pre-ordering? Skip it: the walking directions are right here. -->
+        <RouterLink v-if="!String(winner.id).startsWith('gem-')" :to="`/orders?session=${route.params.code}`" class="btn" data-testid="group-preorder">Pre-order as a group</RouterLink>
         <RouterLink to="/sessions" class="btn">Start another session</RouterLink>
       </div>
       <div>

@@ -4,7 +4,6 @@ import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { usingEmulator } from '../lib/firebase'
-import { DEMO_ACCOUNTS, DEMO_PASSWORD } from '../lib/demoAccounts'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -39,17 +38,6 @@ async function submit() {
     error.value = messages[err.code] || err.message
   }
 }
-
-// One-tap login with a ready-made account (no signing up needed)
-async function demoLogin(account) {
-  error.value = ''
-  try {
-    await auth.login(account.email, DEMO_PASSWORD)
-    router.push(route.query.next || '/sessions')
-  } catch (err) {
-    error.value = 'That demo account does not exist yet. Run "npm run seed" in the server folder first.'
-  }
-}
 </script>
 
 <template>
@@ -65,17 +53,6 @@ async function demoLogin(account) {
       </div>
       <RouterLink to="/" class="font-black underline">Just looking? Browse as a guest</RouterLink>
 
-      <!-- demo accounts: one tap, handy during the presentation -->
-      <section class="card mt-2 space-y-2">
-        <h2 class="text-2xl">Try a demo account</h2>
-        <p class="text-xs">One tap to log in. Password for all: {{ DEMO_PASSWORD }}</p>
-        <div class="grid grid-cols-2 gap-2">
-          <button v-for="a in DEMO_ACCOUNTS" :key="a.email" type="button" class="btn flex-col !items-start text-left text-sm" @click="demoLogin(a)">
-            <span class="block">{{ a.name }}</span>
-            <span class="block text-xs font-bold">{{ a.role }}</span>
-          </button>
-        </div>
-      </section>
     </div>
 
     <!-- right: the form -->

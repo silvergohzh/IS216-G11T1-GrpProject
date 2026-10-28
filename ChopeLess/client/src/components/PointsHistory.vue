@@ -9,6 +9,8 @@ const error = ref('')
 
 const API_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/points`
 
+
+// [JANANIJ] START: Pre-order and Fastpass points history labels
 const reasonLabels = {
   SESSION_COMPLETE: 'Completed a Makan Session',
   HOST_BONUS: 'Hosted a Makan Session',
@@ -18,8 +20,17 @@ const reasonLabels = {
 }
 
 function formatReason(reason) {
+  if (reason?.startsWith('Fastpass for a pre-order at ')) {
+    return '⚡ ' + reason
+  }
+
+  if (reason?.startsWith('Collected a pre-order from ')) {
+    return '🍽️ ' + reason
+  }
+
   return reasonLabels[reason] || reason || 'Points adjustment'
 }
+// [JANANIJ] END
 
 function formatDate(timestamp) {
   if (!timestamp) return '-'

@@ -1,35 +1,75 @@
 // Seeds the data for Orders + Payments + Platform. Owner: M6
 // Run: npm run seed   (runs seed.js first, then this file)
-//   1. Adds a menu to every place, so diners have something to order.
-//   2. Creates one test account for each role, for the graders and the Playwright tests.
+//   1. Gives every place a TYPE tag: hawker centre, food court or restaurant.
+//   2. Restaurants get a menu (menus.json).
+//   3. Hawker centres and food courts get STALLS inside them, each with its own menu (stalls.json).
+//      A stall is a normal place with a parentId, e.g. "Ah Seng Chicken Rice" is inside "albert-centre".
+//   4. Creates ready-made accounts (listed in the README) and gives the diners some Makan Points.
 import { readFile } from 'fs/promises'
 import { db, adminAuth } from '../firebase.js'
 
-// ---------- 1. Menus ----------
+const places = db.collection('places')
+
+// [SILVER] START: Hawker centres, food courts, stalls & place tags (built by Myat, see HANDOVER.md)
+// ---------- 1. Type tags ----------
+// The seeded places say their type in the "cuisine" field, so we use that
+const allPlaces = await places.get()
+for (const doc of allPlaces.docs) {
+  let type = 'restaurant'
+  if (doc.data().cuisine === 'Hawker') type = 'hawker-centre'
+  if (doc.data().cuisine === 'Food court') type = 'food-court'
+  await doc.ref.update({ type: type })
+}
+// [SILVER] END
+
+// ---------- 2. Restaurant menus ----------
 // menus.json: { placeId: [{ id, name, price }] }   price is in CENTS (450 = $4.50)
 const menus = JSON.parse(await readFile(new URL('./menus.json', import.meta.url)))
-
 for (const placeId in menus) {
-  const ref = db.collection('places').doc(placeId)
-  const snap = await ref.get()
-  if (snap.exists) {
-    await ref.update({ menu: menus[placeId] })
-  }
+  const snap = await places.doc(placeId).get()
+  if (snap.exists) await snap.ref.update({ menu: menus[placeId] })
 }
-console.log(`Added menus to ${Object.keys(menus).length} places`)
 
-// ---------- 2. Ready-made accounts ----------
-// So nobody has to sign up to try the app. The login page has a one-tap button for each.
-// Keep this list the same as client/src/lib/demoAccounts.js
+// [SILVER] START: Hawker centres, food courts, stalls & place tags (built by Myat, see HANDOVER.md)
+// ---------- 3. Stalls inside hawker centres and food courts ----------
+const stalls = JSON.parse(await readFile(new URL('./stalls.json', import.meta.url)))
+for (const stall of stalls) {
+  const parent = (await places.doc(stall.parentId).get()).data()
+
+  // Cheapest and dearest dish, in dollars (the voting shortlist uses dollars for the budget filter)
+  const prices = stall.menu.map(dish => dish.price)
+
+  await places.doc(stall.id).set({
+    name: stall.name,
+    type: 'stall',
+    parentId: stall.parentId,
+    parentName: parent.name,
+    cuisine: stall.cuisine,
+    address: parent.address,       // a stall is at the same address as its hawker centre
+    lat: parent.lat,
+    lng: parent.lng,
+    priceMin: Math.min(...prices) / 100,
+    priceMax: Math.max(...prices) / 100,
+    dietary: stall.dietary,
+    serviceModes: parent.serviceModes,
+    menu: stall.menu,
+    latest: null
+  })
+}
+console.log(`Added menus to ${Object.keys(menus).length} restaurants and ${stalls.length} stalls inside hawker centres / food courts`)
+// [SILVER] END
+
+// ---------- 4. Ready-made accounts ----------
+// So nobody has to sign up to try the app. They are listed in the README.
 const PASSWORD = 'test1234'
 const accounts = [
-  { email: 'alice@chopeless.test', name: 'Alice Tan', role: 'diner', placeId: null },
-  { email: 'ben@chopeless.test', name: 'Ben Lim', role: 'diner', placeId: null },
-  { email: 'chloe@chopeless.test', name: 'Chloe Ng', role: 'diner', placeId: null },
-  { email: 'hawker@chopeless.test', name: 'Albert Centre Hawker', role: 'hawker', placeId: 'albert-centre' },
-  { email: 'hawker2@chopeless.test', name: 'Waterloo Centre Hawker', role: 'hawker', placeId: 'waterloo-centre' },
-  { email: 'admin@chopeless.test', name: 'Admin', role: 'admin', placeId: null },
-  { email: 'dan@chopeless.test', name: 'Dan Koh', role: 'diner', placeId: null } // has a hawker application waiting (below)
+  { email: 'alice@chopeless.test', name: 'Alice Tan', role: 'diner', placeId: null, points: 1000 },
+  { email: 'ben@chopeless.test', name: 'Ben Lim', role: 'diner', placeId: null, points: 300 },
+  { email: 'chloe@chopeless.test', name: 'Chloe Ng', role: 'diner', placeId: null, points: 300 },
+  { email: 'hawker@chopeless.test', name: 'Ah Seng (hawker)', role: 'hawker', placeId: 'ah-seng-chicken-rice', points: 0 },
+  { email: 'hawker2@chopeless.test', name: 'Waterloo Nasi Lemak (hawker)', role: 'hawker', placeId: 'waterloo-nasi-lemak', points: 0 },
+  { email: 'admin@chopeless.test', name: 'Admin', role: 'admin', placeId: null, points: 0 },
+  { email: 'dan@chopeless.test', name: 'Dan Koh', role: 'diner', placeId: null, points: 0 } // has a hawker application waiting (below)
 ]
 
 for (const account of accounts) {
@@ -49,10 +89,16 @@ for (const account of accounts) {
     role: account.role,
     placeId: account.placeId
   }, { merge: true })
+
+  // [NAWAZ] START: Fastpass & Makan Points in pre-orders (built by Myat, see HANDOVER.md)
+  // Starting Makan Points, so the diners can try buying a Fastpass (it costs 150 points).
+  // Re-running the seed puts the balance back to this number.
+  await db.collection('pointsAccounts').doc(user.uid).set({ balance: account.points, lifetimePoints: account.points })
+  // [NAWAZ] END
 }
 console.log(`Test accounts ready (password "${PASSWORD}"): ${accounts.map(a => a.email).join(', ')}`)
 
-// ---------- 3. A hawker application waiting for the admin ----------
+// ---------- 5. A hawker application waiting for the admin ----------
 // So the admin page has something to approve straight away.
 const dan = await adminAuth.getUserByEmail('dan@chopeless.test')
 await db.collection('hawkerApplications').doc(dan.uid).set({
@@ -65,6 +111,7 @@ await db.collection('hawkerApplications').doc(dan.uid).set({
   lng: 103.8526,
   dietary: ['halal'],
   serviceModes: ['dine-in', 'takeaway'],
+  parentId: null,
   status: 'pending',
   reason: '',
   createdAt: new Date()

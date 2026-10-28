@@ -31,6 +31,3 @@ export const addDish = (name, price) => api('/hawkers/menu', { method: 'POST', b
 export const addManyDishes = items => api('/hawkers/menu/many', { method: 'POST', body: { items } })
 export const updateDish = (dishId, changes) => api(`/hawkers/menu/${dishId}`, { method: 'PATCH', body: changes })
 export const deleteDish = dishId => api(`/hawkers/menu/${dishId}`, { method: 'DELETE' })
-
-// AI: read a photo of the menu board. Returns a draft list [{ name, price (cents) }] - not saved yet.
-export const scanMenuPhoto = photo => api('/hawkers/menu/scan', { method: 'POST', body: { photo } })

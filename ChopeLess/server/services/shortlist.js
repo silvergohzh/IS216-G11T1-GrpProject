@@ -8,7 +8,11 @@ const SHORTLIST_SIZE = 8
 
 async function loadCandidates() {
   const placesSnap = await db.collection('places').get()
-  const places = placesSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+  // [SILVER] START: Hawker centres, food courts, stalls & place tags (built by Myat, see HANDOVER.md)
+  // Stalls inside a hawker centre or food court (parentId) are not voted on by themselves:
+  // the group votes for the centre, then picks a stall when pre-ordering (M6)
+  const places = placesSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => !p.parentId)
+  // [SILVER] END
 
   // Hidden gems with 3+ upvotes join the pool (M5's data)
   const gemsSnap = await db.collection('gems').get()

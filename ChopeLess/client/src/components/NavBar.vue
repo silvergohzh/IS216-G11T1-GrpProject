@@ -17,7 +17,7 @@ const links = computed(() => {
     { to: '/queueless', label: 'QueueLess' },
     { to: '/gems', label: 'Hidden Gems' }
   ]
-  if (auth.isLoggedIn) list.push({ to: '/orders', label: 'Pre-order' }, { to: '/points', label: 'Points' })
+  if (auth.isLoggedIn) list.push({ to: '/orders', label: 'Pre-order' }, { to: '/payments', label: 'Payments' }, { to: '/points', label: 'Points' })
   if (auth.isHawker) list.push({ to: '/hawker', label: 'Order board' }, { to: '/hawker/menu', label: 'My menu' })
   if (auth.isAdmin) list.push({ to: '/admin', label: 'Admin' })
   return list
