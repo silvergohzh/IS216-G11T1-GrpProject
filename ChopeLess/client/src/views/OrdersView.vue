@@ -170,17 +170,29 @@ const join = () => run(async () => {
   <!-- [SILVER] START: Hawker centres, food courts, stalls & place tags (built by Myat, see HANDOVER.md) -->
   <!-- Inside a hawker centre / food court: only its stalls -->
   <section v-if="centre" class="mb-6">
-    <div class="mb-2 flex flex-wrap items-center gap-2">
-      <h2>Stalls in {{ centre.name }}</h2>
-      <PlaceTag :type="centre.type" />
-      <button v-if="!session" class="btn text-sm" @click="closeCentre">← All places</button>
+    <!-- A yellow banner so it's clear you've "entered" the centre -->
+    <div class="card card-sun mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <p class="kicker">You're inside</p>
+        <h2 class="text-3xl">Stalls in {{ centre.name }}</h2>
+        <p class="font-bold">{{ centreStalls.length }} stalls · pick one to pre-order</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <PlaceTag :type="centre.type" />
+        <button v-if="!session" class="btn text-sm" @click="closeCentre">← All places</button>
+      </div>
     </div>
     <p v-if="centreStalls.length === 0" class="card text-slate-500">No stalls here yet.</p>
     <ul class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      <li v-for="s in centreStalls" :key="s.id" class="card flex flex-col justify-between gap-2 !pt-0 overflow-hidden" data-testid="stall-card">
+      <li v-for="(s, i) in centreStalls" :key="s.id" class="card flex flex-col justify-between gap-2 !pt-0 overflow-hidden" data-testid="stall-card">
         <div>
-          <div class="-mx-5 mb-3 h-3 border-b-[3px] border-ink bg-accent" aria-hidden="true"></div>
-          <PlaceTag type="stall" />
+          <!-- green strip = a stall inside a centre (place cards use yellow) -->
+          <div class="-mx-5 mb-3 h-3 border-b-[3px] border-ink bg-[#7bc96f]" aria-hidden="true"></div>
+          <div class="flex items-center gap-2">
+            <!-- stall number, same round badge as the island stations -->
+            <span class="grid h-8 w-8 place-items-center rounded-full border-[3px] border-ink bg-white font-display" aria-hidden="true">{{ i + 1 }}</span>
+            <PlaceTag type="stall" />
+          </div>
           <h3 class="mt-1 text-xl leading-tight">{{ s.name }}</h3>
           <p class="text-sm font-bold">{{ s.cuisine }} · from {{ cheapest(s) }}</p>
         </div>
