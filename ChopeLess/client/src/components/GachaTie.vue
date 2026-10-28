@@ -5,6 +5,7 @@
      It runs by itself; tapping the crank or the capsule just skips ahead. -->
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { sfx } from '../lib/sfx'
 
 const props = defineProps({
   candidates: { type: Array, required: true },  // [{ id, name }], max 6 (the server caps it)
@@ -31,11 +32,13 @@ const later = (fn, ms) => timers.push(setTimeout(fn, ms))
 function turn() {
   if (phase.value !== 'idle') return
   phase.value = 'turning'
+  sfx.crank()
   later(() => { phase.value = 'dropped'; later(open, 1100) }, 1300)
 }
 function open() {
   if (phase.value !== 'dropped') return
   phase.value = 'opening'
+  sfx.pop()
   later(() => { phase.value = 'open'; later(() => emit('done'), 1600) }, 450)
 }
 

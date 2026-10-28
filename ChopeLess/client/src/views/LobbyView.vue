@@ -30,6 +30,8 @@ const copied = ref(false);
 const notMember = computed(
   () => store.session && !store.session.members?.[auth.user?.uid],
 );
+// True if the host removed me (so I see why, not just "not part of this session")
+const wasKicked = computed(() => !!store.session?.kicked?.[auth.user?.uid]);
 
 // Copy just the 6-letter code so friends can type it on the Makan Session page
 async function copyCode() {
@@ -129,7 +131,7 @@ async function start() {
 <template>
   <!-- Outsiders see this instead of the lobby -->
   <div v-if="notMember" class="card text-center">
-    <p class="mb-3">You're not part of this session.</p>
+    <p class="mb-3">{{ wasKicked ? "The host removed you from this session." : "You're not part of this session." }}</p>
     <RouterLink to="/sessions" class="btn-primary"
       >Back to Makan Session</RouterLink
     >
@@ -218,9 +220,10 @@ async function start() {
               id="walk"
               type="number"
               class="input"
+              min="1"
               :value="store.session.maxWalkMins"
               :disabled="!isHost"
-              @change="update({ maxWalkMins: +$event.target.value })"
+              @change="update({ maxWalkMins: Math.max(1, +$event.target.value || 1) })"
             />
           </div>
           <div>
@@ -229,9 +232,10 @@ async function start() {
               id="wait"
               type="number"
               class="input"
+              min="1"
               :value="store.session.maxWaitMins"
               :disabled="!isHost"
-              @change="update({ maxWaitMins: +$event.target.value })"
+              @change="update({ maxWaitMins: Math.max(1, +$event.target.value || 1) })"
             />
           </div>
           <div>
@@ -293,7 +297,7 @@ async function start() {
         >
           Share the code: you need at least 2 people to vote.
         </p>
-        <p v-else class="text-sm text-slate-500">
+        <p v-else-if="!isHost" class="text-sm text-slate-500">
           Waiting for the host to start…
         </p>
         <button v-if="isHost" class="w-full text-sm text-red-600" @click="end">

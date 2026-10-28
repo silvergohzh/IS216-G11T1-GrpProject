@@ -4,6 +4,13 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { APP_NAME } from '../config'
+// sound on/off (remembered on this device)
+import { isMuted, setMuted } from '../lib/sfx'
+const muted = ref(isMuted())
+function toggleSound() {
+  muted.value = !muted.value
+  setMuted(muted.value)
+}
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -60,6 +67,9 @@ async function logout() {
           <button class="btn whitespace-nowrap lg:ml-2" @click="open = false; logout()">Log out</button>
         </template>
         <RouterLink v-else to="/login" class="btn-primary whitespace-nowrap text-center lg:ml-2" @click="open = false">Log in</RouterLink>
+        <!--  sound on/off -->
+        <button class="btn whitespace-nowrap lg:ml-2" data-testid="sound-toggle" data-no-tap :aria-pressed="!muted"
+                :aria-label="muted ? 'Turn sound on' : 'Turn sound off'" @click="toggleSound">{{ muted ? '🔇' : '🔊' }}</button>
       </div>
     </nav>
   </header>

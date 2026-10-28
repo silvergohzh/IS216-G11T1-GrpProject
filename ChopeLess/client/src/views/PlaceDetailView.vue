@@ -3,6 +3,9 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getPlace, analysePhoto, shrinkPhoto } from '../services/places'
+// [M3] Today's Quests: remember that I checked a queue with a photo today
+import { auth } from '../lib/firebase'
+import { markQuest } from '../lib/quests'
 
 const route = useRoute()
 const router = useRouter()
@@ -41,6 +44,7 @@ async function analyse() {
   error.value = ''
   try {
     result.value = await analysePhoto(route.params.id, photo.value)
+        markQuest(auth.currentUser?.uid, 'queue-photo')   // [M3] ticks "Check a queue with a photo"
     await load()
   } catch (err) {
     error.value = err.message

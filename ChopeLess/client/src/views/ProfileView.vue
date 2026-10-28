@@ -7,7 +7,8 @@ import { getProfile, saveProfile } from '../services/users'
 
 const auth = useAuthStore()
 const router = useRouter()
-const DIETS = ['halal', 'vegetarian', 'no-beef']
+// same diets as the Makan Session page (no place is tagged 'no-beef', so it was removed)
+const DIETS = ['halal', 'vegetarian']
 const form = ref({ name: auth.user?.name || '', defaultBudget: 8, dietary: [] })
 const message = ref('')
 const error = ref('')
@@ -16,7 +17,8 @@ const loaded = ref(false) // the form stays disabled until then, so the saved pr
 onMounted(async () => {
   try {
     const me = await getProfile(auth.user.uid)
-    if (me) form.value = { ...form.value, ...me }
+    // drop diets we no longer offer (e.g. an old 'no-beef') so they don't get saved again
+    if (me) form.value = { ...form.value, ...me, dietary: (me.dietary || []).filter(d => DIETS.includes(d)) }
   } catch (err) { error.value = err.message }
   finally { loaded.value = true }
 })

@@ -10,6 +10,7 @@ import { api } from "../lib/api";
 import PlaceCard from "../components/PlaceCard.vue";
 import MapView from "../components/MapView.vue";
 import GachaTie from "../components/GachaTie.vue";
+import { sfx } from "../lib/sfx";
 
 const route = useRoute();
 const store = useSessionStore();
@@ -29,6 +30,8 @@ let autoOpen = null;
 const COLOURS = ["#ffd23f", "#ff7a45", "#7bc96f", "#ffffff", "#8fd3ff"];
 
 function celebrate() {
+  sfx.confetti();   // "pshh" at the same time as the confetti
+  sfx.fanfare();    // little victory tune
   const base = { colors: COLOURS, disableForReducedMotion: true, zIndex: 2000 };
   confetti({ ...base, particleCount: 120, spread: 90, startVelocity: 45, origin: { y: 0.4 } });
   setTimeout(() => {
@@ -39,6 +42,7 @@ function celebrate() {
 function pop() {
   if (capsule.value !== "closed") return;
   capsule.value = "popping";
+  sfx.pop();
   setTimeout(() => { capsule.value = "open"; celebrate(); }, 450);
 
 }
@@ -130,8 +134,8 @@ watch(
         <MapView
           :center="[winner.lat, winner.lng]"
           :markers="[
-          { lat: winner.lat, lng: winner.lng, label: winner.name },
-            ...(from ? [{ ...from, label: 'Meeting point' }] : []),
+            { lat: winner.lat, lng: winner.lng, label: winner.name, color: '#ffd23f', radius: 12 },
+            ...(from ? [{ ...from, label: 'Meeting point', color: '#17213b' }] : []),
           ]"
           :route="path"
         />
