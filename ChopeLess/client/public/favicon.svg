@@ -1,1 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#237a4b"/><text x="16" y="22" text-anchor="middle" font-family="Arial, sans-serif" font-size="17" font-weight="800" fill="#ffffff">C</text><circle cx="25" cy="8" r="3" fill="#e0a526"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="#8fd3ff" stroke="#17213b" stroke-width="4"/>
+  <rect x="9" y="44" width="46" height="11" rx="3" fill="#ffffff" stroke="#17213b" stroke-width="3"/>
+  <circle cx="32" cy="49.5" r="4" fill="none" stroke="#e5483b" stroke-width="2.5"/>
+  <circle cx="32" cy="13" r="7" fill="#ffd23f" stroke="#17213b" stroke-width="3.5"/>
+  <rect x="28" y="19" width="8" height="10" fill="#ffd23f" stroke="#17213b" stroke-width="3.5"/>
+  <rect x="17" y="28" width="30" height="8" rx="3" fill="#ff7a45" stroke="#17213b" stroke-width="3.5"/>
+  <rect x="19" y="36" width="26" height="5" rx="1.5" fill="#e5483b" stroke="#17213b" stroke-width="3"/>
+  <path d="M12 41 l-3 -3 M52 41 l3 -3" stroke="#17213b" stroke-width="2.5" stroke-linecap="round"/>
+</svg>

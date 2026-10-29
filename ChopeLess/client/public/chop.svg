@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- The ChopeLess "chop": a rubber stamp about to chope the name underneath. Owner: M3
+       White outlines, because it sits on the navy top bar -->
+  <circle cx="24" cy="10" r="8" fill="#ffd23f" stroke="#ffffff" stroke-width="3.5"/>
+  <rect x="19" y="17" width="10" height="10" fill="#ffd23f" stroke="#ffffff" stroke-width="3.5"/>
+  <rect x="6" y="26" width="36" height="11" rx="3.5" fill="#ff7a45" stroke="#ffffff" stroke-width="3.5"/>
+  <rect x="9" y="37" width="30" height="7" rx="2" fill="#e5483b" stroke="#ffffff" stroke-width="3.5"/>
+</svg>

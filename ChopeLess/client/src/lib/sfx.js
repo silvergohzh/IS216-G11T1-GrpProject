@@ -64,8 +64,11 @@ function burst({ ms = 300, volume = 0.15, delay = 0 }) {
 }
 
 export const sfx = {
-  // any button: a tiny 8-bit "blip"
-  tap: () => tone({ from: 660, to: 880, ms: 60, volume: 0.05 }),
+  // any button: a soft water droplet "plip"
+  tap: () => tone({ wave: 'sine', from: 900, to: 1700, ms: 70, volume: 0.08 }),
+  // changing pages: three little rising bubbles
+  bubble: () => [0, 70, 150].forEach((d, i) =>
+    tone({ wave: 'sine', from: 300 + i * 120, to: 900 + i * 200, ms: 100, volume: 0.1, delay: d })),
   // swipe yes: two notes going up
   yes: () => { tone({ wave: 'triangle', from: 523, ms: 80 }); tone({ wave: 'triangle', from: 784, ms: 120, delay: 70 }) },
   // swipe no / veto: a low "bwomp"
