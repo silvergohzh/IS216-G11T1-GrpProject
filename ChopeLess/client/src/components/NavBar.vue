@@ -4,12 +4,15 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { APP_NAME } from '../config'
-// sound on/off (remembered on this device)
+// [M3] one sound button: on = button sounds + music, off = silence (remembered on this device)
 import { isMuted, setMuted } from '../lib/sfx'
+import { startMusic, stopMusic } from '../lib/music'
 const muted = ref(isMuted())
 function toggleSound() {
   muted.value = !muted.value
   setMuted(muted.value)
+  if (muted.value) stopMusic()
+  else startMusic()
 }
 
 const auth = useAuthStore()
@@ -40,10 +43,11 @@ async function logout() {
   <!-- Makan Quest top bar: navy, the current page is a yellow pill -->
   <header class="sticky top-0 z-[1000] border-b-4 border-[#0e1528] bg-ink text-white">
     <nav class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-      <RouterLink to="/" class="flex shrink-0 items-center gap-2 font-display text-2xl"
+      <!-- [M3] logo: a rubber stamp, slightly slanted, about to "chope" the name ChopeLess -->
+      <RouterLink to="/" class="relative flex shrink-0 flex-col items-center font-display leading-none"
                   :aria-label="APP_NAME + ' home'" @click="open = false">
-        <img src="/favicon.svg" alt="" class="h-8 w-8" />
-        <span>Chope<span class="text-accent">Less</span></span>
+        <img src="/chop.svg" alt="" class="-mb-1 h-10 w-10 -rotate-12" />
+        <span class="text-2xl">Chope<span class="text-accent">Less</span></span>
       </RouterLink>
 
       <!-- ☰ menu button: phones and tablets (below 1024px) -->

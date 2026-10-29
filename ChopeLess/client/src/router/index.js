@@ -2,6 +2,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { APP_NAME } from '../config'
+import { sfx } from '../lib/sfx'
 
 const routes = [
   // M6: Foundation
@@ -55,8 +56,10 @@ router.beforeEach(async to => {
 })
 
 // Browser tab title, e.g. "QueueLess · ChopeLess"
-router.afterEach(to => {
+router.afterEach((to, from) => {
   document.title = to.meta.title ? `${to.meta.title} · ${APP_NAME}` : APP_NAME
+  // [M3] bubble sound, but not on the very first page load (from.name is empty then)
+  if (from.name && to.path !== from.path) sfx.bubble()
 })
 
 export default router
