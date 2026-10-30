@@ -29,9 +29,18 @@ jobs:
       - name: Install server packages
         run: npm ci
         working-directory: ChopeLess/server
-      - name: Install client packages
-        run: npm ci
+            - name: Install client packages
         working-directory: ChopeLess/client
+        run: |
+          rm -rf node_modules package-lock.json
+          npm install --package-lock-only
+          npm ci
+
+      - name: Upload repaired client lock file
+        uses: actions/upload-artifact@v4
+        with:
+          name: repaired-client-lock
+          path: ChopeLess/client/package-lock.json
       - name: Install the test browser
         run: npx playwright install --with-deps chromium
         working-directory: ChopeLess/client
