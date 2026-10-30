@@ -95,6 +95,44 @@ test('full journey: pay, hawker readies with a photo, diner collects with a phot
   await expect(hawker.getByTestId('history-order').filter({ hasText: codeOf(orderId) })).toBeVisible()
 })
 
+test('portions left: diners cannot order more than the hawker has, the menu updates live, and paying uses them up', async ({ page, browser, request }) => {
+  const dishName = 'Naruto ramen ' + Date.now() // unique, because the phone and desktop runs share the stall
+
+  // The hawker adds a dish with only 1 portion left
+  const hawker = await (await browser.newContext()).newPage()
+  await logIn(hawker, 'hawker@chopeless.test')
+  await hawker.goto('/hawker/menu')
+  await hawker.locator('#dish-name').fill(dishName)
+  await hawker.locator('#dish-price').fill('8')
+  await hawker.locator('#dish-stock').fill('1')
+  await hawker.getByRole('button', { name: 'Add dish' }).click()
+  const row = hawker.locator(`[data-testid="menu-dish"][data-name="${dishName}"]`)
+  await expect(row.getByLabel('Portions left')).toHaveValue('1')
+
+  // A diner can add it once, then the Add and + buttons stop working
+  await signUp(page, 'portions')
+  await startOrder(page)
+  await page.getByRole('button', { name: `Add ${dishName}` }).click()
+  await expect(page.getByTestId('order-total')).toHaveText('$8.00')
+  await expect(page.getByRole('button', { name: `Add ${dishName}` })).toBeDisabled()
+  const line = page.getByTestId('cart-item').filter({ hasText: dishName })
+  await expect(line.getByRole('button', { name: 'One more' })).toBeDisabled()
+
+  // The hawker cooks more. The diner's menu updates live (no refresh), so they can add another
+  await row.getByLabel('Portions left').fill('3')
+  await row.getByRole('button', { name: 'Save' }).click()
+  await expect(line.getByRole('button', { name: 'One more' })).toBeEnabled()
+  await line.getByRole('button', { name: 'One more' }).click()
+  await expect(page.getByTestId('order-total')).toHaveText('$16.00')
+
+  // Paying takes the 2 portions off: 3 - 2 = 1 left
+  const orderId = page.url().split('/').pop()
+  const res = await request.post(WEBHOOK_URL, stripeMessage(orderId))
+  expect(res.ok()).toBeTruthy()
+  await expect(page.getByTestId('order-status')).toHaveText('Paid')
+  await expect(row.getByLabel('Portions left')).toHaveValue('1')
+})
+
 test('a fake payment message is rejected', async ({ page, request }) => {
   await signUp(page, 'fakepay')
   const orderId = await startOrder(page)

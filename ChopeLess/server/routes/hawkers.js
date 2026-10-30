@@ -5,9 +5,10 @@
 //      That saves an APPLICATION: hawkerApplications/{uid} with status "pending".
 //   2. An admin approves it (routes/admin.js). Only then is a real stall created in
 //      places/{id}, and the account becomes a hawker for that stall.
-//   3. The hawker manages their menu here: places/{id}.menu = [{ id, name, price, available }]
-//      price is in CENTS. Menu changes show up straight away on the public stall page
-//      and in pre-orders (routes/orders.js reads prices from this menu).
+//   3. The hawker manages their menu here: places/{id}.menu = [{ id, name, price, available, stock }]
+//      price is in CENTS. stock is how many portions are left (null = no limit).
+//      When an order is paid, its dishes are taken off the stock (services/payments.js).
+//      Menu changes show up straight away on the public stall page and in pre-orders (routes/orders.js reads prices from this menu).
 import { Router } from 'express'
 import { randomUUID } from 'crypto'
 import { FieldValue } from 'firebase-admin/firestore'
@@ -37,6 +38,14 @@ function cleanName(name) {
   if (!clean) throw httpError(400, 'Dish name is required')
   if (clean.length > 60) throw httpError(400, 'Dish name is too long (60 letters max)')
   return clean
+}
+
+// How many portions are left. Empty means "no limit" (null).
+function toStock(value) {
+  if (value === undefined || value === null || value === '') return null
+  const stock = Number(value)
+  if (!(Number.isInteger(stock) && stock >= 0 && stock <= 999)) throw httpError(400, 'Portions left must be a whole number from 0 to 999')
+  return stock
 }
 
 // Change a stall's menu safely (in a transaction, like updateOrder in orders.js).
@@ -131,10 +140,16 @@ router.get('/application', requireAuth, async (req, res, next) => {
 
 // ---------- 2. Menu management (hawkers only, for their own stall) ----------
 
-// ADD a dish: POST /api/hawkers/menu   body: { name, price }   (price in dollars, e.g. "4.50")
+// ADD a dish: POST /api/hawkers/menu   body: { name, price, stock }   (price in dollars, e.g. "4.50"; stock optional)
 router.post('/menu', requireAuth, requireRole('hawker'), async (req, res, next) => {
   try {
-    const dish = { id: randomUUID(), name: cleanName(req.body.name), price: toCents(req.body.price), available: true }
+    const dish = {
+      id: randomUUID(),
+      name: cleanName(req.body.name),
+      price: toCents(req.body.price),
+      available: true,
+      stock: toStock(req.body.stock)
+    }
     await updateMenu(req.placeId, menu => menu.push(dish))
     res.status(201).json(dish)
   } catch (err) {
@@ -153,7 +168,8 @@ router.post('/menu/many', requireAuth, requireRole('hawker'), async (req, res, n
       id: randomUUID(),
       name: cleanName(item.name),
       price: toCents(item.price),
-      available: true
+      available: true,
+      stock: toStock(item.stock)
     }))
     await updateMenu(req.placeId, menu => menu.push(...dishes))
     res.status(201).json({ added: dishes.length })
@@ -162,7 +178,7 @@ router.post('/menu/many', requireAuth, requireRole('hawker'), async (req, res, n
   }
 })
 
-// EDIT a dish: PATCH /api/hawkers/menu/:dishId   body: any of { name, price, available }
+// EDIT a dish: PATCH /api/hawkers/menu/:dishId   body: any of { name, price, available, stock }
 router.patch('/menu/:dishId', requireAuth, requireRole('hawker'), async (req, res, next) => {
   try {
     await updateMenu(req.placeId, menu => {
@@ -171,6 +187,7 @@ router.patch('/menu/:dishId', requireAuth, requireRole('hawker'), async (req, re
       if (req.body.name !== undefined) dish.name = cleanName(req.body.name)
       if (req.body.price !== undefined) dish.price = toCents(req.body.price)
       if (req.body.available !== undefined) dish.available = req.body.available === true
+      if (req.body.stock !== undefined) dish.stock = toStock(req.body.stock)
     })
     res.json({ ok: true })
   } catch (err) {

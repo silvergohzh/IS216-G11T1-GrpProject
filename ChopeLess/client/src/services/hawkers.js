@@ -27,7 +27,8 @@ export const approveApplication = uid => api(`/admin/applications/${uid}/approve
 export const rejectApplication = (uid, reason) => api(`/admin/applications/${uid}/reject`, { method: 'POST', body: { reason } })
 
 // ---------- Menu (hawker only). Prices are typed in dollars, e.g. "4.50" ----------
-export const addDish = (name, price) => api('/hawkers/menu', { method: 'POST', body: { name, price } })
+// stock = how many portions are left. Leave it empty for no limit.
+export const addDish = (name, price, stock) => api('/hawkers/menu', { method: 'POST', body: { name, price, stock } })
 export const addManyDishes = items => api('/hawkers/menu/many', { method: 'POST', body: { items } })
 export const updateDish = (dishId, changes) => api(`/hawkers/menu/${dishId}`, { method: 'PATCH', body: changes })
 export const deleteDish = dishId => api(`/hawkers/menu/${dishId}`, { method: 'DELETE' })

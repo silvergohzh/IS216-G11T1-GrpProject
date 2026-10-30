@@ -33,6 +33,7 @@ export async function markOrderPaid(orderId, method = 'demo', paymentIntent = ''
   if (order.status !== 'cart' && order.status !== 'awaiting_payment') return
 
   await ref.update({ status: 'paid', paidAt: FieldValue.serverTimestamp() })
+  await takeFromStock(order)
 
   // CREATE the payment record. The person who started the order is the one who paid.
   const payer = order.members.find(m => m.uid === order.ownerUid)
@@ -50,5 +51,25 @@ export async function markOrderPaid(orderId, method = 'demo', paymentIntent = ''
     refundReason: '',
     paidAt: Date.now(),
     updatedAt: Date.now()
+  })
+}
+
+// The order is paid, so those portions are gone: take them off the stall's stock.
+// Dishes without a stock number (null) have no limit, so they are skipped.
+// It runs in a transaction so two payments at the same moment can't both use the same portions.
+async function takeFromStock(order) {
+  const placeRef = db.collection('places').doc(order.placeId)
+  await db.runTransaction(async tx => {
+    const snap = await tx.get(placeRef)
+    if (!snap.exists) return
+    const menu = snap.data().menu || []
+
+    for (const dish of menu) {
+      if (dish.stock === null || dish.stock === undefined) continue
+      for (const item of order.items) {
+        if (item.itemId === dish.id) dish.stock = Math.max(0, dish.stock - item.qty)
+      }
+    }
+    tx.update(placeRef, { menu: menu })
   })
 }

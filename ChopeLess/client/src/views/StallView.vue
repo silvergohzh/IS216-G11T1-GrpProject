@@ -81,8 +81,11 @@ async function preOrder() {
         <p v-if="stall.menu.length === 0" class="text-slate-500">No menu yet. Check back soon!</p>
         <ul class="divide-y divide-slate-100">
           <li v-for="dish in stall.menu" :key="dish.id" class="flex items-center justify-between py-2" data-testid="public-dish">
-            <span :class="{ 'text-slate-400 line-through': dish.available === false }">{{ dish.name }}</span>
-            <span v-if="dish.available === false" class="text-sm font-bold text-red-600">Sold out</span>
+            <span :class="{ 'text-slate-400 line-through': dish.available === false || dish.stock === 0 }">
+              {{ dish.name }}
+              <span v-if="dish.stock > 0" class="block text-xs text-slate-500">{{ dish.stock }} left</span>
+            </span>
+            <span v-if="dish.available === false || dish.stock === 0" class="text-sm font-bold text-red-600">Sold out</span>
             <span v-else class="font-semibold">{{ formatMoney(dish.price) }}</span>
           </li>
         </ul>

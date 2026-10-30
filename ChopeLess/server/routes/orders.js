@@ -8,6 +8,7 @@
 //     members:    [{ uid, name }],   everyone in the group cart
 //     memberUids: [uid],             the same people as a plain list (the security rules need this)
 //     items: [{ lineId, itemId, name, price, qty, addedBy, addedByName }],   price is in CENTS
+//     (a dish's qty can't go over the stall's stock, see checkStock)
 //     total,                         in cents, worked out by the server
 //     status,                        see the steps below
 //     readyAt, pickupBy,             when it was ready, and the pickup deadline (milliseconds)
@@ -106,6 +107,30 @@ async function saveProof(orderId, kind, photo, uid) {
     byName: await getName(uid),
     at: Date.now()
   })
+}
+
+// One dish from a stall's menu (or null if it was deleted)
+async function getDish(placeId, itemId) {
+  const place = await db.collection('places').doc(placeId).get()
+  const menu = place.exists ? place.data().menu || [] : []
+  return menu.find(d => d.id === itemId) || null
+}
+
+// How many of one dish are in this cart altogether (the same dish can be on several lines, one per person)
+function qtyInCart(order, itemId) {
+  let count = 0
+  for (const item of order.items) {
+    if (item.itemId === itemId) count = count + item.qty
+  }
+  return count
+}
+
+// Stop people ordering more portions than the hawker has left.
+// stock is null (or missing) when the hawker didn't set a limit.
+function checkStock(dish, wanted) {
+  if (dish.stock === null || dish.stock === undefined) return
+  if (dish.stock === 0) throw httpError(409, `Sorry, ${dish.name} is sold out`)
+  if (wanted > dish.stock) throw httpError(409, `Only ${dish.stock} ${dish.name} left`)
 }
 
 // Change an order safely.
@@ -237,6 +262,7 @@ router.post('/:id/items', async (req, res, next) => {
       const dish = menu.find(d => d.id === req.body.itemId)
       if (!dish) throw httpError(400, 'That dish is not on the menu')
       if (dish.available === false) throw httpError(409, 'Sorry, that dish is sold out')
+      checkStock(dish, qtyInCart(order, dish.id) + qty)
 
       order.items.push({
         lineId: randomUUID(), // a unique id for this line, so it can be changed or removed later
@@ -261,12 +287,17 @@ router.patch('/:id/items/:lineId', async (req, res, next) => {
     const qty = Number(req.body.qty)
     if (!(qty >= 1 && qty <= 20)) throw httpError(400, 'Quantity must be between 1 and 20')
 
-    await updateOrder(req.params.id, order => {
+    await updateOrder(req.params.id, async order => {
       if (order.status !== 'cart') throw httpError(409, 'This order can no longer be changed')
       const item = order.items.find(i => i.lineId === req.params.lineId)
       if (!item) throw httpError(404, 'Item not found')
       if (item.addedBy !== req.uid && order.ownerUid !== req.uid) throw httpError(403, 'You can only change your own items')
 
+      // Only check the stock when asking for MORE, so people can always lower their quantity
+      if (qty > item.qty) {
+        const dish = await getDish(order.placeId, item.itemId)
+        if (dish) checkStock(dish, qtyInCart(order, item.itemId) - item.qty + qty)
+      }
       item.qty = qty
     })
     res.json({ ok: true })
@@ -314,10 +345,18 @@ router.post('/:id/cancel', async (req, res, next) => {
 // The owner pays for the whole group. Returns a Stripe page for the browser to open.
 router.post('/:id/checkout', async (req, res, next) => {
   try {
-    const order = await updateOrder(req.params.id, o => {
+    const order = await updateOrder(req.params.id, async o => {
       if (o.ownerUid !== req.uid) throw httpError(403, 'Only the person who started the order can pay')
       if (o.status !== 'cart' && o.status !== 'awaiting_payment') throw httpError(409, 'This order has already been paid')
       if (o.items.length === 0) throw httpError(400, 'Your cart is empty')
+
+      // Check again before paying: someone else may have bought the last portions in the meantime
+      for (const item of o.items) {
+        const dish = await getDish(o.placeId, item.itemId)
+        if (!dish) throw httpError(409, `${item.name} is no longer on the menu. Remove it first.`)
+        if (dish.available === false) throw httpError(409, `Sorry, ${item.name} is sold out. Remove it first.`)
+        checkStock(dish, qtyInCart(o, item.itemId))
+      }
       o.status = 'awaiting_payment'
     })
 

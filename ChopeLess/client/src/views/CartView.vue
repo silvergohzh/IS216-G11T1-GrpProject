@@ -6,13 +6,14 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import {
-  watchOrder, watchProofs, getStall, addItem, changeQty, removeItem,
+  watchOrder, watchProofs, addItem, changeQty, removeItem,
   cancelOrder, checkout, markCollected, orderCode, STATUS_LABELS,
   // [NAWAZ] Fastpass imports (next line)
   buyFastpass, getQueuePosition, getMyPoints
 } from '../services/orders'
 import { splitByItem, splitEqually, formatMoney } from '../lib/splitBill'
 import { askNotificationPermission } from '../lib/notify'
+import { watchStall } from '../services/hawkers'
 import MapView from '../components/MapView.vue'
 import PickupTimer from '../components/PickupTimer.vue'
 import ProofUpload from '../components/ProofUpload.vue'
@@ -31,6 +32,7 @@ const copied = ref(false)
 const linkBox = ref(null)            // the text box with the share link
 let stopOrder = null
 let stopProofs = null
+let stopStall = null
 
 // [NAWAZ] START: Fastpass & Makan Points in pre-orders (built by Myat, see HANDOVER.md)
 // [NAWAZ] TODO: FASTPASS_COST is typed in twice (here and the server); return it from the server instead
@@ -72,7 +74,10 @@ onMounted(() => {
   // Live updates: everyone sees new items and status changes instantly
   stopOrder = watchOrder(orderId, async data => {
     order.value = data
-    if (data && !stall.value) stall.value = await getStall(data.placeId)
+    // Live menu: price changes, "sold out" and portions left show up without refreshing
+    if (data && !stopStall) {
+      stopStall = watchStall(data.placeId, place => (stall.value = place), () => {})
+    }
   }, err => (error.value = 'You cannot see this order. Ask the person who started it for the join code.'))
 
   stopProofs = watchProofs(orderId, data => (proofs.value = data), () => {})
@@ -96,6 +101,7 @@ watch(order, async now => {
 onUnmounted(() => {
   if (stopOrder) stopOrder()
   if (stopProofs) stopProofs()
+  if (stopStall) stopStall()
 })
 
 // Runs a server call, shows any error, and disables buttons while waiting
@@ -112,6 +118,26 @@ async function run(action) {
 }
 
 const add = dish => run(() => addItem(orderId, dish.id, 1))
+
+// Sold out = the hawker pressed "Sold out", or no portions are left
+const isSoldOut = dish => dish.available === false || dish.stock === 0
+
+// How many of this dish are already in our cart (all lines added up)
+function inCart(itemId) {
+  let count = 0
+  for (const item of order.value.items) {
+    if (item.itemId === itemId) count = count + item.qty
+  }
+  return count
+}
+
+// Can we add one more of this dish? (false when the cart already has all the portions left)
+function canAddMore(itemId) {
+  const dish = stall.value?.menu.find(d => d.id === itemId)
+  if (!dish || isSoldOut(dish)) return false
+  if (dish.stock === null || dish.stock === undefined) return true
+  return inCart(itemId) < dish.stock
+}
 const plus = item => run(() => changeQty(orderId, item.lineId, item.qty + 1))
 const minus = item => run(() => (item.qty > 1 ? changeQty(orderId, item.lineId, item.qty - 1) : removeItem(orderId, item.lineId)))
 const cancel = () => run(() => cancelOrder(orderId))
@@ -248,9 +274,12 @@ async function copyLink() {
         <p v-else-if="stall.menu.length === 0" class="text-slate-500">This stall has no menu yet.</p>
         <ul class="divide-y divide-slate-100">
           <li v-for="dish in stall?.menu || []" :key="dish.id" class="flex items-center justify-between py-2">
-            <span :class="{ 'text-slate-400 line-through': dish.available === false }">{{ dish.name }} <span class="text-slate-500">{{ formatMoney(dish.price) }}</span></span>
-            <span v-if="dish.available === false" class="text-sm font-bold text-red-600">Sold out</span>
-            <button v-else class="btn text-sm" :disabled="busy" @click="add(dish)" :aria-label="`Add ${dish.name}`">Add</button>
+            <span :class="{ 'text-slate-400 line-through': isSoldOut(dish) }">
+              {{ dish.name }} <span class="text-slate-500">{{ formatMoney(dish.price) }}</span>
+              <span v-if="dish.stock > 0" class="block text-xs text-slate-500" data-testid="portions-left">{{ dish.stock }} left</span>
+            </span>
+            <span v-if="isSoldOut(dish)" class="text-sm font-bold text-red-600">Sold out</span>
+            <button v-else class="btn text-sm" :disabled="busy || !canAddMore(dish.id)" @click="add(dish)" :aria-label="`Add ${dish.name}`">Add</button>
           </li>
         </ul>
       </section>
@@ -269,7 +298,7 @@ async function copyLink() {
               <span class="font-semibold">{{ formatMoney(item.price * item.qty) }}</span>
               <template v-if="canEdit(item)">
                 <button class="btn px-3 text-sm" :disabled="busy" @click="minus(item)" aria-label="One less">−</button>
-                <button class="btn px-3 text-sm" :disabled="busy" @click="plus(item)" aria-label="One more">+</button>
+                <button class="btn px-3 text-sm" :disabled="busy || !canAddMore(item.itemId)" @click="plus(item)" aria-label="One more">+</button>
               </template>
             </div>
           </li>
