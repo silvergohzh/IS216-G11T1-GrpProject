@@ -64,3 +64,4 @@ export function splitEqually(items, members) {
 export function formatMoney(cents) {
   return '$' + (cents / 100).toFixed(2)
 }
+

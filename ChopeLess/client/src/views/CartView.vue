@@ -54,6 +54,7 @@ const canBuyFastpass = computed(() =>
 )
 // [NAWAZ] END
 const justPaid = route.query.paid === '1' // Stripe sends people back here with ?paid=1
+const isPaid = computed(() => order.value && ['paid', 'preparing', 'ready', 'collected'].includes(order.value.status))
 
 // The link friends open to join, e.g. http://localhost:5173/orders?join=KQWTRM
 const shareLink = computed(() => order.value ? `${window.location.origin}/orders?join=${order.value.joinCode}` : '')
@@ -64,10 +65,36 @@ const directionsLink = computed(() =>
 )
 
 // Who owes what. Recalculated automatically whenever the cart or the split mode changes.
+// The split is only a GUIDE: the group leader pays the whole bill on Stripe,
+// and the split shows each friend how much to pay the leader back.
 const shares = computed(() => {
   if (!order.value) return []
   if (splitMode.value === 'equal') return splitEqually(order.value.items, order.value.members)
   return splitByItem(order.value.items, order.value.members)
+})
+
+// The group leader's name (the person who started the order and pays the stall)
+const leaderName = computed(() => {
+  const leader = order.value?.members.find(m => m.uid === order.value.ownerUid)
+  return leader ? leader.name : 'The group leader'
+})
+
+// How much the friends owe the leader altogether (everyone's share except the leader's own)
+const owedToLeader = computed(() => {
+  let total = 0
+  for (const share of shares.value) {
+    if (share.uid !== order.value.ownerUid) total = total + share.amount
+  }
+  return total
+})
+
+// My own share, for the "you owe" line
+const myShare = computed(() => shares.value.find(s => s.uid === auth.user.uid))
+
+// When the order was paid. paidAt is a Firestore timestamp, so turn it into a normal date first.
+const paidTime = computed(() => {
+  const paidAt = order.value?.paidAt
+  return paidAt && paidAt.toDate ? paidAt.toDate().toLocaleString() : ''
 })
 
 onMounted(() => {
@@ -177,6 +204,27 @@ const pay = () => run(async () => {
     throw err
   }
 })
+
+// Copy the split receipt as plain text, so the leader can paste it into the group chat
+const receiptCopied = ref(false)
+async function copyReceipt() {
+  const lines = [
+    `${order.value.placeName} · Order ${orderCode(order.value.id)}`,
+    `${leaderName.value} paid ${formatMoney(order.value.total)}`,
+    `Split ${splitMode.value === 'equal' ? 'equally' : 'by item'}:`
+  ]
+  for (const share of shares.value) {
+    if (share.uid === order.value.ownerUid) lines.push(`- ${share.name}: ${formatMoney(share.amount)} (already paid)`)
+    else lines.push(`- ${share.name}: ${formatMoney(share.amount)} → pay ${leaderName.value}`)
+  }
+  try {
+    await navigator.clipboard.writeText(lines.join('\n'))
+    receiptCopied.value = true
+    setTimeout(() => (receiptCopied.value = false), 2000)
+  } catch {
+    error.value = 'Your browser blocked copying. Take a screenshot of the receipt instead.'
+  }
+}
 
 // You can only change items you added (the owner can change everything)
 function canEdit(item) {
@@ -309,8 +357,8 @@ async function copyLink() {
       </section>
     </div>
 
-    <!-- Split the bill -->
-    <section v-if="order.items.length > 0" class="card">
+    <!-- Split the bill (before paying): only a guide, nobody is charged their share -->
+    <section v-if="order.items.length > 0 && !isPaid && order.status !== 'cancelled'" class="card">
       <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h2>Split the bill</h2>
         <div class="flex gap-2">
@@ -318,13 +366,57 @@ async function copyLink() {
           <button class="btn text-sm" :class="{ '!bg-ink !text-white': splitMode === 'equal' }" @click="splitMode = 'equal'">Equally</button>
         </div>
       </div>
+      <p class="mb-3 rounded-lg bg-brand-light px-3 py-2 text-sm text-brand" data-testid="split-guide">
+        <b>{{ isOwner ? 'You pay' : `${leaderName} pays` }} the whole bill ({{ formatMoney(order.total) }})</b> to the stall with Stripe.
+        The split doesn't charge anyone. It shows how much each person spent, so friends know how much to pay {{ isOwner ? 'you' : leaderName }} back.
+      </p>
       <ul>
         <li v-for="share in shares" :key="share.uid" class="stat mb-2 flex justify-between !text-left" data-testid="share">
-          <span>{{ share.name }}<span v-if="share.uid === order.ownerUid" class="text-slate-500"> (pays)</span></span>
+          <span>{{ share.name }}<span v-if="share.uid === order.ownerUid" class="text-slate-500"> (pays the whole bill)</span></span>
           <span class="font-semibold">{{ formatMoney(share.amount) }}</span>
         </li>
       </ul>
-      <p class="mt-2 text-xs text-slate-500">One person pays the stall. Everyone else pays them back their share.</p>
+    </section>
+
+    <!-- Split receipt (after paying): who paid, and how much each friend owes the group leader -->
+    <section v-if="isPaid && isMember" class="card space-y-3" data-testid="split-receipt">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2>🧾 Split receipt</h2>
+          <p class="text-xs text-slate-500">{{ order.placeName }} · Order {{ orderCode(order.id) }}<span v-if="paidTime"> · {{ paidTime }}</span></p>
+        </div>
+        <div class="flex gap-2">
+          <button class="btn text-sm" :class="{ '!bg-ink !text-white': splitMode === 'item' }" @click="splitMode = 'item'">By item</button>
+          <button class="btn text-sm" :class="{ '!bg-ink !text-white': splitMode === 'equal' }" @click="splitMode = 'equal'">Equally</button>
+        </div>
+      </div>
+
+      <p class="rounded-lg bg-brand-light px-3 py-2 text-sm text-brand" data-testid="receipt-summary">
+        <template v-if="isOwner">
+          <b>You paid {{ formatMoney(order.total) }}</b> for everyone.
+          <span v-if="owedToLeader > 0">Your friends owe you {{ formatMoney(owedToLeader) }} altogether.</span>
+        </template>
+        <template v-else>
+          <b>{{ leaderName }} paid {{ formatMoney(order.total) }}</b> for everyone.
+          <span v-if="myShare">You owe {{ leaderName }} {{ formatMoney(myShare.amount) }}.</span>
+        </template>
+      </p>
+
+      <ul class="border-y-[3px] border-dashed border-ink py-2">
+        <li v-for="share in shares" :key="share.uid" class="flex justify-between py-1" data-testid="receipt-share">
+          <span>
+            {{ share.name }}
+            <span v-if="share.uid === order.ownerUid" class="text-xs text-slate-500">(paid the stall)</span>
+            <span v-else class="text-xs text-slate-500">(pays {{ leaderName }} back)</span>
+          </span>
+          <span class="font-semibold">{{ formatMoney(share.amount) }}</span>
+        </li>
+      </ul>
+      <p class="flex justify-between font-display text-2xl">
+        <span>Total paid</span><span>{{ formatMoney(order.total) }}</span>
+      </p>
+
+      <button class="btn text-sm" @click="copyReceipt">{{ receiptCopied ? 'Copied!' : 'Copy receipt for the group chat' }}</button>
     </section>
 
     <!-- Pay / cancel -->
@@ -334,6 +426,9 @@ async function copyLink() {
           Pay {{ formatMoney(order.total) }}
         </button>
         <button class="btn-danger" :disabled="busy" @click="cancel">Cancel order</button>
+        <p v-if="order.members.length > 1" class="w-full text-sm text-slate-600">
+          You pay the full bill for the whole group. After paying you get a split receipt to share, so friends know how much to pay you back.
+        </p>
       </template>
       <p v-else class="text-sm text-slate-500">Waiting for {{ order.members[0].name }} to pay.</p>
     </section>

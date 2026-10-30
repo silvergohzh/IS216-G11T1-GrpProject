@@ -260,7 +260,7 @@ test('Makan Session: pick a place together, then pre-order as a group', async ({
   await expect(guest.getByTestId('active-order')).toHaveCount(1)
 })
 
-test('group order: a friend joins with the code and the bill splits', async ({ page, browser }) => {
+test('group order: a friend joins with the code, the bill splits, and both get a split receipt after paying', async ({ page, browser, request }) => {
   // Alice starts the order and adds chicken rice ($4.50)
   await signUp(page, 'alice')
   const orderId = await startOrder(page)
@@ -287,6 +287,23 @@ test('group order: a friend joins with the code and the bill splits', async ({ p
   await expect(page.getByTestId('share')).toHaveText([/\$4\.50/, /\$5\.00/])
   await page.getByRole('button', { name: 'Equally' }).click()
   await expect(page.getByTestId('share')).toHaveText([/\$4\.75/, /\$4\.75/])
+
+  // The split is only a guide: Alice pays the whole bill
+  await expect(page.getByTestId('split-guide')).toContainText('You pay the whole bill ($9.50)')
+
+  // After Stripe confirms, Alice gets a split receipt (still split equally, as she chose)
+  const res = await request.post(WEBHOOK_URL, stripeMessage(orderId))
+  expect(res.ok()).toBeTruthy()
+  await expect(page.getByTestId('order-status')).toHaveText('Paid')
+  await expect(page.getByTestId('receipt-summary')).toContainText('You paid $9.50')
+  await expect(page.getByTestId('receipt-summary')).toContainText('Your friends owe you $4.75')
+  await expect(page.getByTestId('receipt-share')).toHaveText([/\$4\.75/, /\$4\.75/])
+  await page.getByTestId('split-receipt').getByRole('button', { name: 'By item' }).click()
+  await expect(page.getByTestId('receipt-share')).toHaveText([/\$4\.50/, /\$5\.00/])
+
+  // Ben sees how much he owes Alice
+  await expect(ben.getByTestId('receipt-summary')).toContainText('You owe')
+  await expect(ben.getByTestId('receipt-summary')).toContainText('$5.00')
 })
 
 test('the share link joins the group order', async ({ page, browser }) => {
