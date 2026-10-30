@@ -10,6 +10,7 @@ import {
 } from "../services/sessions";
 import { listHistory } from "../services/history";
 import SwipeCard from "../components/SwipeCard.vue";
+import { sfx } from "../lib/sfx";
 
 const route = useRoute();
 const router = useRouter();
@@ -166,12 +167,27 @@ async function vote(yes) {
   pendingSpecial.value = null;
 
   const placeId = current.value.id;
+  // a different sound for each kind of vote
+  if (special === "super") sfx.star();
+  else if (yes) sfx.yes();
+  else sfx.no();
 
   votedHere.value.push(placeId);
 
   try {
-    await castVote(code, placeId, yes, special);
+    // If the server doesn't answer in 15 s (e.g. it's waking up), stop waiting so the buttons work again
+    await Promise.race([
+      castVote(code, placeId, yes, special),
+      new Promise((_, reject) => setTimeout(() => reject(new Error(
+        "The server is slow to answer, so your vote wasn't saved. Please vote on this card again."
+      )), 15000)),
+    ]);
   } catch (err) {
+    // The slow vote arrived after all: keep going, nothing to undo
+    if (/already voted/i.test(err.message || "")) {
+      busy.value = false;
+      return;
+    }
     votedHere.value = votedHere.value.filter(
       id => id !== placeId
     );
@@ -507,6 +523,15 @@ function voteClass(placeId, uid) {
           You've voted on everything.
           Waiting for the others…
         </div>
+
+        <!-- the session was deleted or couldn't load: say so instead of "Loading" forever -->
+        <p
+          v-else-if="store.error"
+          class="error"
+        >
+          {{ store.error }}
+        </p>
+
 
         <p
           v-else

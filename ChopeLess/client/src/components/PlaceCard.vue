@@ -1,5 +1,7 @@
 <!-- One place, used in the swipe deck, QueueLess list and winner screen. Owner: M3 (shared) -->
 <script setup>
+// [SILVER] the coloured place tag (Hawker centre, Food court, Restaurant)
+import PlaceTag from './PlaceTag.vue'
 defineProps({
   place: { type: Object, required: true }
 })
@@ -7,6 +9,8 @@ defineProps({
 
 <template>
   <div class="card">
+        <!-- [SILVER] place tag (hidden gems have no type: they already show HIDDEN GEM) -->
+    <PlaceTag v-if="place.type" :type="place.type" />
     <h3 class="text-2xl leading-tight">{{ place.name }}</h3>
     <p class="text-sm font-bold">{{ place.cuisine }} · {{ place.address }}</p>
     <div class="mt-3 grid grid-cols-3 gap-2 text-center text-sm">

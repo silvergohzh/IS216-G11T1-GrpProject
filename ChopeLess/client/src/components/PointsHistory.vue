@@ -16,7 +16,10 @@ const reasonLabels = {
   HOST_BONUS: 'Hosted a Makan Session',
   VERIFIED_REPORT: 'Verified crowd report',
   INVALID_REPORT: 'Invalid crowd report',
-  'Extra Super Like': 'Bought an extra Super Like ⭐'
+  'Extra Super Like': 'Bought an extra Super Like ⭐',
+  // [M3] the reason codes the server really saves for bought and refunded Super Likes
+  EXTRA_SUPER_LIKE_PURCHASE: 'Bought an extra Super Like ⭐',
+  EXTRA_SUPER_LIKE_REFUND: 'Refund: unused Super Like ⭐'
 }
 
 function formatReason(reason) {

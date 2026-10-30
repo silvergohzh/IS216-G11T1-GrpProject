@@ -9,7 +9,8 @@ import MapView from '../components/MapView.vue'
 import { listPlaces } from '../services/places'
 
 const auth = useAuthStore()
-const DIETS = ['halal', 'vegetarian', 'no-beef']
+// [SILVER] same diets as Profile and Makan Session
+const DIETS = ['halal', 'vegetarian']
 
 // The account (only needed if you are not logged in yet)
 const email = ref('')
