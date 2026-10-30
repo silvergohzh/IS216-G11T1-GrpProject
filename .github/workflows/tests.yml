@@ -1,6 +1,5 @@
-# Runs all our tests on GitHub's computers. Owner: M6
-# It runs on every pull request and every push to main, and shows a green tick or a red cross on GitHub.
-# That way we find out a change broke something BEFORE it is merged.
+
+# Runs automated tests for ChopeLess
 name: Tests
 
 on:
@@ -13,23 +12,26 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Get our code
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      # 2. Install Node.js (for our code) and Java (the Firebase emulator needs it)
-      - uses: actions/setup-node@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 22
-      - uses: actions/setup-java@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 21
 
-      # 3. Install the packages, exactly as listed in package-lock.json
       - name: Install server packages
         run: npm ci
         working-directory: ChopeLess/server
-            - name: Install client packages
+
+      # Temporary: regenerate the client lock file on Ubuntu
+      - name: Install client packages
         working-directory: ChopeLess/client
         run: |
           rm -rf node_modules package-lock.json
@@ -41,20 +43,21 @@ jobs:
         with:
           name: repaired-client-lock
           path: ChopeLess/client/package-lock.json
-      - name: Install the test browser
+
+      - name: Install test browser
         run: npx playwright install --with-deps chromium
         working-directory: ChopeLess/client
 
-      # 4. Unit tests (split bill), then the end-to-end tests in a real browser
       - name: Unit tests
         run: npm run test:unit
         working-directory: ChopeLess/client
+
       - name: End-to-end tests
         run: npm run test:e2e
         working-directory: ChopeLess/client
 
-      # 5. If something failed, keep Playwright's results (page snapshots) so we can see what went wrong
-      - uses: actions/upload-artifact@v4
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: test-results
