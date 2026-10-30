@@ -34,8 +34,13 @@ test('save ♥: the place goes to the Saved tab, picks become personal, and unsa
   await expect(row(page).getByRole('heading', { name: /For you/ })).toBeVisible()
   await expect(row(page).getByText(`Like ${name}:`).first()).toBeVisible()
 
-  // Saved tab shows it; it's still saved after a refresh (stored in Firestore, not the browser)
-  await page.reload()
+  // Saved tab shows it; it's still saved after a refresh (stored in Firestore, not the browser).
+  // The ♥ shows at once, but the save may still be on its way to the database,
+  // so refresh until the saved place comes back (retries for up to 15 s).
+  await expect(async () => {
+    await page.reload()
+    await expect(row(page).getByRole('button', { name: /Saved \(1\)/ })).toBeVisible({ timeout: 3000 })
+  }).toPass({ timeout: 15000 })
   await row(page).getByRole('button', { name: /Saved \(1\)/ }).click()
   await expect(cards(page)).toHaveCount(1)
   await expect(cards(page).first()).toHaveAccessibleName(`Open ${name}`)
