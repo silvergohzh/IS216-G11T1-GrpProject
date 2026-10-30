@@ -1,9 +1,5 @@
 
-<!-- Winner screen: capsule reveal + confetti + walking route.
-     Owner: M3 (page), M2 (route map)
-     Flow: tie? -> GachaTie -> capsule opens -> winner card
-     Confetti: canvas-confetti (MIT) -->
-
+<!-- Winner screen: capsule reveal + confetti + walking route + live QueueLess -->
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
@@ -13,6 +9,7 @@ import confetti from "canvas-confetti";
 import { useSessionStore } from "../stores/session";
 import { api } from "../lib/api";
 import { db } from "../lib/firebase";
+import { sfx } from "../lib/sfx";
 
 import PlaceCard from "../components/PlaceCard.vue";
 import MapView from "../components/MapView.vue";
@@ -42,7 +39,6 @@ const queueLoading = ref(false);
 
 let stopQueue = null;
 
-// Listen for changes to the winning restaurant's queue
 watch(
   () => winner.value?.id,
   (id, oldId, onCleanup) => {
@@ -52,9 +48,8 @@ watch(
 
     if (!id) return;
 
-    // Stop listening when the winner changes or we leave
     const unsubscribe = onSnapshot(
-      doc(db, "places", id),
+      doc(db, "places", String(id)),
 
       (snap) => {
         queueLoading.value = false;
@@ -64,17 +59,20 @@ watch(
             id: snap.id,
             ...snap.data()
           };
+
           queueError.value = "";
         } else {
           queueInfo.value = null;
-          queueError.value = "Queue information is not available.";
+          queueError.value =
+            "Queue information is not available.";
         }
       },
 
       () => {
         queueLoading.value = false;
         queueInfo.value = null;
-        queueError.value = "Could not load queue information.";
+        queueError.value =
+          "Could not load queue information.";
       }
     );
 
@@ -82,6 +80,7 @@ watch(
 
     onCleanup(() => {
       unsubscribe();
+
       if (stopQueue === unsubscribe) {
         stopQueue = null;
       }
@@ -95,10 +94,11 @@ watch(
 // =====================================================
 
 // =====================================================
-// Capsule reveal
+// Capsule reveal + sound effects + confetti
 // =====================================================
 
 const capsule = ref("closed");
+
 let autoOpen = null;
 let popTimer = null;
 let confettiTimer = null;
@@ -112,6 +112,10 @@ const COLOURS = [
 ];
 
 function celebrate() {
+  // Preserve sound effects from main
+  sfx.confetti();
+  sfx.fanfare();
+
   const base = {
     colors: COLOURS,
     disableForReducedMotion: true,
@@ -125,6 +129,8 @@ function celebrate() {
     startVelocity: 45,
     origin: { y: 0.4 }
   });
+
+  clearTimeout(confettiTimer);
 
   confettiTimer = setTimeout(() => {
     confetti({
@@ -149,7 +155,14 @@ function pop() {
   if (capsule.value !== "closed") return;
 
   capsule.value = "popping";
+
+  // Prevent the automatic timer from triggering again
   clearTimeout(autoOpen);
+
+  // Preserve capsule sound from main
+  sfx.pop();
+
+  clearTimeout(popTimer);
 
   popTimer = setTimeout(() => {
     capsule.value = "open";
@@ -157,7 +170,7 @@ function pop() {
   }, 450);
 }
 
-// Reveal after winner is ready
+// Start reveal when the winner is ready
 const readyToReveal = computed(() =>
   !!winner.value && (!tie.value || revealed.value)
 );
@@ -234,9 +247,13 @@ watch(
   { immediate: true }
 );
 
-// Stop session listener and timers when leaving
+// =====================================================
+// Cleanup when leaving page
+// =====================================================
+
 onUnmounted(() => {
   store.stop();
+
   clearTimeout(autoOpen);
   clearTimeout(popTimer);
   clearTimeout(confettiTimer);
@@ -444,10 +461,7 @@ onUnmounted(() => {
           Get walking directions
         </a>
 
-        <!-- M6: group pre-order.
-             Everyone in this session is added to the order.
-             Not pre-ordering? Skip it and head there. -->
-
+        <!-- M6: Group pre-order -->
         <RouterLink
           v-if="!String(winner.id).startsWith('gem-')"
           :to="`/orders?session=${route.params.code}`"
@@ -470,10 +484,16 @@ onUnmounted(() => {
             {
               lat: winner.lat,
               lng: winner.lng,
-              label: winner.name
+              label: winner.name,
+              color: '#ffd23f',
+              radius: 12
             },
             ...(from
-              ? [{ ...from, label: 'Meeting point' }]
+              ? [{
+                  ...from,
+                  label: 'Meeting point',
+                  color: '#17213b'
+                }]
               : [])
           ]"
           :route="path"
@@ -546,7 +566,7 @@ onUnmounted(() => {
 }
 
 .capsule-wobble {
-  animation: wobble .9s ease-out infinite;
+  animation: wobble .9s ease-in-out infinite;
 }
 
 .capsule-lid {
