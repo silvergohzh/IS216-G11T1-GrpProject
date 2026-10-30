@@ -9,7 +9,7 @@ importers:
   .:
     dependencies:
       canvas-confetti:
-        specifier: ^1.9.3
+        specifier: ^1.9.4
         version: 1.9.4
       firebase:
         specifier: ^10.14.0
