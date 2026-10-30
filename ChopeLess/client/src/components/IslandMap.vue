@@ -1,6 +1,6 @@
 <!-- Makan Quest home map: one island, one station per feature. Owner: M3
      - Tap a station: the side panel explains it and links in (every station is always open)
-     - A tick means you've been there today (saved per account in localStorage, reset at midnight; guests start fresh)
+     - A tick means you've been there today (aved to your account in Firestore, reset at midnight; guests start fresh)
      - The island is a plain SVG; stations are real buttons placed on top with % positions -->
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
@@ -8,6 +8,8 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { todaySG } from '../lib/today'
 import TodayQuests from './TodayQuests.vue'
+import { doc, onSnapshot, setDoc, arrayUnion } from 'firebase/firestore'
+import { db } from '../lib/firebase'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -28,40 +30,46 @@ const STATIONS = [
     text: 'Your points, badges and this week’s leaderboard.', rewards: [['Extra Super Like', '-20 pts']] }
 ]
 
-// ---------- visited ticks: saved per account, reset every day ----------
-// Logged in: saved under your uid AND today's date, e.g. chopeless:visited:abc123:2026-10-28,
-// so each account has its own ticks and they start empty again at midnight (a new day = a new run).
+// ---------- visited ticks: saved to your ACCOUNT, reset every day ----------
+// Saved in Firestore at users/{uid}/visited/{today's date}, so every browser and phone
+// you log in on shows the same ticks, live. A new day = a new doc = empty again.
 // Guest: nothing is saved, so the ticks start empty every visit.
 const day = ref(todaySG())
-const key = computed(() => auth.user?.uid ? `chopeless:visited:${auth.user.uid}:${day.value}` : null)
+const uid = computed(() => auth.user?.uid || null)
+const visited = ref([])
+let stopTicks = null
 
-function load() {
-  if (!key.value) return []
-  try {
-    // tidy up: delete my ticks from earlier days, so old keys don't pile up
-    const mine = `chopeless:visited:${auth.user.uid}`
-    Object.keys(localStorage)
-      .filter(k => k.startsWith(mine) && k !== key.value)
-      .forEach(k => localStorage.removeItem(k))
-    return JSON.parse(localStorage.getItem(key.value)) || []
-  } catch { return [] }
+// Listen to today's doc. Runs again on log in / log out / switch account / new day.
+function listenTicks() {
+  stopTicks?.()
+  stopTicks = null
+  visited.value = []
+  if (!uid.value) return
+  stopTicks = onSnapshot(
+    doc(db, 'users', uid.value, 'visited', day.value),
+    snap => { visited.value = snap.data()?.ids || [] },
+    () => {}                                    // offline or blocked: just show no ticks
+  )
 }
+watch([uid, day], listenTicks, { immediate: true })
 
 // Tab left open past midnight? Check the date again whenever you come back to it
 const checkDay = () => { day.value = todaySG() }
 onMounted(() => window.addEventListener('focus', checkDay))
-onUnmounted(() => window.removeEventListener('focus', checkDay))
+onUnmounted(() => {
+  window.removeEventListener('focus', checkDay)
+  stopTicks?.()                                 // stop listening when you leave Home
+})
 
-const visited = ref(load())
-
-// Log in, log out or switch account -> show that person's ticks (or none for a guest)
-watch(key, () => { visited.value = load() })
-
-function go(s) {
+async function go(s) {
   if (!visited.value.includes(s.id)) {
-    visited.value = [...visited.value, s.id]
-    if (key.value) {
-      try { localStorage.setItem(key.value, JSON.stringify(visited.value)) } catch { /* private mode */ }
+    visited.value = [...visited.value, s.id]    // show the tick straight away
+    if (uid.value) {
+      const save = setDoc(doc(db, 'users', uid.value, 'visited', day.value),
+                          { ids: arrayUnion(s.id) }, { merge: true })
+                     .catch(() => {})
+      // Wait for the save (max 1 s), so a quick refresh or closing the tab doesn't lose the tick
+      await Promise.race([save, new Promise(resolve => setTimeout(resolve, 1000))])
     }
   }
   router.push(s.to)

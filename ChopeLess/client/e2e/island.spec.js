@@ -1,7 +1,7 @@
 // Owner: M3. The Makan Quest home page: island ticks (reset daily), Today's Quests,
 // this week's leaderboard, the loading screen, the sound button, and profile diets.
 import { test, expect } from '@playwright/test'
-import { signUp } from './helpers.js'
+import { signUp, logIn } from './helpers.js'
 import { newPerson, openLobby, startVotingNoTimer } from './session-helpers.js'
 
 // On the phone layout the top-bar buttons are inside the ☰ menu
@@ -20,8 +20,8 @@ test('guests: the loading screen goes away and the home cards ask them to log in
   await expect(page.getByTestId('home-leaderboard')).toContainText("Log in to see who's leading this week.")
 })
 
-test('island: a visited station gets a tick, kept after refresh, only for that account, and reset the next day', async ({ page, browser }) => {
-  await signUp(page, 'island')
+test('island: a visited station gets a tick, kept after refresh, same on every device for that account, and reset the next day', async ({ page, browser }) => {
+  const email = await signUp(page, 'island')
   await page.goto('/')
   const count = page.getByTestId('visited-count')
   await expect(count).toContainText('0 of 6')
@@ -44,16 +44,18 @@ test('island: a visited station gets a tick, kept after refresh, only for that a
   await other.goto('/')
   await expect(other.getByTestId('visited-count')).toContainText('0 of 6')
 
-  // Pretend those ticks were saved yesterday: today starts empty, and the old ones are cleaned up
-  await page.evaluate(() => {
-    const key = Object.keys(localStorage).find(k => k.startsWith('chopeless:visited:'))
-    localStorage.setItem(key.replace(/\d{4}-\d{2}-\d{2}$/, '2000-01-01'), localStorage.getItem(key))
-    localStorage.removeItem(key)
-  })
-  await page.reload()
-  await expect(count).toContainText('0 of 6')
-  const oldKeys = await page.evaluate(() => Object.keys(localStorage).filter(k => k.endsWith('2000-01-01')).length)
-  expect(oldKeys).toBe(0)
+  // Same account on ANOTHER browser/phone: the tick follows the account
+  const laptop = await newPerson(browser)
+  await logIn(laptop, email)
+  await laptop.goto('/')
+  await expect(laptop.getByTestId('visited-count')).toContainText('1 of 6')
+
+  // Tomorrow (clock moved 1 day ahead): today's doc is new, so it starts empty
+  const tomorrow = await newPerson(browser)
+  await tomorrow.clock.setFixedTime(new Date(Date.now() + 24 * 60 * 60 * 1000))
+  await logIn(tomorrow, email)
+  await tomorrow.goto('/')
+  await expect(tomorrow.getByTestId('visited-count')).toContainText('0 of 6')
 })
 
 test("quests: your Super Like wins -> Finish + Win quests tick (guest only gets Finish), and the home leaderboard shows", async ({ browser }) => {

@@ -137,6 +137,11 @@ service cloud.firestore {
       allow read, write: if signedIn() && request.auth.uid == uid;
     }
 
+    // Island ticks: one small doc per day (users/{uid}/visited/2026-10-30). Only you can see/change yours.
+    match /users/{uid}/visited/{day} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
     // ---------- places (M5 seeds, M4 analyses) ----------
     // Everyone can read. Only the server (seed script, photo analysis route) writes.
     match /places/{placeId} {
