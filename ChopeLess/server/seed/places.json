@@ -8,7 +8,8 @@
     "priceMin": 3, "priceMax": 8,
     "dietary": ["halal", "vegetarian"],
     "serviceModes": ["dine-in", "takeaway"],
-    "latestWaitMins": 12
+    "latestWaitMins": 12,
+    "imageUrl": "/places/albert-centre.jpg"
   },
   {
     "id": "bras-basah-complex",
@@ -19,7 +20,9 @@
     "priceMin": 4, "priceMax": 7,
     "dietary": ["vegetarian"],
     "serviceModes": ["dine-in", "takeaway"],
-    "latestWaitMins": 4
+    "latestWaitMins": 4,
+    "imageUrl": "/places/bras-basah-complex.jpg"
+    
   },
   {
     "id": "waterloo-centre",
@@ -30,7 +33,8 @@
     "priceMin": 3, "priceMax": 6,
     "dietary": [],
     "serviceModes": ["dine-in", "takeaway"],
-    "latestWaitMins": 8
+    "latestWaitMins": 8,
+    "imageUrl": "/places/waterloo-centre.jpg"
   },
 
   {
@@ -42,7 +46,8 @@
     "priceMin": 8, "priceMax": 20,
     "dietary": ["halal"],
     "serviceModes": ["dine-in", "takeaway"],
-    "latestWaitMins": 13
+    "latestWaitMins": 13,
+    "imageUrl": "/places/warung-leko.jpg"
   },
 
   {
@@ -54,7 +59,8 @@
     "priceMin": 5, "priceMax": 15,
     "dietary": [],
     "serviceModes": ["dine-in", "takeaway"],
-    "latestWaitMins": 10
+    "latestWaitMins": 10,
+    "imageUrl": "/places/lao-wei-dao-sha-guo-bao.jpg"
   },
 
   {
@@ -66,7 +72,8 @@
     "priceMin": 7, "priceMax": 15,
     "dietary": ["halal"],
     "serviceModes": ["dine-in", "takeaway"],
-    "latestWaitMins": 5
+    "latestWaitMins": 5,
+    "imageUrl": "/places/ice-lab.jpg"
   },
 
   {
@@ -78,7 +85,8 @@
     "priceMin": 5, "priceMax": 10,
     "dietary": [],
     "serviceModes": ["dine-in", "takeaway"],
-    "latestWaitMins": 5
+    "latestWaitMins": 5,
+    "imageUrl": "/places/taste-good.jpg"
   },
 
 
@@ -91,7 +99,8 @@
     "priceMin": 6, "priceMax": 10,
     "dietary": [],
     "serviceModes": ["dine-in", "takeaway"],
-    "latestWaitMins": 5
+    "latestWaitMins": 5,
+    "imageUrl": "/places/hot-spot-cafe-restaurant.jpg"
   },
 
 
@@ -104,7 +113,8 @@
     "priceMin": 3, "priceMax": 10,
     "dietary": ["halal"],
     "serviceModes": ["dine-in", "takeaway"],
-    "latestWaitMins": 3
+    "latestWaitMins": 3,
+    "imageUrl": "/places/al-jilani-restaurant.jpg"
   },
 
 
@@ -117,7 +127,8 @@
     "priceMin": 5, "priceMax": 10,
     "dietary": ["halal", "vegetarian"],
     "serviceModes": ["dine-in", "takeaway"],
-    "latestWaitMins": 10
+    "latestWaitMins": 10,
+    "imageUrl": "/places/bodhi-deli.jpg"
   },
 
 
@@ -130,7 +141,8 @@
     "priceMin": 15, "priceMax": 20,
     "dietary": [],
     "serviceModes": ["dine-in", "takeaway"],
-    "latestWaitMins": 15
+    "latestWaitMins": 15,
+    "imageUrl": "/places/ajummas.jpg"
   },
 
   {
@@ -142,7 +154,8 @@
     "priceMin": 10, "priceMax": 15,
     "dietary": ["halal"],
     "serviceModes": ["dine-in", "takeaway"],
-    "latestWaitMins": 6
+    "latestWaitMins": 6,
+    "imageUrl": "/places/makanan-bollywood.jpg"
   },
 
   {
@@ -154,7 +167,8 @@
     "priceMin": 6, "priceMax": 10,
     "dietary": ["vegetarian"],
     "serviceModes": ["dine-in", "takeaway"],
-    "latestWaitMins": 8
+    "latestWaitMins": 8,
+    "imageUrl": "/places/kang-su-vegetarian.jpg"
   },
 
   {
@@ -166,6 +180,7 @@
     "priceMin": 7, "priceMax": 15,
     "dietary": [],
     "serviceModes": ["dine-in", "takeaway"],
-    "latestWaitMins": 15
+    "latestWaitMins": 15,
+    "imageUrl": "/places/haru-haru-mentaiko.jpg"
   }
 ]
