@@ -2,6 +2,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { getPlace, analysePhoto, shrinkPhoto, checkLiveQueue, livePhotoUrl } from '../services/places'
 import { getPlace, analysePhoto, shrinkPhoto } from '../services/places'
 // [M3] Today's Quests: remember that I checked a queue with a photo today
 import { auth } from '../lib/firebase'
@@ -53,6 +54,22 @@ async function analyse() {
   }
 }
 
+// See Live Queue: the server analyses a photo from the place, then we reload to show it
+const liveLoading = ref(false)
+const liveError = ref('')
+async function seeLive() {
+  liveLoading.value = true
+  liveError.value = ''
+  try {
+    await checkLiveQueue(route.params.id)
+    await load()
+  } catch (err) {
+    liveError.value = err.message
+  } finally {
+    liveLoading.value = false
+  }
+}
+
 // Colours for the confidence badge
 const confidenceColours = { high: 'bg-green-100 text-green-800', medium: 'bg-amber-100 text-amber-800', low: 'bg-slate-200 text-slate-700' }
 
@@ -73,6 +90,25 @@ const bestHour = computed(() => {
 })
 const maxWait = computed(() => Math.max(1, ...(place.value?.trend || []).map(t => t.avgWait)))
 const hourLabel = h => `${h % 12 || 12}${h < 12 ? 'am' : 'pm'}`
+
+// The current hour's bar is coloured by how busy it is right now (same levels as the QueueLess list)
+const currentHour = Number(new Date().toLocaleString('en-SG', { hour: 'numeric', hour12: false, timeZone: 'Asia/Singapore' })) % 24
+
+// "Right now" uses the current hour's average so it matches the chart; outside the chart's hours, the latest photo estimate
+const nowStats = computed(() => {
+  const t = place.value?.trend.find(t => t.hour === currentHour)
+  if (!t) return place.value?.latest || null
+  return { waitMins: Math.round(t.avgWait), seatOccupancy: Math.round(t.avgSeats), peopleInQueue: Math.round(t.avgPeople), reports: t.reports }
+})
+const nowColour = computed(() => {
+  const occ = nowStats.value?.seatOccupancy ?? 0
+  return occ >= 75 ? 'bg-red-500' : occ >= 45 ? 'bg-amber-400' : 'bg-green-500'
+})
+
+// The bar the user tapped (starts on the current hour); tap it again to close
+const selectedHour = ref(currentHour)
+const selected = computed(() => place.value?.trend.find(t => t.hour === selectedHour.value))
+const toggleHour = h => (selectedHour.value = selectedHour.value === h ? null : h)
 </script>
 
 <template>
@@ -84,6 +120,16 @@ const hourLabel = h => `${h % 12 || 12}${h < 12 ? 'am' : 'pm'}`
       <p class="text-slate-600">{{ place.address }}</p>
     </div>
 
+    <div class="card" data-testid="latest">
+      <h2 class="mb-2 font-bold">Right now</h2>
+      <div v-if="nowStats" class="grid grid-cols-3 gap-2 text-center">
+        <div><p class="text-2xl font-extrabold">~{{ nowStats.waitMins }}</p><p class="text-xs text-slate-500">min wait</p></div>
+        <div><p class="text-2xl font-extrabold">{{ nowStats.seatOccupancy }}%</p><p class="text-xs text-slate-500">seats taken</p></div>
+        <div><p class="text-2xl font-extrabold">{{ nowStats.peopleInQueue }}</p><p class="text-xs text-slate-500">in queue</p></div>
+      </div>
+      <p v-else class="text-slate-500">No estimate yet. Upload a photo below.</p>
+      <p v-if="place.latest" class="mt-2 text-xs text-slate-500">
+        <span v-if="nowStats?.reports">Average of {{ nowStats.reports }} report{{ nowStats.reports === 1 ? '' : 's' }} this hour · </span>
       <div class="card card-navy" data-testid="latest">
       <h2 class="mb-2">Right now</h2>
       <div v-if="place.latest" class="grid grid-cols-3 gap-2 text-center">
@@ -104,6 +150,39 @@ const hourLabel = h => `${h % 12 || 12}${h < 12 ? 'am' : 'pm'}`
         Best time to go: <strong>{{ hourLabel(bestHour.hour) }}</strong> (about {{ Math.round(bestHour.avgWait) }} min)
       </p>
       <!-- Simple CSS bar chart -->
+      <div class="flex h-40 items-end gap-1 overflow-x-auto">
+        <button v-for="t in place.trend" :key="t.hour" type="button" @click="toggleHour(t.hour)" :aria-pressed="t.hour === selectedHour"
+          :aria-label="`${hourLabel(t.hour)}: about ${Math.round(t.avgWait)} min wait`"
+          class="flex h-full min-w-6 flex-1 cursor-pointer flex-col items-center justify-end gap-1 rounded hover:bg-slate-100"
+          :class="t.hour === selectedHour && 'bg-slate-100'" data-testid="hour-bar">
+          <div class="w-full rounded-t" :class="t.hour === currentHour ? [nowColour, 'ring-2 ring-ink ring-offset-1'] : 'bg-blue-700'"
+            :style="{ height: Math.max(4, (t.avgWait / maxWait) * 100) + '%' }" :title="Math.round(t.avgWait) + ' min'"></div>
+          <span v-if="t.hour === currentHour" class="text-[10px] font-bold text-ink" data-testid="now-label">Now</span>
+          <span v-else class="text-[10px] text-slate-500">{{ t.hour }}</span>
+        </button>
+      </div>
+      <div v-if="selected" class="mt-3 grid grid-cols-3 gap-2 rounded-lg bg-slate-50 p-3 text-center" data-testid="hour-stats">
+        <p class="col-span-3 text-left text-sm font-bold">{{ hourLabel(selected.hour) }} to {{ hourLabel((selected.hour + 1) % 24) }}</p>
+        <div><p class="text-xl font-extrabold">~{{ Math.round(selected.avgWait) }}</p><p class="text-xs text-slate-500">min wait</p></div>
+        <div><p class="text-xl font-extrabold">{{ Math.round(selected.avgSeats) }}%</p><p class="text-xs text-slate-500">seats taken</p></div>
+        <div><p class="text-xl font-extrabold">{{ Math.round(selected.avgPeople) }}</p><p class="text-xs text-slate-500">in queue</p></div>
+        <p class="col-span-3 text-left text-xs text-slate-500">Average of {{ selected.reports }} report{{ selected.reports === 1 ? '' : 's' }}</p>
+      </div>
+    </div>
+
+    <div class="card space-y-3">
+      <h2 class="font-bold">See Live Queue</h2>
+      <p class="text-sm text-slate-600">Get the latest photo from the food court. AI reads it and updates the numbers above.</p>
+      <img v-if="place.latest?.photo" :src="livePhotoUrl(place.latest.photo)" alt="Live photo of the queue" class="max-h-64 rounded-lg" data-testid="live-photo" />
+      <button class="btn-primary" :disabled="liveLoading" @click="seeLive" data-testid="live-btn">
+        {{ liveLoading ? 'Checking…' : 'See Live Queue' }}
+      </button>
+      <p v-if="liveError" class="error">{{ liveError }}</p>
+    </div>
+
+    <div class="card space-y-3">
+      <h2 class="font-bold">Update with a photo</h2>
+      <p class="text-sm text-slate-600">Snap the queue and seating area. AI estimates how busy it is and everyone sees the update.</p>
         <div class="flex h-44 items-end gap-1.5 overflow-x-auto border-b-[3px] border-ink">
         <div v-for="t in place.trend" :key="t.hour" class="flex h-full min-w-6 flex-1 flex-col items-center justify-end gap-1">
           <div class="w-full rounded-t-lg border-[3px] border-b-0 border-ink" :class="t.hour === bestHour?.hour ? 'bg-[#7bc96f]' : t.avgWait > 20 ? 'bg-coral' : 'bg-accent'"
