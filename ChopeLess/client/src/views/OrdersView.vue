@@ -43,6 +43,8 @@ function isCentre(place) {
 
 // The cheapest dish on a menu, e.g. "from $1.80"
 function cheapest(place) {
+  // [M3] a newly approved stall has no dishes yet: don't crash the whole list
+  if (!place.menu?.length) return 'menu coming soon'
   let lowest = place.menu[0].price
   for (const dish of place.menu) {
     if (dish.price < lowest) lowest = dish.price
