@@ -3,7 +3,7 @@
 // Usage:  await api('/sessions/ABCDEF/vote', { method: 'POST', body: { placeId, yes: true } })
 import { auth } from './firebase'
 
-const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+export const BASE =import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
 
 export async function api(path, { method = 'GET', body } = {}) {
   const headers = { 'Content-Type': 'application/json' }

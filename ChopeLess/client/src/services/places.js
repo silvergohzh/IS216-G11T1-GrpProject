@@ -4,7 +4,7 @@
 //            places/{id}/analyses/{id} { hour, peopleInQueue, waitMins, seatOccupancy, confidence }
 import { collection, doc, getDoc, getDocs } from 'firebase/firestore'
 import { db } from '../lib/firebase'
-import { api } from '../lib/api'
+import { api, BASE } from '../lib/api'
 
 
 // List all places
@@ -70,3 +70,11 @@ export function shrinkPhoto(file, maxSize = 1024) {
 // Output: Promise<{ peopleInQueue, waitMins, seatOccupancy, confidence }>
 export const analysePhoto = (id, dataUrl) =>
   api(`/places/${id}/analyse`, { method: 'POST', body: { imageBase64: dataUrl.split(',')[1], mimeType: 'image/jpeg' } })
+
+// See Live Queue: the server analyses a sample photo from the place and saves it as the latest estimate
+// Input: id (place ID)
+// Output: Promise<{ peopleInQueue, waitMins, seatOccupancy, confidence, photo, at }>
+export const checkLiveQueue = id => api(`/places/${id}/live`, { method: 'POST' })
+
+// Where the server serves a live photo, from its file name
+export const livePhotoUrl = name => `${BASE}/places/live-photos/${name}`

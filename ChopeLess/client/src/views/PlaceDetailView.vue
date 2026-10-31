@@ -2,7 +2,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getPlace, analysePhoto, shrinkPhoto } from '../services/places'
+import { getPlace, analysePhoto, shrinkPhoto, checkLiveQueue, livePhotoUrl } from '../services/places'
 
 const route = useRoute()
 const router = useRouter()
@@ -49,6 +49,22 @@ async function analyse() {
   }
 }
 
+// See Live Queue: the server analyses a photo from the place, then we reload to show it
+const liveLoading = ref(false)
+const liveError = ref('')
+async function seeLive() {
+  liveLoading.value = true
+  liveError.value = ''
+  try {
+    await checkLiveQueue(route.params.id)
+    await load()
+  } catch (err) {
+    liveError.value = err.message
+  } finally {
+    liveLoading.value = false
+  }
+}
+
 // Colours for the confidence badge
 const confidenceColours = { high: 'bg-green-100 text-green-800', medium: 'bg-amber-100 text-amber-800', low: 'bg-slate-200 text-slate-700' }
 
@@ -72,8 +88,15 @@ const hourLabel = h => `${h % 12 || 12}${h < 12 ? 'am' : 'pm'}`
 
 // The current hour's bar is coloured by how busy it is right now (same levels as the QueueLess list)
 const currentHour = Number(new Date().toLocaleString('en-SG', { hour: 'numeric', hour12: false, timeZone: 'Asia/Singapore' })) % 24
+
+// "Right now" uses the current hour's average so it matches the chart; outside the chart's hours, the latest photo estimate
+const nowStats = computed(() => {
+  const t = place.value?.trend.find(t => t.hour === currentHour)
+  if (!t) return place.value?.latest || null
+  return { waitMins: Math.round(t.avgWait), seatOccupancy: Math.round(t.avgSeats), peopleInQueue: Math.round(t.avgPeople), reports: t.reports }
+})
 const nowColour = computed(() => {
-  const occ = place.value?.latest?.seatOccupancy ?? 0
+  const occ = nowStats.value?.seatOccupancy ?? 0
   return occ >= 75 ? 'bg-red-500' : occ >= 45 ? 'bg-amber-400' : 'bg-green-500'
 })
 
@@ -93,13 +116,14 @@ const toggleHour = h => (selectedHour.value = selectedHour.value === h ? null : 
 
     <div class="card" data-testid="latest">
       <h2 class="mb-2 font-bold">Right now</h2>
-      <div v-if="place.latest" class="grid grid-cols-3 gap-2 text-center">
-        <div><p class="text-2xl font-extrabold">~{{ place.latest.waitMins }}</p><p class="text-xs text-slate-500">min wait</p></div>
-        <div><p class="text-2xl font-extrabold">{{ place.latest.seatOccupancy }}%</p><p class="text-xs text-slate-500">seats taken</p></div>
-        <div><p class="text-2xl font-extrabold">{{ place.latest.peopleInQueue }}</p><p class="text-xs text-slate-500">in queue</p></div>
+      <div v-if="nowStats" class="grid grid-cols-3 gap-2 text-center">
+        <div><p class="text-2xl font-extrabold">~{{ nowStats.waitMins }}</p><p class="text-xs text-slate-500">min wait</p></div>
+        <div><p class="text-2xl font-extrabold">{{ nowStats.seatOccupancy }}%</p><p class="text-xs text-slate-500">seats taken</p></div>
+        <div><p class="text-2xl font-extrabold">{{ nowStats.peopleInQueue }}</p><p class="text-xs text-slate-500">in queue</p></div>
       </div>
       <p v-else class="text-slate-500">No estimate yet. Upload a photo below.</p>
       <p v-if="place.latest" class="mt-2 text-xs text-slate-500">
+        <span v-if="nowStats?.reports">Average of {{ nowStats.reports }} report{{ nowStats.reports === 1 ? '' : 's' }} this hour · </span>
         Updated {{ ago(place.latest.at) }} ·
         <span class="rounded-full px-2 py-0.5 font-bold" :class="confidenceColours[place.latest.confidence]">{{ place.latest.confidence }} confidence</span>
       </p>
@@ -129,6 +153,16 @@ const toggleHour = h => (selectedHour.value = selectedHour.value === h ? null : 
         <div><p class="text-xl font-extrabold">{{ Math.round(selected.avgPeople) }}</p><p class="text-xs text-slate-500">in queue</p></div>
         <p class="col-span-3 text-left text-xs text-slate-500">Average of {{ selected.reports }} report{{ selected.reports === 1 ? '' : 's' }}</p>
       </div>
+    </div>
+
+    <div class="card space-y-3">
+      <h2 class="font-bold">See Live Queue</h2>
+      <p class="text-sm text-slate-600">Get the latest photo from the food court. AI reads it and updates the numbers above.</p>
+      <img v-if="place.latest?.photo" :src="livePhotoUrl(place.latest.photo)" alt="Live photo of the queue" class="max-h-64 rounded-lg" data-testid="live-photo" />
+      <button class="btn-primary" :disabled="liveLoading" @click="seeLive" data-testid="live-btn">
+        {{ liveLoading ? 'Checking…' : 'See Live Queue' }}
+      </button>
+      <p v-if="liveError" class="error">{{ liveError }}</p>
     </div>
 
     <div class="card space-y-3">
