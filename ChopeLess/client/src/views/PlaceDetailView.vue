@@ -56,11 +56,13 @@ async function analyse() {
 // See Live Queue: the server analyses a photo from the place, then we reload to show it
 const liveLoading = ref(false)
 const liveError = ref('')
+const liveResult = ref(null)
 async function seeLive() {
   liveLoading.value = true
   liveError.value = ''
+  liveResult.value = null
   try {
-    await checkLiveQueue(route.params.id)
+    liveResult.value = await checkLiveQueue(route.params.id)
     await load()
   } catch (err) {
     liveError.value = err.message
@@ -167,6 +169,10 @@ const toggleHour = h => (selectedHour.value = selectedHour.value === h ? null : 
       <button class="btn-primary" :disabled="liveLoading" @click="seeLive" data-testid="live-btn">
         {{ liveLoading ? 'Checking…' : 'See Live Queue' }}
       </button>
+      <p v-if="liveResult" class="rounded-2xl border-[3px] border-ink bg-white px-3 py-2 text-sm font-bold" data-testid="live-result">
+        Live check: we estimate {{ liveResult.peopleInQueue }} people in the queue, about {{ liveResult.waitMins }} min wait,
+        and {{ liveResult.seatOccupancy }}% of seats taken ({{ liveResult.confidence }} confidence).
+      </p>
       <p v-if="liveError" class="error">{{ liveError }}</p>
     </div>
 
