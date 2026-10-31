@@ -34,21 +34,22 @@ test('save ♥: the place goes to the Saved tab, picks become personal, and unsa
   await expect(row(page).getByRole('heading', { name: /For you/ })).toBeVisible()
   await expect(row(page).getByText(`Like ${name}:`).first()).toBeVisible()
 
-  // Saved tab shows it; it's still saved after a refresh (stored in Firestore, not the browser).
-  // The ♥ shows at once, but the save may still be on its way to the database,
-  // so refresh until the saved place comes back (retries for up to 15 s).
+  // Saved tab shows it, and it's still there on a fresh page (stored in Firestore, not the browser).
+  // We check on a NEW tab and keep this one open: reloading this tab straight away could cancel
+  // the save while it is still on its way to the database (that made this test flaky on CI).
+  const fresh = await page.context().newPage()      // same browser = still logged in
   await expect(async () => {
-    await page.reload()
-    await expect(row(page).getByRole('button', { name: /Saved \(1\)/ })).toBeVisible({ timeout: 3000 })
-  }).toPass({ timeout: 15000 })
-  await row(page).getByRole('button', { name: /Saved \(1\)/ }).click()
-  await expect(cards(page)).toHaveCount(1)
-  await expect(cards(page).first()).toHaveAccessibleName(`Open ${name}`)
+    await fresh.goto('/')
+    await expect(row(fresh).getByRole('button', { name: /Saved \(1\)/ })).toBeVisible({ timeout: 3000 })
+  }).toPass({ timeout: 20000 })
+  await row(fresh).getByRole('button', { name: /Saved \(1\)/ }).click()
+  await expect(cards(fresh)).toHaveCount(1)
+  await expect(cards(fresh).first()).toHaveAccessibleName(`Open ${name}`)
 
   // Unsave it: the Saved tab is empty again
-  await row(page).getByRole('button', { name: 'Unsave' }).click()
-  await expect(row(page).getByText('Nothing saved yet.')).toBeVisible()
-  await expect(row(page).getByRole('button', { name: /Saved \(0\)/ })).toBeVisible()
+  await row(fresh).getByRole('button', { name: 'Unsave' }).click()
+  await expect(row(fresh).getByText('Nothing saved yet.')).toBeVisible()
+  await expect(row(fresh).getByRole('button', { name: /Saved \(0\)/ })).toBeVisible()
 })
 
 test('✕ Not for me hides a place, and it stays hidden after a refresh', async ({ page }) => {
