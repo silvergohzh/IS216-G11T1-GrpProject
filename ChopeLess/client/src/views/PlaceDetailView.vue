@@ -3,7 +3,6 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getPlace, analysePhoto, shrinkPhoto, checkLiveQueue, livePhotoUrl } from '../services/places'
-import { getPlace, analysePhoto, shrinkPhoto } from '../services/places'
 // [M3] Today's Quests: remember that I checked a queue with a photo today
 import { auth } from '../lib/firebase'
 import { markQuest } from '../lib/quests'
@@ -120,25 +119,16 @@ const toggleHour = h => (selectedHour.value = selectedHour.value === h ? null : 
       <p class="text-slate-600">{{ place.address }}</p>
     </div>
 
-    <div class="card" data-testid="latest">
-      <h2 class="mb-2 font-bold">Right now</h2>
-      <div v-if="nowStats" class="grid grid-cols-3 gap-2 text-center">
-        <div><p class="text-2xl font-extrabold">~{{ nowStats.waitMins }}</p><p class="text-xs text-slate-500">min wait</p></div>
-        <div><p class="text-2xl font-extrabold">{{ nowStats.seatOccupancy }}%</p><p class="text-xs text-slate-500">seats taken</p></div>
-        <div><p class="text-2xl font-extrabold">{{ nowStats.peopleInQueue }}</p><p class="text-xs text-slate-500">in queue</p></div>
-      </div>
-      <p v-else class="text-slate-500">No estimate yet. Upload a photo below.</p>
-      <p v-if="place.latest" class="mt-2 text-xs text-slate-500">
-        <span v-if="nowStats?.reports">Average of {{ nowStats.reports }} report{{ nowStats.reports === 1 ? '' : 's' }} this hour · </span>
-      <div class="card card-navy" data-testid="latest">
+    <div class="card card-navy" data-testid="latest">
       <h2 class="mb-2">Right now</h2>
-      <div v-if="place.latest" class="grid grid-cols-3 gap-2 text-center">
-                <div><p class="font-display text-4xl text-accent">~{{ place.latest.waitMins }}</p><p class="text-xs font-bold">min wait</p></div>
-        <div><p class="font-display text-4xl">{{ place.latest.seatOccupancy }}%</p><p class="text-xs font-bold">seats taken</p></div>
-        <div><p class="font-display text-4xl">{{ place.latest.peopleInQueue }}</p><p class="text-xs font-bold">in queue</p></div>
+      <div v-if="nowStats" class="grid grid-cols-3 gap-2 text-center">
+        <div><p class="font-display text-4xl text-accent">~{{ nowStats.waitMins }}</p><p class="text-xs font-bold">min wait</p></div>
+        <div><p class="font-display text-4xl">{{ nowStats.seatOccupancy }}%</p><p class="text-xs font-bold">seats taken</p></div>
+        <div><p class="font-display text-4xl">{{ nowStats.peopleInQueue }}</p><p class="text-xs font-bold">in queue</p></div>
       </div>
       <p v-else class="font-bold">No estimate yet. Upload a photo below.</p>
       <p v-if="place.latest" class="mt-2 text-xs font-bold">
+        <span v-if="nowStats?.reports">Average of {{ nowStats.reports }} report{{ nowStats.reports === 1 ? '' : 's' }} this hour · </span>
         Updated {{ ago(place.latest.at) }} ·
         <span class="rounded-full px-2 py-0.5 font-bold" :class="confidenceColours[place.latest.confidence]">{{ place.latest.confidence }} confidence</span>
       </p>
@@ -150,49 +140,37 @@ const toggleHour = h => (selectedHour.value = selectedHour.value === h ? null : 
         Best time to go: <strong>{{ hourLabel(bestHour.hour) }}</strong> (about {{ Math.round(bestHour.avgWait) }} min)
       </p>
       <!-- Simple CSS bar chart -->
-      <div class="flex h-40 items-end gap-1 overflow-x-auto">
+      <div class="flex h-44 items-end gap-1.5 overflow-x-auto border-b-[3px] border-ink">
         <button v-for="t in place.trend" :key="t.hour" type="button" @click="toggleHour(t.hour)" :aria-pressed="t.hour === selectedHour"
           :aria-label="`${hourLabel(t.hour)}: about ${Math.round(t.avgWait)} min wait`"
           class="flex h-full min-w-6 flex-1 cursor-pointer flex-col items-center justify-end gap-1 rounded hover:bg-slate-100"
           :class="t.hour === selectedHour && 'bg-slate-100'" data-testid="hour-bar">
-          <div class="w-full rounded-t" :class="t.hour === currentHour ? [nowColour, 'ring-2 ring-ink ring-offset-1'] : 'bg-blue-700'"
+          <div class="w-full rounded-t-lg border-[3px] border-b-0 border-ink" :class="t.hour === currentHour ? [nowColour, 'ring-2 ring-ink ring-offset-1'] : 'bg-blue-700'"
             :style="{ height: Math.max(4, (t.avgWait / maxWait) * 100) + '%' }" :title="Math.round(t.avgWait) + ' min'"></div>
-          <span v-if="t.hour === currentHour" class="text-[10px] font-bold text-ink" data-testid="now-label">Now</span>
-          <span v-else class="text-[10px] text-slate-500">{{ t.hour }}</span>
+          <span v-if="t.hour === currentHour" class="text-[11px] font-black underline" data-testid="now-label">Now</span>
+          <span v-else class="text-[11px] font-black">{{ t.hour }}</span>
         </button>
       </div>
-      <div v-if="selected" class="mt-3 grid grid-cols-3 gap-2 rounded-lg bg-slate-50 p-3 text-center" data-testid="hour-stats">
+      <div v-if="selected" class="mt-3 grid grid-cols-3 gap-2 rounded-2xl border-[3px] border-ink bg-white p-3 text-center" data-testid="hour-stats">
         <p class="col-span-3 text-left text-sm font-bold">{{ hourLabel(selected.hour) }} to {{ hourLabel((selected.hour + 1) % 24) }}</p>
-        <div><p class="text-xl font-extrabold">~{{ Math.round(selected.avgWait) }}</p><p class="text-xs text-slate-500">min wait</p></div>
-        <div><p class="text-xl font-extrabold">{{ Math.round(selected.avgSeats) }}%</p><p class="text-xs text-slate-500">seats taken</p></div>
-        <div><p class="text-xl font-extrabold">{{ Math.round(selected.avgPeople) }}</p><p class="text-xs text-slate-500">in queue</p></div>
-        <p class="col-span-3 text-left text-xs text-slate-500">Average of {{ selected.reports }} report{{ selected.reports === 1 ? '' : 's' }}</p>
+        <div><p class="font-display text-2xl">~{{ Math.round(selected.avgWait) }}</p><p class="text-xs font-bold">min wait</p></div>
+        <div><p class="font-display text-2xl">{{ Math.round(selected.avgSeats) }}%</p><p class="text-xs font-bold">seats taken</p></div>
+        <div><p class="font-display text-2xl">{{ Math.round(selected.avgPeople) }}</p><p class="text-xs font-bold">in queue</p></div>
+        <p class="col-span-3 text-left text-xs font-bold">Average of {{ selected.reports }} report{{ selected.reports === 1 ? '' : 's' }}</p>
       </div>
     </div>
 
     <div class="card space-y-3">
-      <h2 class="font-bold">See Live Queue</h2>
-      <p class="text-sm text-slate-600">Get the latest photo from the food court. AI reads it and updates the numbers above.</p>
-      <img v-if="place.latest?.photo" :src="livePhotoUrl(place.latest.photo)" alt="Live photo of the queue" class="max-h-64 rounded-lg" data-testid="live-photo" />
+      <h2>See Live Queue</h2>
+      <p class="text-sm font-bold">Get the latest photo from the food court. AI reads it and updates the numbers above.</p>
+      <img v-if="place.latest?.photo" :src="livePhotoUrl(place.latest.photo)" alt="Live photo of the queue" class="max-h-64 rounded-2xl border-[3px] border-ink" data-testid="live-photo" />
       <button class="btn-primary" :disabled="liveLoading" @click="seeLive" data-testid="live-btn">
         {{ liveLoading ? 'Checking…' : 'See Live Queue' }}
       </button>
       <p v-if="liveError" class="error">{{ liveError }}</p>
     </div>
 
-    <div class="card space-y-3">
-      <h2 class="font-bold">Update with a photo</h2>
-      <p class="text-sm text-slate-600">Snap the queue and seating area. AI estimates how busy it is and everyone sees the update.</p>
-        <div class="flex h-44 items-end gap-1.5 overflow-x-auto border-b-[3px] border-ink">
-        <div v-for="t in place.trend" :key="t.hour" class="flex h-full min-w-6 flex-1 flex-col items-center justify-end gap-1">
-          <div class="w-full rounded-t-lg border-[3px] border-b-0 border-ink" :class="t.hour === bestHour?.hour ? 'bg-[#7bc96f]' : t.avgWait > 20 ? 'bg-coral' : 'bg-accent'"
-            :style="{ height: Math.max(4, (t.avgWait / maxWait) * 100) + '%' }" :title="Math.round(t.avgWait) + ' min'"></div>
-           <span class="text-[11px] font-black">{{ t.hour }}</span>
-        </div>
-      </div>
-    </div>
-
-      <div class="card card-sun space-y-3">
+    <div class="card card-sun space-y-3">
       <h2>Snap the queue</h2>
       <p class="text-sm font-bold">Snap the queue and seating area. AI estimates how busy it is and everyone sees the update.</p>
       <!-- The real file input is hidden; the label is the big, clear button people tap -->
