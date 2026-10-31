@@ -1,227 +1,193 @@
 # ChopeLess
 
-**Skip the chope. Skip the queue.** Decide where to eat in minutes: set your group's budget and diet, get a shortlist, swipe to vote, and skip the long queues.
+**Skip the chope. Skip the queue.** ChopeLess helps a group of friends decide where to eat in a few minutes: everyone sets their budget and diet, the app builds a shortlist of places within walking distance and with short queues, the group swipes to vote, and the winner can be pre-ordered as a group.
 
-IS216 Web Application Development II · G11 · Team 1
+IS216 Web Application Development II · Section G11 · Team 1
 
 | | |
 |---|---|
-| **Deployed app** | _TODO: Vercel URL_ |
-| **API** | _TODO: Render URL_ |
-| **Git repo** | _TODO: GitHub URL (must be public)_ |
-| **Video** | _TODO: YouTube URL_ |
+| **Live app** | https://chopeless.vercel.app |
+| **API (Render)** |https://chopeless-api.onrender.com/api/health|
+| **GitHub** | https://github.com/silvergohzh/IS216-G11T1-GrpProject |
+| **Video (YouTube, unlisted)** | _TODO: YouTube URL_ |
+
+The app code is in the [`ChopeLess/`](ChopeLess) folder: `client/` (Vue website) and `server/` (Express API).
 
 ---
 
-## Changing the app name
+## Try it
 
-The name lives in `client/src/config.js` (navbar label, tab titles, home page), `client/index.html` (`<title>`) and `client/public/favicon.svg` (tab icon). The internal emulator ID `demo-hiddengems` is never shown to users; leave it as is so existing `.env` files keep working.
+Open the live app and log in with a demo account (password for all: **`test1234`**), or sign up with any email.
 
-## Who owns what
+| Email | Who | Good for trying |
+|---|---|---|
+| `alice@chopeless.test` | Alice Tan, diner, 1000 Makan Points | Makan Sessions, Fastpass, buying an extra Super Like |
+| `ben@chopeless.test` | Ben Lim, diner, 300 points | Joining Alice's session from a second browser |
+| `chloe@chopeless.test` | Chloe Ng, diner, 300 points | A third voter |
+| `hawker@chopeless.test` | Ah Seng Chicken Rice (inside Albert Centre) | Order board, My menu, Earnings |
+| `hawker2@chopeless.test` | Waterloo Nasi Lemak (inside Waterloo Centre) | A second stall |
+| `admin@chopeless.test` | Admin | Approving hawker sign-ups, changing roles |
+| `dan@chopeless.test` | Dan Koh, diner | Has a hawker application waiting for the admin |
 
-Every file starts with a comment that says who owns it. Search the code for `TODO (M3)` (or your number) to find your next tasks.
+**A quick demo (two browsers, e.g. Chrome + an incognito window):**
+1. Alice: **Makan Session** → Create. Ben: enter the 6-letter code → Join.
+2. Alice: Start voting. Both swipe right or left (or use the ⭐ Super Like / 🚫 Veto). The winner appears on both screens.
+3. On the winner page: walking route on the map, or **Pre-order as a group** → pay with Stripe test card `4242 4242 4242 4242` (any future date, any CVC).
+4. Hawker account: Start preparing → Mark ready (with a photo). Diner: I've collected it.
 
-| # | Member | Part | Your files |
-|---|---|---|---|
-| M1 | Janani | Session and voting back-end | `server/routes/sessions.js`, the `sessions` block in `firestore.rules` |
-| M2 | Nawaz | Shortlist engine and maps | `server/services/shortlist.js`, `server/services/osrm.js`, `server/routes/shortlist.js`, `client/src/components/MapView.vue` |
-| M3 | Silver | Session front-end | `client/src/services/sessions.js`, `client/src/stores/session.js`, `client/src/views/SessionsView.vue`, `LobbyView.vue`, `VoteView.vue`, `WinnerView.vue`, `client/src/components/PlaceCard.vue` |
-| M4 | Jonathan | QueueLess | `client/src/services/places.js`, `server/routes/places.js`, `server/services/openai.js`, `client/src/views/QueueLessView.vue`, `PlaceDetailView.vue` |
-| M5 | Jan | Hidden Gems and data | `client/src/services/gems.js`, `client/src/views/GemsView.vue`, `server/seed/`, the `gems` and `places` blocks in `firestore.rules` |
-| M6 | Myat | Orders + payments + platform (roles, testing, CI, delivery) | `server/routes/orders.js`, `server/routes/payments.js`, `server/routes/admin.js`, `server/services/payments.js`, `server/seed/platform.js`, `server/seed/menus.json`, `client/src/services/orders.js`, `client/src/lib/` (incl. `splitBill.js`), `OrdersView.vue`, `CartView.vue`, `HawkerOrdersView.vue`, `AdminView.vue`, `client/src/stores/auth.js`, `client/src/services/users.js`, `client/src/router/`, `App.vue`, `NavBar.vue`, `HomeView.vue`, `LoginView.vue`, `ProfileView.vue`, `server/index.js`, `server/firebase.js`, `server/middleware/auth.js`, the `users` and `orders` blocks in `firestore.rules`, `firebase.json`, `playwright.config.js`, `.github/workflows/`, this README |
+---
 
-**Shared files.** If you need to change a file someone else owns (for example, adding your route to `client/src/router/index.js`), tell them in the group chat first.
+## Features
+
+| Feature | What it does | Owner |
+|---|---|---|
+| **Makan Session** | Create or join with a 6-letter code. Live lobby, host-only settings, the host can remove someone (they can't rejoin). Swipe voting with ⭐ Super Like (1 free, more for 20 points) and 🚫 Veto, a live tally and a shared timer. Ties are settled by the server and shown with the Chope-Pon gacha machine. Winner page with a walking route and a group pre-order link. | Silver (front end), Janani (voting rules), Nawaz (shortlist) |
+| **Shortlist engine** | Filters places by service mode, the tightest budget, everyone's diet, real walking time (OSRM) and queue time, then picks the top 8, always keeping one Hidden Gem. | Nawaz |
+| **Makan Kakis** | Saved friend groups. Create, join with a code, rename, remove a member (they can't rejoin), leave, delete. Start a session for the whole group. | Silver |
+| **For You** | Recommends places similar to ones you ate at or saved (cuisine, price, diet, distance). Save ♥ for later, hide ✕. | Silver |
+| **Makan Quest home** | Island map of the app (ticks reset daily, saved to your account), Today's Quests, this week's leaderboard, loading screen, sound effects and music. | Silver |
+| **QueueLess** | Crowd level for each place, an hourly chart, and AI queue estimates from a photo (OpenAI vision). Crowd reports from diners, verified for points. | Jonathan (QueueLess), Janani (crowd reports) |
+| **Hidden Gems** | Add, edit, delete and upvote small local spots, with reviews. A gem with 3 upvotes is added to the places list. | Jan |
+| **Makan Points** | Points for finishing sessions, verified crowd reports and collecting orders. Points history, leaderboard, priority queue for Fastpass orders. | Janani |
+| **Pre-order + payments** | Group carts with a share code, split bill, Stripe checkout (test mode), hawker order board, pickup timer with photo proof, refunds, Fastpass. Hawker centres and food courts contain their own stalls. | Myat (Nawaz: Fastpass) |
+| **Hawker portal + admin** | Hawkers apply, an admin approves, the hawker manages the menu. Roles: diner, hawker, admin. | Myat |
+
+---
 
 ## How it works
 
 ```
 Browser (Vue)  ──── reads/writes directly ────▶  Firestore  (protected by firestore.rules)
      │                                              ▲
-     └── trusted actions only ──▶ Express API ──────┘  (admin access)
-         start voting, vote, analyse photo
+     └── trusted actions only ──▶ Express API ──────┘  (Firebase Admin SDK)
+         shortlist, votes, winner, points, payments, AI photo estimate
 ```
 
-- **Most data goes straight from the browser to Firestore.** Profiles, sessions, gems and places are read and written in `client/src/services/`.
-- **Live updates.** The lobby, vote tally and gems board use Firestore's `onSnapshot`, so every phone updates the moment anything changes. No refreshing or polling.
-- **`firestore.rules` is our security.** Because the browser talks to the database directly, the rules decide who can do what. For example, only the host can change settings, you can only edit your own gem, and you can only upvote once.
-- **The Express server does the jobs the browser can't be trusted with.** It builds the shortlist, records votes and picks the winner (so nobody can fake a result), and calls OpenAI (so the API key stays secret).
+- **Simple reads and writes go straight to Firestore** from `client/src/services/`. `firestore.rules` decides who may do what (for example: only the host changes session settings, only the owner removes group members, you only see your own saved places).
+- **Live updates.** The lobby, vote tally, groups and gems use Firestore's `onSnapshot`, so every phone updates without refreshing.
+- **Anything that must be fair or secret goes through the Express server**: building the shortlist, recording votes, picking the winner, Makan Points, payments, and calling OpenAI (so the API key stays on the server). Votes and points use Firestore transactions, so two people acting at the same moment can't overwrite each other.
 
-## Tech stack
+### Tech stack
 
 | Layer | What we use |
 |---|---|
-| Front-end | HTML, CSS, JavaScript, **Vue 3** (`<script setup>`), Vue Router, Pinia, built with Vite |
-| Styling | **Tailwind CSS v4**, plus shared classes in `client/src/style.css` (`.btn`, `.card`, `.input`, ...) |
-| Data store | **Cloud Firestore** (Firebase). Collections: `users`, `sessions`, `places` (+ `analyses`), `gems` |
-| Login | **Firebase Authentication** (email + password) |
-| Back-end | Node.js + **Express**, using the Firebase Admin SDK |
-| APIs | Firebase Auth + Firestore, OSRM (walking time), OpenStreetMap tiles via Leaflet, OpenAI vision (queue photos) |
-| Testing | **Playwright** end-to-end tests, run against the Firebase emulators |
+| Front end | Vue 3 (`<script setup>`), Vue Router (with login and role guards), Pinia, Vite |
+| Styling | Tailwind CSS v4 plus shared classes in `client/src/style.css`. Responsive from 375px phones to desktop |
+| Data | Cloud Firestore and Firebase Authentication (email + password) |
+| Back end | Node.js + Express with the Firebase Admin SDK |
+| External APIs | OSRM (walking routes), OpenStreetMap tiles via Leaflet, OpenAI vision (queue photos), Stripe Checkout (test mode) |
+| Browser APIs | Web Audio (sounds and music, no audio files), IntersectionObserver, Pointer Events, localStorage |
+| Testing | Vitest + Vue Test Utils (unit and component), Playwright (end to end), Node's test runner (server unit tests), GitHub Actions |
+| Hosting | Vercel (website), Render (API), Firebase (data) |
 
-## Firestore data
+### Firestore collections
 
-| Collection | Fields | Who writes it |
+| Collection | What's in it | Written by |
 |---|---|---|
-| `users/{uid}` | name, defaultBudget, dietary[], role (`diner` / `hawker` / `admin`), placeId (hawkers only) | The user (name, budget, diet); **only the server** sets role and placeId (M6) |
-| `orders/{id}` | placeId, placeName, ownerUid (the group leader), joinCode, sessionCode (if made from a Makan Session), priority (Fastpass), priorityBy, members[{uid, name}], memberUids[], items[{lineId, itemId, name, price, qty, addedBy, addedByName}], total, status (cart / awaiting_payment / paid / preparing / ready / collected / cancelled), readyAt, pickupBy (15 min after ready), collectedAt, collectedByName, createdAt, paidAt. **Money is in cents.** | Only the server (M6). The group, the stall's hawker and admins can read it |
-| `payments/{orderId}` | orderId, placeId, placeName, payerUid, payerName, memberUids[], amount (cents), method (`stripe` / `demo`), paymentIntent, status (`paid` / `refunded`), refundReason, paidAt, updatedAt | **Only the server** (M6): created when an order is paid; refunded by the stall's hawker or an admin; deleted by an admin. Readable by the group, the stall's hawker and admins |
-| `orders/{id}/proofs/{ready \| collected}` | photo (small JPEG as text), byUid, byName, at | Only the server: the hawker's photo when ready, the diner's photo when collected (M6) |
-| `hawkerApplications/{uid}` | uid, applicantName, stallName, cuisine, address, lat, lng, dietary[], serviceModes[], status (pending / approved / rejected), reason, placeId (once approved) | Only the server: the applicant applies, an admin approves or rejects (M6) |
-| `sessions/{code}` | hostUid, status (lobby / voting / done), serviceMode, maxWalkMins, maxWaitMins, meetingPoint, members{uid: {name, budget, dietary}}, shortlist[], votes{placeId: {uid: true/false}}, winner, expiresAt | Browser in the lobby (M3, rules by M1); server for shortlist, votes and winner (M1) |
-| `places/{id}` | name, cuisine, address, lat, lng, priceMin, priceMax, dietary[], serviceModes[], latest{waitMins, seatOccupancy, ...}, menu[{id, name, price (cents), available}], type (`hawker-centre` / `food-court` / `stall` / `restaurant`), parentId + parentName (stalls inside a centre), ownerUid (stalls created by hawker sign-up) | Seed script (M5, menus by M6); hawker sign-up after admin approval and **My menu** (M6); server updates `latest` (M4) |
-| `places/{id}/analyses/{id}` | hour, peopleInQueue, waitMins, seatOccupancy, confidence | Seed script and server (M4) |
-| `gems/{id}` | name, mustTry, price, address, lat, lng, dietary[], submittedBy, upvoters[] | The user (M5) |
+| `users/{uid}` | name, default budget, diet, role, stall (hawkers) | the user; role and stall only by the server |
+| `users/{uid}/history`, `/saved`, `/visited` | Meal History, saved ♥ places, island ticks per day | server (history), the user (saved, visited) |
+| `sessions/{code}` | host, status, settings, members, kicked, shortlist, votes, Super Likes, vetoes, winner, tie-break | lobby: the browser; voting and winner: the server |
+| `groups/{code}` | name, owner, members, kicked, live session | the browser (owner-only rules for removing people) |
+| `places/{id}` (+ `analyses`) | place details, type, menu, latest queue estimate, hourly history | seed script, server, hawkers (own menu via API) |
+| `gems/{id}` (+ `reviews`) | hidden gems, upvoters, reviews | the user via the server |
+| `crowdReports`, `pointsAccounts`, `pointsLedger` | crowd reports, point balances, every points change | server only |
+| `orders/{id}` (+ `proofs`), `payments/{id}`, `hawkerApplications/{uid}` | orders, payment records, hawker sign-ups | server only |
 
-## Setup (first time)
+---
 
-You need:
-- **Node.js 20 or newer**
-- **Java 11 or newer**, which the Firebase emulator needs. Check with `java -version`. If it's missing, install it from [adoptium.net](https://adoptium.net).
+## Run it locally
+
+You need **Node.js 20+** and **Java 11+** (for the Firebase emulator; check with `java -version`).
 
 ```bash
-git clone <repo-url>
-cd chopeless
+git clone https://github.com/silvergohzh/IS216-G11T1-GrpProject.git
+cd IS216-G11T1-GrpProject/ChopeLess
 
 cd server && cp .env.example .env && npm install
 cd ../client && cp .env.example .env && npm install
 ```
 
-The `.env` files are already set up for the **local emulators**, so you don't need a real Firebase project to start building.
-
-QueueLess photo analysis uses OpenAI. Add `OPENAI_API_KEY=sk-...` to `server/.env` (optionally `OPENAI_MODEL`, default `gpt-4o`). Without a key the server returns a random sample estimate, so the page still works.
-
-Payments use **Stripe in test mode** (no real money). Add `STRIPE_SECRET_KEY=sk_test_...` and `STRIPE_WEBHOOK_SECRET=whsec_...` to `server/.env` (see the comments in `server/.env.example`). Without them, pressing Pay marks the order paid straight away ("demo mode"). Test card: **4242 4242 4242 4242**, any future date, any CVC.
-
-## Running the app locally
-
-Open three terminals:
+The example `.env` files point at the **local emulators**, so no real Firebase project is needed. Then, in three terminals:
 
 ```bash
-# Terminal 1: local Firebase (Auth + Firestore). Data resets every time you stop it.
+# 1. Local Firebase (resets when stopped)
 cd client && npm run emulators
-#   then, once it says "All emulators ready", load the sample places, menus and test accounts (in any terminal):
+#    once it says "All emulators ready", load the places, menus and demo accounts:
 cd server && npm run seed
 
-# Terminal 2: API on http://localhost:3000
+# 2. API on http://localhost:3000
 cd server && npm run dev
 
-# Terminal 3: website on http://localhost:5173
+# 3. Website on http://localhost:5173
 cd client && npm run dev
 ```
 
-- Sign up with any email and a password of 6+ characters. Accounts only exist on your laptop.
-- Open http://localhost:4000 to see the **Emulator UI**. It shows every Firestore document and user, which is very handy for debugging.
+The Emulator UI at http://localhost:4000 shows every document and user.
 
-### Test accounts
+**Optional keys** in `server/.env`:
+- `OPENAI_API_KEY`: real photo estimates. Without it, the server returns a sample estimate.
+- `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`: real Stripe test checkout. Without them, Pay marks the order paid straight away (demo mode).
 
-`npm run seed` creates ready-made **demo accounts**, so nobody has to sign up (they are only listed here, not on the login page). Password for all: **test1234**
+---
 
-| Email | Name | Role |
-|---|---|---|
-| `alice@chopeless.test` | Alice Tan | Diner with **1000 Makan Points** (enough to buy a Fastpass) |
-| `ben@chopeless.test` | Ben Lim | Diner with 300 Makan Points |
-| `chloe@chopeless.test` | Chloe Ng | Diner with 300 Makan Points |
-| `hawker@chopeless.test` | Ah Seng (hawker) | Hawker of **Ah Seng Chicken Rice**, a stall inside Albert Centre: Order board, My menu, Earnings |
-| `hawker2@chopeless.test` | Waterloo Nasi Lemak (hawker) | Hawker of **Waterloo Nasi Lemak**, a stall inside Waterloo Centre |
-| `admin@chopeless.test` | Admin | Admin, can change anyone's role |
-| `dan@chopeless.test` | Dan Koh | Diner with a **hawker application waiting** (Dan's Nasi Lemak), so the admin has one to approve |
+## Tests
 
-New sign-ups are always diners. An admin can make someone a hawker on the Admin page.
+| Command (in `ChopeLess/client`) | What it runs |
+|---|---|
+| `npm run test:e2e` | All Playwright end-to-end tests at desktop and phone (375px) size, against a fresh emulator database each run. Stop `npm run emulators` first. First time: `npx playwright install chromium` |
+| `npm run test:vitest` | Vitest unit and component tests (`src/**/__tests__/*.spec.js`) |
+| `npm run test:unit` | Split-bill unit tests (Node test runner) |
+| `cd ../server && npm test` | Server unit tests: winner rules and priority queue |
 
-**Pickup flow:** diner pays → hawker taps *Start preparing* → hawker uploads a photo and taps *Mark ready* (starts a **15-minute** pickup timer and notifies the diner) → the diner uploads a photo and taps *I've collected it*. Both diner and hawker keep an **order history** with the photos.
+GitHub Actions (`.github/workflows/tests.yml`) runs all of these on every pull request and every push to `main`.
 
-**Group orders:** the person who starts an order shares its **6-letter code** (or the link `/orders?join=CODE`). Friends enter it under *Join a group order* on the Pre-order page.
-
-**Hawker sign-up and menus:** a hawker applies at `/hawker/signup` (account + stall name, cuisine, address, map location, diet tags, and optionally *which hawker centre or food court it is inside*). An **admin approves** it on the Admin page, which creates the stall in `places` and makes the account its hawker; a rejection shows the applicant the reason. The hawker builds the menu on **My menu**: add, edit, delete and mark sold out. Every stall has a **public page** `/stalls/<id>` (no login needed) with the menu, map and a Pre-order button.
-
-**Hawker centres and food courts (parent sets):** Albert Centre and Waterloo Centre (tag *Hawker centre*) and Bras Basah Complex (tag *Food court*) each contain 3 **stalls** with their own menus (`server/seed/stalls.json`). Other places are tagged *Restaurant*. On the Pre-order page, opening a centre shows **only its stalls**. Groups vote on the centre in a Makan Session; stalls inside it are not shown on their own in voting or QueueLess.
-
-**Makan Session → group pre-order:** make the group → vote to confirm the food spot → on the winner page tap **Pre-order as a group**. Only the place the group picked is shown (its stalls, if it's a hawker centre), and **everyone in the session is added to the order automatically**. Not pre-ordering? Skip it and use the walking directions on the winner page.
-
-**Fastpass (Makan Points):** the group leader (who started the order) can spend **150 Makan Points** (Janani's `POINT_RULES.PRIORITY`) on a Fastpass. It uses `spendPointsInTx`, sets `priority: true`, and **Janani's `sortPriorityQueue`** then puts the order first in the stall's queue, for everyone in the group. Members see "You're #1 in the queue"; the hawker sees ⚡ first on the Order board. Collecting a pre-order earns **10 points** each.
-
-**Payments (CRUD):** every paid order gets a record in `payments`. **Create:** the server, when Stripe (or demo mode) confirms. **Read:** the *Payments* page shows diners their receipts, hawkers their **Earnings** (with a total), admins everything. **Update:** the stall's hawker or an admin **refunds** with a reason (Stripe test refunds too). **Delete:** admins remove records. Browsers can never write payments.
-
-## Testing
-
-```bash
-cd client
-npx playwright install chromium     # first time only
-npm run test:e2e
-```
-
-`npm run test:e2e` starts the Firebase emulators, loads the sample places, starts test copies of the website (port 5174) and API (port 3001), runs every test at desktop and phone (375px) sizes, then shuts everything down. Every run starts from a clean database, so results are repeatable. Stop `npm run emulators` first, because the tests need the same ports.
-
-| Test file | Owner | What it checks |
-|---|---|---|
-| `home.spec.js` | M6 | Logged-out users are sent to login; sign up, then save and reload a profile |
-| `sessions.spec.js` | M3 / M1 | **Two browsers:** host creates, guest joins live, host starts voting, both vote yes, both see the same winner |
-| `queueless.spec.js` | M4 | Seeded places show a crowd level; the place page shows the hourly chart |
-| `gems.spec.js` | M5 | Add, edit and delete a gem |
-| `orders.spec.js` | M6 | Centres show only their stalls (with tags); full journey (signed Stripe webhook → ready with photo → collected with photo → both histories); fake payment rejected; **payments**: receipt, hawker refund, admin delete; **Fastpass** jumps the queue for the whole group; **Makan Session → group pre-order**; group order by code with split bill; share link; diners can't open hawker/admin pages |
-| `hawkers.spec.js` | M6 | Hawker applies **inside a hawker centre** → admin approves (applicant notified live) → adds, edits and sells out dishes → public page without login → diner pre-orders → stall listed inside the centre; a rejection shows the reason; diners can't open My menu |
-
-Unit tests for the split-bill algorithm: `cd client && npm run test:unit` (Node's built-in test runner).
-
-**CI:** `.github/workflows/tests.yml` runs the unit and end-to-end tests on GitHub for every pull request, so you see ✅ or ❌ before merging.
-
-**Adding your tests:** make a file in `client/e2e/` named after your feature, and use `signUp(page)` from `e2e/helpers.js` to get a logged-in user. Find elements with `getByRole`, `getByLabel` or `data-testid`, so restyling a page doesn't break its tests.
-
-## How to work together (Git)
-
-1. Always start from the latest `main`: `git checkout main && git pull`
-2. Make a branch for your task: `git checkout -b m3-swipe-animation`
-3. Commit small and often: `git add . && git commit -m "Add swipe animation to vote page"`
-4. Push and open a Pull Request: `git push -u origin m3-swipe-animation`
-5. Ask one teammate to review, then merge into `main`.
-
-Rules: never commit `.env` files. Don't push straight to `main`. Pull before you start each day.
-
-## API reference (Express)
-
-Everything else goes through Firestore directly. All routes need a logged-in user, except photo analysis.
-
-| Method | Route | Owner | What it does |
+| Owner | Unit test | Component tests | End-to-end tests (`client/e2e/`) |
 |---|---|---|---|
-| GET | `/api/health` | M6 | Is the API up, and is it using the emulator? |
-| POST | `/api/sessions/:code/start` | M1 + M2 | Host only. Builds the shortlist and opens voting |
-| POST | `/api/sessions/:code/vote` | M1 | Vote `{ placeId, yes }`. The first place with all yes wins |
-| GET | `/api/shortlist/:code` | M2 | Preview the shortlist without starting voting |
-| POST | `/api/places/:id/analyse` | M4 | No login needed (10 photos per 10 min per visitor). Send `{ imageBase64, mimeType }`; OpenAI estimates queue length, wait, seats taken and confidence |
-| POST | `/api/orders` | M6 | Start a cart for a stall `{ placeId, sessionCode? }` (reopens your open cart there; with a Makan Session code, the whole group is added) |
-| POST | `/api/orders/join` | M6 | Join a group cart with its code `{ code }` |
-| POST / PATCH / DELETE | `/api/orders/:id/items[/:lineId]` | M6 | Add `{ itemId, qty }`, change `{ qty }` or remove a cart item. Prices come from the menu on the server |
-| POST | `/api/orders/:id/cancel` | M6 | Owner only, before paying |
-| POST | `/api/orders/:id/checkout` | M6 | Owner only. Returns a Stripe checkout page URL |
-| POST | `/api/orders/:id/preparing` | M6 | Hawker of that stall (or admin): paid → preparing |
-| POST | `/api/orders/:id/ready` | M6 | Hawker of that stall (or admin), with `{ photo }`: preparing → ready, starts the 15-minute pickup timer |
-| POST | `/api/orders/:id/collect` | M6 | Someone in the order, with `{ photo }`: ready → collected |
-| POST | `/api/payments/webhook` | M6 | Called **by Stripe**, checked with the signing secret. Marks the order paid and **creates the payment record** |
-| POST | `/api/payments/:id/refund` | M6 | Stall's hawker or admin, with `{ reason }`: refunds the payment (Stripe test refund too) and cancels an uncollected order |
-| DELETE | `/api/payments/:id` | M6 | Admin only: delete a payment record |
-| POST | `/api/orders/:id/fastpass` | M6 | Group leader: spend 150 Makan Points so the order is prepared first |
-| GET | `/api/orders/:id/queue` | M6 | Someone in the order: `{ position, waiting }` from the priority queue |
-| GET / PATCH | `/api/admin/users[/:uid]` | M6 | Admin only: list accounts, change a role `{ role, placeId }` |
-| GET | `/api/admin/applications` | M6 | Admin only: hawker applications waiting |
-| POST | `/api/admin/applications/:uid/approve` · `/reject` | M6 | Admin only: approve (creates the stall) or reject `{ reason }` |
-| POST / GET | `/api/hawkers/apply` · `/api/hawkers/application` | M6 | Apply to be a hawker with stall details; see my application |
-| POST / PATCH / DELETE | `/api/hawkers/menu[/:dishId]` | M6 | Hawker only, own stall: add `{ name, price }` (dollars), edit `{ name, price, available }`, delete |
-| POST | `/api/hawkers/menu/many` | M6 | Hawker only: add several dishes at once `{ items }` |
+| Silver | `today.spec.js` (Singapore-date reset) | `PlaceCard.spec.js`, `GachaTie.spec.js` | `sessions`, `groups`, `island`, `foryou` (26 tests) |
+| Janani | `winner.test.js`, `priorityQueue.test.js` | _TODO_ | _TODO_ |
+| Nawaz | _TODO_ | _TODO_ | _TODO_ |
+| Jonathan | _TODO_ | _TODO_ | `queueless` |
+| Jan | _TODO_ | _TODO_ | `gems` |
+| Myat | `splitBill.test.js` | _TODO_ | `home`, `orders`, `hawkers` |
 
-## Deployment (M6, Week 11)
+Tests find elements the way users see them (`getByRole`, `getByLabel`) or by `data-testid`, never by CSS paths, so restyling a page doesn't break them. Multi-user tests open separate browser contexts for the host, guests and outsiders.
 
-1. **Create the real Firebase project** (free Spark plan) at console.firebase.google.com:
-   - Turn on **Authentication → Email/Password** and create a **Firestore** database.
-   - Publish the rules: `cd client && npx firebase deploy --only firestore:rules --project <project-id> --config ../firebase.json`
-   - Optional: add a **TTL policy** on the `sessions` collection, field `expiresAt`, so old sessions delete themselves.
-2. **Seed the real database:** in `server/.env`, remove the two `EMULATOR` lines, set `FIREBASE_PROJECT_ID` and `FIREBASE_SERVICE_ACCOUNT`, then run `npm run seed`.
-3. **Back-end → Render:** root directory `server`, start command `npm start`. Add the server `.env` values (without the EMULATOR lines) in Render's settings, and set `CLIENT_URL` to the Vercel URL.
-4. **Front-end → Vercel:** root directory `client`, build `npm run build`, output `dist`. Set `VITE_USE_EMULATOR=false`, the `VITE_FIREBASE_*` web config values, and `VITE_API_URL` to the Render URL + `/api`.
-5. In Firebase **Authentication → Settings → Authorized domains**, add the Vercel domain.
-6. **Stripe (test mode):** in the Stripe dashboard → Developers → Webhooks, add an endpoint `https://<render-url>/api/payments/webhook` for the event `checkout.session.completed`. Put its signing secret in Render as `STRIPE_WEBHOOK_SECRET`, and the test secret key as `STRIPE_SECRET_KEY`.
+---
 
-Keep the app, API keys and database running until **after Week 18** (per the project brief).
+## Deployment
+
+1. **Firebase:** turn on Email/Password sign-in and Firestore. Publish the rules with `npx firebase-tools deploy --only firestore:rules` (from `ChopeLess`). Add the Vercel domain under Authentication → Settings → Authorized domains.
+2. **Seed the live database** (once, or after the place data changes): in `server/.env`, remove the two `EMULATOR` lines and set `FIREBASE_PROJECT_ID` and `FIREBASE_SERVICE_ACCOUNT` (the key JSON on one line), then `npm run seed`. Put the emulator lines back afterwards. This replaces the seeded places and resets the demo accounts.
+3. **Render (API):** root directory `ChopeLess/server`, start command `npm start`. Environment: the server `.env` values without the emulator lines, plus `CLIENT_URL` = the Vercel URL.
+4. **Vercel (website):** root directory `ChopeLess/client`, build `npm run build`, output `dist`. Environment: `VITE_USE_EMULATOR=false`, the `VITE_FIREBASE_*` web config, and `VITE_API_URL` = the Render URL + `/api`. Vercel installs with pnpm, so after adding a package run `npx pnpm@10 install --lockfile-only` and commit `pnpm-lock.yaml`.
+5. **Stripe (test mode):** add a webhook endpoint `https://<render-url>/api/payments/webhook` for `checkout.session.completed`, and put its signing secret in Render as `STRIPE_WEBHOOK_SECRET`.
+
+Never commit `.env` files or key files.
+
+---
+
+## API (Express)
+
+All routes need a logged-in user unless noted. Full details are in the comments of each file in `server/routes/`.
+
+| Area | Routes |
+|---|---|
+| Sessions | `POST /api/sessions/:code/start` (host), `/vote`, `/buy-super-like`, `/finish` |
+| Shortlist | `GET /api/shortlist/:code`, `GET /api/shortlist/:code/route` (OSRM walking path) |
+| Places | `POST /api/places/:id/analyse` (photo → queue estimate; no login, rate-limited) |
+| Crowd reports | `POST /api/crowd-reports`, `GET /mine`, `GET /pending`, `PATCH /:id/verify` |
+| Gems | `GET/POST /api/gems`, `PUT/DELETE /:id`, `POST/DELETE /:id/upvote`, `GET/POST/PUT/DELETE /:id/reviews` |
+| Points | `GET /api/points/me`, `/history`, `/leaderboard`, `/priority`; `PATCH /ledger/:id/reverse`, `DELETE /ledger/:id` (admin) |
+| Orders | `POST /api/orders`, `/join`, `/:id/items`, `/:id/cancel`, `/:id/checkout`, `/:id/preparing`, `/:id/ready`, `/:id/collect`, `/:id/fastpass`; `GET /:id/queue` |
+| Payments | `POST /api/payments/webhook` (Stripe, signed), `POST /:id/refund`, `DELETE /:id` (admin) |
+| Hawkers / admin | `POST /api/hawkers/apply`, `/menu`, `/menu/many`; `PATCH/DELETE /menu/:dishId`; `GET /api/admin/users`, `/applications`; approve / reject |
+
+---
 
 ## Credits
 
-Map data © OpenStreetMap contributors · Walking routes: OSRM · Libraries: Vue, Vue Router, Pinia, Tailwind CSS, Leaflet, Express, Firebase, Playwright. Code adapted from elsewhere must be credited in a comment where it's used.
+- **Libraries:** Vue, Vue Router, Pinia, Vite, Tailwind CSS, Express, Firebase, Leaflet, canvas-confetti (MIT), Stripe, Playwright, Vitest, Vue Test Utils.
+- **Data and services:** map data © OpenStreetMap contributors; walking routes by OSRM; queue estimates by OpenAI; payments by Stripe (test mode).
+- **Fonts:** Lilita One and Nunito (Google Fonts, SIL Open Font License).
+- **Sound and music:** written by us in code with the Web Audio API; no audio files are used.
+- **AI use:** _TODO: one honest sentence on how the team used AI tools._ Code adapted from elsewhere is credited in a comment where it is used.
