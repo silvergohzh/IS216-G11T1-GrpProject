@@ -12,6 +12,10 @@ import shortlistRouter from './routes/shortlist.js'     // M2
 import placesRouter from './routes/places.js'           // M4
 import gemsRouter from './routes/gems.js'               // M5
 import pointsRouter from './routes/points.js'           // M1 - Makan Points
+import ordersRouter from './routes/orders.js'           // M6
+import paymentsRouter from './routes/payments.js'       // M6
+import adminRouter from './routes/admin.js'             // M6
+import hawkersRouter from './routes/hawkers.js'         // M6
 
 import crowdReportsRouter from './routes/crowdReports.js'
 import crowdReportVerificationRouter from './routes/crowdReportVerification.js'
@@ -24,6 +28,10 @@ const app = express()
 app.use(cors({
   origin: (process.env.CLIENT_URL || 'http://localhost:5173').split(',')
 }))
+
+// The Stripe webhook needs the RAW body to check Stripe's signature,
+// so it gets express.raw() BEFORE express.json() reads the body as JSON
+app.use('/api/payments/webhook', express.raw({ type: 'application/json' }))
 
 app.use(express.json({ limit: '5mb' }))
 
@@ -51,6 +59,12 @@ app.use('/api/points', pointsRouter)
 // Crowd reports: submission and verification
 app.use('/api/crowd-reports', crowdReportsRouter)
 app.use('/api/crowd-reports', crowdReportVerificationRouter)
+
+// Orders, payments and admin (M6)
+app.use('/api/orders', ordersRouter)
+app.use('/api/payments', paymentsRouter)   // webhook + refund + delete
+app.use('/api/admin', adminRouter)
+app.use('/api/hawkers', hawkersRouter)
 
 // ---------- ERROR HANDLER ----------
 

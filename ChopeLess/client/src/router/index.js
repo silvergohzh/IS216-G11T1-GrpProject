@@ -2,6 +2,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { APP_NAME } from '../config'
+import { sfx } from '../lib/sfx'
 
 const routes = [
   // M6: Foundation
@@ -22,22 +23,43 @@ const routes = [
   { path: '/queueless', name: 'queueless', component: () => import('../views/QueueLessView.vue'), meta: { title: 'QueueLess' } },
   { path: '/places/:id', name: 'place', component: () => import('../views/PlaceDetailView.vue'), meta: { title: 'Place' } },
 
+  // M1: Makan Points (moved off the Home page)
+  { path: '/points', name: 'points', component: () => import('../views/MakanPoints.vue'), meta: { requiresAuth: true, title: 'Makan Points' } },
+
   // M5: Hidden Gems
-  { path: '/gems', name: 'gems', component: () => import('../views/GemsView.vue'), meta: { title: 'Hidden Gems' } }
+  { path: '/gems', name: 'gems', component: () => import('../views/GemsView.vue'), meta: { title: 'Hidden Gems' } },
+
+  // M6: Orders + Payments + Platform
+  // "role" means only that role can open the page
+  { path: '/orders', name: 'orders', component: () => import('../views/OrdersView.vue'), meta: { requiresAuth: true, title: 'Pre-order' } },
+  { path: '/orders/:id', name: 'cart', component: () => import('../views/CartView.vue'), meta: { requiresAuth: true, title: 'Order' } },
+  { path: '/hawker', name: 'hawker', component: () => import('../views/HawkerOrdersView.vue'), meta: { requiresAuth: true, role: 'hawker', title: 'Order board' } },
+  { path: '/admin', name: 'admin', component: () => import('../views/AdminView.vue'), meta: { requiresAuth: true, role: 'admin', title: 'Admin' } },
+  { path: '/hawker/signup', name: 'hawker-signup', component: () => import('../views/HawkerSignupView.vue'), meta: { title: 'Sell on ChopeLess' } },
+  { path: '/hawker/menu', name: 'hawker-menu', component: () => import('../views/MenuView.vue'), meta: { requiresAuth: true, role: 'hawker', title: 'My menu' } },
+  { path: '/stalls/:id', name: 'stall', component: () => import('../views/StallView.vue'), meta: { title: 'Stall' } },
+  { path: '/payments', name: 'payments', component: () => import('../views/PaymentsView.vue'), meta: { requiresAuth: true, title: 'Payments' } }
 ]
 
 const router = createRouter({ history: createWebHistory(), routes })
 
-// Send logged-out users to the login page
+// Runs before every page change
 router.beforeEach(async to => {
   const auth = useAuthStore()
   if (!auth.ready) await auth.init()
+
+  // 1. Logged out? Go to the login page first, then come back here
   if (to.meta.requiresAuth && !auth.isLoggedIn) return { name: 'login', query: { next: to.fullPath } }
+
+  // 2. Wrong role? (e.g. a diner opening the hawker board) Go back to the home page
+  if (to.meta.role && auth.user.role !== to.meta.role) return { name: 'home' }
 })
 
 // Browser tab title, e.g. "QueueLess · ChopeLess"
-router.afterEach(to => {
+router.afterEach((to, from) => {
   document.title = to.meta.title ? `${to.meta.title} · ${APP_NAME}` : APP_NAME
+  // [M3] bubble sound, but not on the very first page load (from.name is empty then)
+  if (from.name && to.path !== from.path) sfx.bubble()
 })
 
 export default router

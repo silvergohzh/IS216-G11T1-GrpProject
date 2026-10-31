@@ -31,11 +31,99 @@ service cloud.firestore {
         && member.dietary.size() <= 10;
     }
 
-     // ---------- users (M6) ----------
-    // You can only see and change your own profile.
+    // ---------- roles (M6) ----------
+    // Every account has a role saved in its profile: 'diner' (default), 'hawker' or 'admin'.
+    // These helpers read the logged-in user's own profile to check their role.
+    function myProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasProfile() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isAdmin() {
+      return hasProfile() && myProfile().get('role', 'diner') == 'admin';
+    }
+
+    // A hawker can only see orders for the stall they run
+    function isHawkerOf(placeId) {
+      return hasProfile()
+        && myProfile().get('role', 'diner') == 'hawker'
+        && myProfile().get('placeId', '') == placeId;
+    }
+
+    // ---------- users (M6) ----------
+    // You can see and change your own profile (admins can see everyone's).
+    // You can NEVER set your own role or stall: only the server can (admin page, seed script).
+    // Otherwise anyone could make themselves an admin.
     match /users/{uid} {
-      allow read, write: if signedIn()
+      allow read: if signedIn()
+        && (request.auth.uid == uid || isAdmin());
+
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && !('role' in request.resource.data)
+        && !('placeId' in request.resource.data);
+
+      allow update: if signedIn()
+        && request.auth.uid == uid
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'placeId']);
+
+      allow delete: if signedIn()
         && request.auth.uid == uid;
+    }
+
+    // ---------- orders (M6) ----------
+    // Who can READ an order:
+    //   - the people in the group cart
+    //   - the hawker who runs that stall (for their order board)
+    //   - admins
+    // Nobody can WRITE from the browser. Every change goes through our server
+    // (server/routes/orders.js), so prices and "paid" can't be faked.
+    function canSeeOrder(order) {
+      return signedIn() && (
+        request.auth.uid in order.memberUids
+        || isHawkerOf(order.placeId)
+        || isAdmin()
+      );
+    }
+
+    match /orders/{orderId} {
+      allow read: if canSeeOrder(resource.data);
+      allow write: if false;
+
+      // Proof photos (hawker's "ready" photo, diner's "collected" photo).
+      // The same people who can see the order can see its photos.
+      match /proofs/{kind} {
+        allow read: if canSeeOrder(get(/databases/$(database)/documents/orders/$(orderId)).data);
+        allow write: if false;
+      }
+    }
+
+    // ---------- payments (M6) ----------
+    // One record per paid order. Who can READ it:
+    //   - the people in that group order (their receipt)
+    //   - the hawker of that stall (their earnings)
+    //   - admins
+    // Nobody can WRITE from the browser: only the server creates, refunds or deletes them
+    // (server/routes/payments.js), so nobody can fake a payment or a refund.
+    match /payments/{paymentId} {
+      allow read: if signedIn() && (
+        request.auth.uid in resource.data.memberUids
+        || isHawkerOf(resource.data.placeId)
+        || isAdmin()
+      );
+      allow write: if false;
+    }
+
+    // ---------- hawker applications (M6) ----------
+    // Applicants can READ their own application (so the app can tell them when it's approved or rejected).
+    // Only the server WRITES them (routes/hawkers.js and routes/admin.js).
+    match /hawkerApplications/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if false;
     }
 
     // Meal history: you read and delete your own; only the server writes it (M3)
@@ -46,6 +134,11 @@ service cloud.firestore {
 
     // Saved places (♥): you read and change only your own (M3)
     match /users/{uid}/saved/{placeId} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // Island ticks: one small doc per day (users/{uid}/visited/2026-10-30). Only you can see/change yours.
+    match /users/{uid}/visited/{day} {
       allow read, write: if signedIn() && request.auth.uid == uid;
     }
 
@@ -112,14 +205,15 @@ service cloud.firestore {
       allow update: if signedIn() && (
         // The owner can rename, remove members and set the live session
         (resource.data.ownerUid == request.auth.uid
-          && changedOnly(['name', 'memberUids', 'members', 'activeSession']))
+          && changedOnly(['name', 'memberUids', 'members', 'activeSession', 'kicked']))
         ||
         // Any member can start a session for the group
         (request.auth.uid in resource.data.memberUids
           && changedOnly(['activeSession']))
         ||
-        // Anyone can add or remove ONLY themselves (join / leave)
+        // Anyone can add or remove ONLY themselves (join / leave), unless the owner removed them
         (changedOnly(['memberUids', 'members'])
+          && !(request.auth.uid in resource.data.get('kicked', {}))
           && request.resource.data.members.diff(resource.data.members).affectedKeys().hasOnly([request.auth.uid])
           && request.resource.data.memberUids.toSet().difference(resource.data.memberUids.toSet())
                .union(resource.data.memberUids.toSet().difference(request.resource.data.memberUids.toSet()))
@@ -174,9 +268,25 @@ service cloud.firestore {
 
           ||
 
+          // Host can remove (kick) other members while in the lobby.
+          // Members can only be taken away (never added or edited), the host always stays,
+          // and kicked people are remembered in `kicked` so they can't rejoin with the code.
+          (
+            resource.data.hostUid == request.auth.uid
+            && changedOnly(['members', 'kicked'])
+            && request.auth.uid in request.resource.data.members
+            && resource.data.members.keys().hasAll(request.resource.data.members.keys())
+            && request.resource.data.get('kicked', {}).keys().hasAll(resource.data.get('kicked', {}).keys())
+          )
+
+          ||
+
           // Members can join, update or leave
           (
             changedOnly(['members'])
+
+            // People the host kicked can't rejoin
+            && !(request.auth.uid in resource.data.get('kicked', {}))
 
             // Only your own member entry can change
             && request.resource.data.members

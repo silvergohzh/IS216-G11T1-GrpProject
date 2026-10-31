@@ -1,14 +1,32 @@
-/* Global styles. Owner: M6. Tailwind v4 is loaded with one line. */
+/* Global styles. Owner: M6 (theme: M3 "Makan Quest"). Tailwind v4 is loaded with one line. */
 @import "tailwindcss";
 @import "leaflet/dist/leaflet.css";
 
-/* Shared brand colours, used as bg-brand, text-brand, etc. */
+/* Makan Quest theme: sea background, chunky navy outlines, sunny yellow buttons.
+   Fonts are loaded in index.html: Lilita One (headings, buttons) + Nunito (everything else). */
 @theme {
-  --color-brand: #237a4b;        /* green: main brand, buttons, links  */
-  --color-brand-light: #dcefe3;  /* pale green: "Host" badge           */
-  --color-accent: #e0a526;       /* gold: highlights                   */
-  --color-ink: #1e2140;          /* dark navy: main text colour        */
-    /* used as class="animate-pop" on the winner screen */
+  --color-brand: #237a4b;        /* green: grass, links, "good" states   */
+  --color-brand-light: #dcefe3;  /* pale green: badges                   */
+  --color-accent: #ffd23f;       /* sun yellow: main buttons, highlights */
+  --color-coral: #ff7a45;        /* orange: "you are here", host         */
+  --color-sea: #8fd3ff;          /* page background                      */
+  --color-sky: #eaf6ff;          /* pale blue: chips, stat boxes         */
+  --color-ink: #17213b;          /* navy: text, outlines, shadows        */
+
+  /* Greys used across the pages (text-slate-500 etc.) re-tuned so they stay readable on the blue sea */
+  --color-slate-50: #f3f9ff;
+  --color-slate-100: #eaf6ff;
+  --color-slate-200: #cfe3f2;
+  --color-slate-300: #9fb3c8;
+  --color-slate-400: #55607e;
+  --color-slate-500: #3f4a68;
+  --color-slate-600: #2e3754;
+  --color-slate-700: #222a45;
+
+  --font-sans: "Nunito", system-ui, sans-serif;
+  --font-display: "Lilita One", "Nunito", system-ui, sans-serif;
+
+  /* used as class="animate-pop" on the winner screen */
   --animate-pop: pop 0.6s ease-out;
   @keyframes pop {
     0% { transform: scale(0.6); opacity: 0; }
@@ -17,14 +35,55 @@
   }
 }
 
-body { @apply bg-slate-50 text-ink; }
+/* Base styles live in a layer so Tailwind utilities on a page can still override them */
+@layer base {
+/* The sea: blue with little white sparkles */
+body {
+  @apply text-ink font-sans font-semibold;
+  background-color: var(--color-sea);
+  background-image: radial-gradient(circle at 12px 12px, rgb(255 255 255 / 0.45) 2px, transparent 3px);
+  background-size: 48px 48px;
+}
+h1, h2, h3, .page-title, .font-display { font-family: var(--font-display); font-weight: 400; letter-spacing: 0.2px; }
+/* Lilita One has one weight: stop the browser faking a "bold" version when a page adds font-bold */
+h1, h2, h3, .font-display { font-synthesis: none; }
+h2 { font-size: 1.5rem; line-height: 1.2; }
+}
 
-/* Reusable classes so everyone's pages look the same */
-.btn { @apply rounded-full px-4 py-2 font-semibold border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-50; }
-.btn-primary { @apply rounded-full px-4 py-2 font-semibold bg-brand text-white hover:opacity-90 disabled:opacity-50; }
-.btn-danger { @apply rounded-full px-4 py-2 font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-50; }
-.card { @apply rounded-2xl border border-slate-200 bg-white p-4; }
-.input { @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2; }
-.label { @apply block text-xs font-bold uppercase tracking-wide text-slate-500 mb-1; }
-.page-title { @apply text-2xl font-extrabold mb-1; }
-.error { @apply rounded-lg bg-red-50 text-red-700 px-3 py-2 text-sm; }
+/* Component classes also live in a layer, so e.g. class="btn lg:hidden" still hides on desktop */
+@layer components {
+/* Reusable classes, so every page gets the game look without changing its template */
+.btn, .btn-primary, .btn-danger {
+  @apply inline-flex min-h-11 items-center justify-center rounded-2xl border-[3px] border-ink px-4 py-2 font-extrabold transition;
+  box-shadow: 0 4px 0 var(--color-ink);
+}
+.btn { @apply bg-white text-ink; }
+.btn-primary { @apply bg-accent text-ink; }
+.btn-danger { @apply bg-red-600 text-white; }
+.btn:hover, .btn-primary:hover, .btn-danger:hover { transform: translateY(2px); box-shadow: 0 2px 0 var(--color-ink); }
+.btn:active, .btn-primary:active, .btn-danger:active { transform: translateY(4px); box-shadow: 0 0 0 var(--color-ink); }
+.btn:disabled, .btn-primary:disabled, .btn-danger:disabled { @apply cursor-not-allowed opacity-50; transform: none; box-shadow: 0 4px 0 var(--color-ink); }
+
+.card { @apply rounded-3xl border-4 border-ink bg-white p-5; box-shadow: 0 6px 0 var(--color-ink); }
+.input { @apply w-full rounded-xl border-[3px] border-ink bg-white px-3 py-2 font-bold; }
+.input:focus { outline: 3px solid var(--color-coral); outline-offset: 2px; }
+.label { @apply mb-1 block text-xs font-black uppercase tracking-wide text-ink; }
+.page-title { @apply mb-1 text-4xl; }
+/* Small line above a page title: "Station 2 · Queue Tower" */
+.kicker { @apply text-sm font-black tracking-wide text-ink; }
+/* Coloured cards for the one thing that matters on a page */
+.card-sun { @apply bg-accent; }
+.card-navy { @apply bg-ink text-white; }
+.card-coral { @apply bg-coral; }
+.card-sky { @apply bg-sky; }
+/* Small rounded tag: "HOST", "IN THE VOTE POOL", "Preparing" */
+.chip { @apply inline-flex items-center gap-1 rounded-full border-2 border-ink bg-white px-3 py-0.5 text-xs font-black text-ink; }
+/* Pale stat box inside a card: "4 min / walk" */
+.stat { @apply rounded-2xl bg-sky p-2 text-center font-bold; }
+.error { @apply rounded-xl border-[3px] border-ink bg-red-100 px-3 py-2 text-sm font-bold text-red-800; }
+}
+
+/* Respect "reduce motion" for every animation in the app */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}

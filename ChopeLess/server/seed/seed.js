@@ -8,7 +8,10 @@ const places = JSON.parse(await readFile(new URL('./places.json', import.meta.ur
 
 // Remove old places (and their analyses) first so the seed can be re-run safely
 const old = await db.collection('places').get()
-for (const doc of old.docs) await db.recursiveDelete(doc.ref)
+for (const doc of old.docs) {
+    if (doc.data().fromGem) continue
+  await db.recursiveDelete(doc.ref)
+}
 
 // Fake history so the hourly chart has data on day one (M4 can make this more realistic)
 const lunchPeak = h => (h >= 11 && h <= 13 ? 1 : h >= 18 && h <= 19 ? 0.7 : 0.25)

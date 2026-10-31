@@ -7,7 +7,8 @@ import { getProfile, saveProfile } from '../services/users'
 
 const auth = useAuthStore()
 const router = useRouter()
-const DIETS = ['halal', 'vegetarian', 'no-beef']
+// same diets as the Makan Session page (no place is tagged 'no-beef', so it was removed)
+const DIETS = ['halal', 'vegetarian']
 const form = ref({ name: auth.user?.name || '', defaultBudget: 8, dietary: [] })
 const message = ref('')
 const error = ref('')
@@ -16,7 +17,8 @@ const loaded = ref(false) // the form stays disabled until then, so the saved pr
 onMounted(async () => {
   try {
     const me = await getProfile(auth.user.uid)
-    if (me) form.value = { ...form.value, ...me }
+    // drop diets we no longer offer (e.g. an old 'no-beef') so they don't get saved again
+    if (me) form.value = { ...form.value, ...me, dietary: (me.dietary || []).filter(d => DIETS.includes(d)) }
   } catch (err) { error.value = err.message }
   finally { loaded.value = true }
 })
@@ -63,29 +65,31 @@ async function deleteAccount() {
 </script>
 
 <template>
-  <div class="max-w-md space-y-4">
+  <div class="mx-auto max-w-xl space-y-6">
     <form class="card space-y-4" @submit.prevent="save">
+      <p class="kicker">Player profile</p>
       <h1 class="page-title">Your profile</h1>
       <fieldset :disabled="!loaded" class="space-y-4">
         <div><label class="label" for="name">Display name</label><input id="name" v-model="form.name" required class="input" /></div>
         <div><label class="label" for="budget">Default budget ($)</label><input id="budget" v-model.number="form.defaultBudget" type="number" min="1" class="input" /></div>
         <fieldset>
           <legend class="label">Dietary needs</legend>
-          <label v-for="d in DIETS" :key="d" class="mr-4 inline-flex items-center gap-1">
+          <label v-for="d in DIETS" :key="d" class="mr-2 mt-1 inline-flex min-h-11 items-center gap-2 rounded-full border-[3px] border-ink bg-white px-3 font-extrabold has-[:checked]:bg-accent">
             <input type="checkbox" :value="d" v-model="form.dietary" /> {{ d }}
           </label>
         </fieldset>
         <p v-if="error" class="error">{{ error }}</p>
         <div class="flex items-center gap-3">
           <button class="btn-primary" type="submit">Save</button>
-          <RouterLink to="/history" class="btn text-sm">🕘 Meal history</RouterLink>
+          <RouterLink to="/history" class="btn text-sm">Meal History</RouterLink>
+          <RouterLink to="/points" class="btn text-sm">Makan Points</RouterLink>
           <span v-if="message" class="text-sm font-semibold text-brand">{{ message }}</span>
         </div>
       </fieldset>
     </form>
 
     <section class="card space-y-3">
-      <h2 class="font-bold text-red-700">Delete account</h2>
+      <h2 class="text-red-700">Delete account</h2>
       <p class="text-sm text-slate-600">This removes your profile and login for good. It cannot be undone.</p>
       <button v-if="!confirming" class="btn text-red-700" type="button" @click="confirming = true">
         Delete account

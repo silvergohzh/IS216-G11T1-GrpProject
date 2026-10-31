@@ -1,0 +1,189 @@
+{
+  "warung-leko": [
+    {
+      "id": "nasi-padang",
+      "name": "Nasi padang set",
+      "price": 650
+    },
+    {
+      "id": "beef-rendang",
+      "name": "Beef rendang",
+      "price": 750
+    },
+    {
+      "id": "iced-milo",
+      "name": "Iced Milo",
+      "price": 220
+    }
+  ],
+  "lao-wei-dao-sha-guo-bao": [
+    {
+      "id": "claypot-chicken",
+      "name": "Claypot chicken rice",
+      "price": 900
+    },
+    {
+      "id": "claypot-tofu",
+      "name": "Claypot tofu rice",
+      "price": 800
+    },
+    {
+      "id": "barley",
+      "name": "Barley drink",
+      "price": 200
+    }
+  ],
+  "ice-lab": [
+    {
+      "id": "mango-bingsu",
+      "name": "Mango bingsu",
+      "price": 1200
+    },
+    {
+      "id": "matcha-bingsu",
+      "name": "Matcha bingsu",
+      "price": 1300
+    },
+    {
+      "id": "waffle",
+      "name": "Waffle with ice cream",
+      "price": 900
+    }
+  ],
+  "taste-good": [
+    {
+      "id": "fried-rice",
+      "name": "Egg fried rice",
+      "price": 600
+    },
+    {
+      "id": "sweet-sour-pork",
+      "name": "Sweet and sour pork",
+      "price": 1000
+    },
+    {
+      "id": "chinese-tea",
+      "name": "Chinese tea",
+      "price": 150
+    }
+  ],
+  "hot-spot-cafe-restaurant": [
+    {
+      "id": "carbonara",
+      "name": "Carbonara",
+      "price": 1100
+    },
+    {
+      "id": "fish-chips",
+      "name": "Fish and chips",
+      "price": 1200
+    },
+    {
+      "id": "iced-latte",
+      "name": "Iced latte",
+      "price": 550
+    }
+  ],
+  "al-jilani-restaurant": [
+    {
+      "id": "chicken-biryani",
+      "name": "Chicken biryani",
+      "price": 850
+    },
+    {
+      "id": "roti-prata",
+      "name": "Roti prata (2 pcs)",
+      "price": 300
+    },
+    {
+      "id": "masala-tea",
+      "name": "Masala tea",
+      "price": 200
+    }
+  ],
+  "bodhi-deli": [
+    {
+      "id": "veg-noodles",
+      "name": "Vegetarian noodles",
+      "price": 550
+    },
+    {
+      "id": "veg-rice-set",
+      "name": "Vegetarian rice set",
+      "price": 650
+    },
+    {
+      "id": "soy-milk",
+      "name": "Soy milk",
+      "price": 180
+    }
+  ],
+  "ajummas": [
+    {
+      "id": "bibimbap",
+      "name": "Bibimbap",
+      "price": 1200
+    },
+    {
+      "id": "kimchi-stew",
+      "name": "Kimchi stew",
+      "price": 1300
+    },
+    {
+      "id": "korean-pancake",
+      "name": "Seafood pancake",
+      "price": 1500
+    }
+  ],
+  "makanan-bollywood": [
+    {
+      "id": "butter-chicken",
+      "name": "Butter chicken with rice",
+      "price": 900
+    },
+    {
+      "id": "naan",
+      "name": "Garlic naan",
+      "price": 350
+    },
+    {
+      "id": "mango-lassi",
+      "name": "Mango lassi",
+      "price": 400
+    }
+  ],
+  "kang-su-vegetarian": [
+    {
+      "id": "veg-curry-rice",
+      "name": "Vegetarian curry rice",
+      "price": 500
+    },
+    {
+      "id": "veg-fried-noodles",
+      "name": "Fried noodles",
+      "price": 450
+    },
+    {
+      "id": "herbal-tea",
+      "name": "Herbal tea",
+      "price": 150
+    }
+  ],
+  "haru-haru-mentaiko": [
+    {
+      "id": "mentaiko-don",
+      "name": "Mentaiko don",
+      "price": 1290
+    },
+    {
+      "id": "salmon-don",
+      "name": "Salmon don",
+      "price": 1490
+    },
+    {
+      "id": "green-tea",
+      "name": "Green tea",
+      "price": 200
+    }
+  ]
+}

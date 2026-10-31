@@ -1,81 +1,140 @@
 
-// Trusted session actions — M1 Voting Engine
-// Maintains Silver's timer, Round 2, Super Like, Veto,
-// tie-wheel and history features, with additional backend safeguards.
+/*
+ * ChopeLess — Makan Session Voting Engine
+ *
+ * Supports:
+ * - YES / NO voting
+ * - 45-second default voting timer
+ * - One free Super Like per member
+ * - Purchased Super Likes (20 Makan Points each)
+ * - Extra Super Like scoring
+ * - One Veto per member
+ * - Round 2
+ * - Winner selection and tie-breaking
+ * - Makan History
+ * - Makan Points rewards
+ * - Refunds for unused purchased Super Likes
+ */
 
 import { Router } from "express";
 import { db } from "../firebase.js";
 import { requireAuth } from "../middleware/auth.js";
 import { buildShortlist } from "../services/shortlist.js";
 import { decide, mostLiked } from "../services/winner.js";
-import { awardSessionPoints, spendPointsInTx, POINT_RULES } from "../services/points.js";
+
+import {
+  awardSessionPoints,
+  purchaseExtraSuperLike,
+  refundUnusedSuperLikes
+} from "../services/points.js";
 
 const router = Router();
+
 router.use(requireAuth);
 
 const fail = (status, message) =>
   Object.assign(new Error(message), { status });
 
-// Save Makan History for each member.
-// The session code is used as the document ID.
+// =====================================================
+// HELPERS
+// =====================================================
+
+function isExpired(session) {
+  if (!session.expiresAt) return false;
+
+  const expiry =
+    typeof session.expiresAt.toMillis === "function"
+      ? session.expiresAt.toMillis()
+      : typeof session.expiresAt === "number"
+        ? session.expiresAt
+        : new Date(session.expiresAt).getTime();
+
+  return Date.now() >= expiry;
+}
+
+function votingDuration(session) {
+  return session.voteSeconds ?? 45;
+}
+
+function purchasedSuperLikesAvailable(session, uid) {
+  const record = session.extraSuperLikes?.[uid] || {};
+
+  return Math.max(
+    0,
+    (record.purchased || 0) -
+      (record.used || 0) -
+      (record.refunded || 0)
+  );
+}
+
+// =====================================================
+// MAKAN HISTORY
+// =====================================================
+
 async function saveHistory(session, winner) {
   if (!winner) return;
 
   const memberIds = Object.keys(session.members || {});
+
+  if (!memberIds.length) return;
+
   const batch = db.batch();
 
   for (const uid of memberIds) {
-    batch.set(
-      db.collection("users")
-        .doc(uid)
-        .collection("history")
-        .doc(session.code),
-      {
-        code: session.code,
-        placeId: winner.id,
-        placeName: winner.name,
-        cuisine: winner.cuisine || "",
-        groupSize: memberIds.length,
-        groupId: session.groupId || null,
-        at: Date.now()
-      }
-    );
+    const historyRef = db
+      .collection("users")
+      .doc(uid)
+      .collection("history")
+      .doc(session.code);
+
+    batch.set(historyRef, {
+      code: session.code,
+      placeId: winner.id,
+      placeName: winner.name,
+      cuisine: winner.cuisine || "",
+      groupSize: memberIds.length,
+      groupId: session.groupId || null,
+      at: Date.now()
+    });
   }
 
   await batch.commit();
 }
 
+// =====================================================
+// REWARDS AND REFUNDS
+// =====================================================
 
-
-// NEW: Award Makan Points when a session finishes.
-async function saveSessionRewards(session) {
+async function processCompletedSession(sessionCode) {
   const snap = await db
     .collection("sessions")
-    .doc(session.code)
+    .doc(sessionCode)
     .get();
 
   if (!snap.exists) return;
 
-  const latest = snap.data();
+  const session = snap.data();
 
-  if (latest.status !== "done" || !latest.winner) return;
+  if (session.status !== "done") return;
 
-  await awardSessionPoints(latest);
+  // Refund unused purchased Super Likes,
+  // including sessions that end without a winner.
+  await refundUnusedSuperLikes(sessionCode);
+
+  if (!session.winner) return;
+
+  await saveHistory(session, session.winner);
+  await awardSessionPoints(session);
 }
 
+// =====================================================
 // ROUND 2
-// Relax the limits and prefer new restaurants.
-// Preserve which users already spent their Super Like or Veto.
+// =====================================================
 
-
-
-// ROUND 2
-// Relax the limits and prefer new restaurants.
-// Preserve which users already spent their Super Like or Veto.
 async function startRound2(ref) {
   const firstSnap = await ref.get();
 
-  if (!firstSnap.exists) return;
+  if (!firstSnap.exists) return {};
 
   const first = firstSnap.data();
 
@@ -83,17 +142,17 @@ async function startRound2(ref) {
     first.status !== "voting" ||
     (first.round || 1) !== 1
   ) {
-    return;
+    return {};
   }
 
   const relaxed = {
     ...first,
-    maxWalkMins: first.maxWalkMins + 5,
-    maxWaitMins: first.maxWaitMins + 10
+    maxWalkMins: (first.maxWalkMins ?? 10) + 5,
+    maxWaitMins: (first.maxWaitMins ?? 15) + 10
   };
 
   const seen = new Set(
-    (first.shortlist || []).map(p => p.id)
+    (first.shortlist || []).map(place => place.id)
   );
 
   const vetoedIds = new Set(
@@ -102,34 +161,35 @@ async function startRound2(ref) {
 
   let list = await buildShortlist(relaxed);
 
-  // Previously vetoed restaurants must stay excluded.
-  list = list.filter(p => !vetoedIds.has(p.id));
+  list = list.filter(
+    place => !vetoedIds.has(place.id)
+  );
 
-  const fresh = list.filter(p => !seen.has(p.id));
+  const fresh = list.filter(
+    place => !seen.has(place.id)
+  );
 
   if (fresh.length) {
     list = fresh;
   }
 
-  // If no new places are available, reuse safe Round 1 places.
   if (!list.length) {
-    list = (first.shortlist || [])
-      .filter(p => !vetoedIds.has(p.id));
+    list = (first.shortlist || []).filter(
+      place => !vetoedIds.has(place.id)
+    );
   }
 
-  list = list.map(p => ({
-    ...p,
+  list = list.map(place => ({
+    ...place,
     outside:
-      p.walkMins > first.maxWalkMins ||
-      p.waitMins > first.maxWaitMins
+      place.walkMins > (first.maxWalkMins ?? 10) ||
+      place.waitMins > (first.maxWaitMins ?? 15)
   }));
 
-  const seconds = first.voteSeconds ?? 60;
-
-  await db.runTransaction(async tx => {
+  const outcome = await db.runTransaction(async tx => {
     const snap = await tx.get(ref);
 
-    if (!snap.exists) return;
+    if (!snap.exists) return {};
 
     const session = snap.data();
 
@@ -137,49 +197,68 @@ async function startRound2(ref) {
       session.status !== "voting" ||
       (session.round || 1) !== 1
     ) {
-      return;
+      return {};
     }
 
-    // Recheck vetoes in case a vote was submitted
-    // while the new shortlist was being generated.
     const latestVetoed = new Set(
       Object.values(session.vetoes || {})
     );
 
     const safeList = list.filter(
-      p => !latestVetoed.has(p.id)
+      place => !latestVetoed.has(place.id)
     );
 
-    // No safe restaurants remain.
     if (!safeList.length) {
       tx.update(ref, {
         status: "done",
         winner: null,
-        tieBreak: null
+        tieBreak: null,
+        completedAt: Date.now()
       });
-      return;
+
+      return { done: true };
     }
+
+    const seconds = votingDuration(session);
 
     tx.update(ref, {
       round: 2,
       shortlist: safeList,
+
+      // Round 2 starts a fresh set of normal votes.
       votes: {},
 
-      // IMPORTANT:
-      // Do not reset these in Round 2.
-      // One Super Like and one Veto per session.
+      // Preserve special votes used in Round 1.
       superLikes: session.superLikes || {},
       vetoes: session.vetoes || {},
+
+      // Preserve purchased extras and their usage.
+      extraSuperLikes: session.extraSuperLikes || {},
+
+      // Preserve the restaurants that received
+      // purchased Super Likes in Round 1.
+      extraSuperLikeVotes:
+        session.extraSuperLikeVotes || {},
 
       votingEndsAt: seconds
         ? Date.now() + seconds * 1000
         : null
     });
+
+    return { round2: true };
   });
+
+  if (outcome.done) {
+    await processCompletedSession(ref.id);
+  }
+
+  return outcome;
 }
 
+// =====================================================
 // FINISH VOTING
-// Choose a winner or move to Round 2.
+// =====================================================
+
 async function endVoting(ref, { requireTimeUp }) {
   const outcome = await db.runTransaction(async tx => {
     const snap = await tx.get(ref);
@@ -195,7 +274,7 @@ async function endVoting(ref, { requireTimeUp }) {
     if (
       requireTimeUp &&
       session.votingEndsAt &&
-      Date.now() < session.votingEndsAt - 3000
+      Date.now() < session.votingEndsAt
     ) {
       throw fail(409, "Voting is still open");
     }
@@ -212,29 +291,39 @@ async function endVoting(ref, { requireTimeUp }) {
       return { round2: true };
     }
 
-    tx.update(ref, result);
+    tx.update(ref, {
+      ...result,
+      completedAt: Date.now()
+    });
 
     return {
       done: true,
-      session,
       winner: result.winner
     };
   });
 
   if (outcome.round2) {
-    await startRound2(ref);
+    return startRound2(ref);
   }
 
-  if (outcome.done && outcome.winner) {
-  await saveHistory(outcome.session, outcome.winner);
-  await saveSessionRewards(outcome.session);
-}
+  if (outcome.done) {
+    await processCompletedSession(ref.id);
+  }
+
+  return outcome;
 }
 
+// =====================================================
 // START VOTING
+// POST /api/sessions/:code/start
+// =====================================================
+
 router.post("/:code/start", async (req, res, next) => {
   try {
-    const ref = db.collection("sessions").doc(req.params.code);
+    const ref = db
+      .collection("sessions")
+      .doc(req.params.code);
+
     const snap = await ref.get();
 
     if (!snap.exists) {
@@ -251,7 +340,7 @@ router.post("/:code/start", async (req, res, next) => {
       throw fail(409, "Voting has already started");
     }
 
-    if (session.expiresAt.toMillis() < Date.now()) {
+    if (isExpired(session)) {
       throw fail(410, "Session has expired");
     }
 
@@ -285,7 +374,7 @@ router.post("/:code/start", async (req, res, next) => {
         throw fail(409, "Voting has already started");
       }
 
-      if (latest.expiresAt.toMillis() < Date.now()) {
+      if (isExpired(latest)) {
         throw fail(410, "Session has expired");
       }
 
@@ -293,16 +382,28 @@ router.post("/:code/start", async (req, res, next) => {
         throw fail(400, "You need at least 2 people to vote");
       }
 
-      const seconds = latest.voteSeconds ?? 60;
+      const seconds = votingDuration(latest);
 
       tx.update(ref, {
         shortlist,
         status: "voting",
         round: 1,
+
         votes: {},
         superLikes: {},
         vetoes: {},
+
+        // Purchased Super Like balances.
+        extraSuperLikes: {},
+
+        // Purchased Super Like votes by restaurant.
+        // Shape: { uid: [placeId, placeId, ...] }
+        extraSuperLikeVotes: {},
+
         tieBreak: null,
+        winner: null,
+        completedAt: null,
+
         votingEndsAt: seconds
           ? Date.now() + seconds * 1000
           : null
@@ -318,16 +419,42 @@ router.post("/:code/start", async (req, res, next) => {
   }
 });
 
-// VOTE
-// Body: { placeId, yes, special }
-// special may be "super", "veto" or omitted.
+// =====================================================
+// PURCHASE EXTRA SUPER LIKE
+// POST /api/sessions/:code/buy-super-like
+// =====================================================
+
+router.post(
+  "/:code/buy-super-like",
+  async (req, res, next) => {
+    try {
+      const result = await purchaseExtraSuperLike({
+        uid: req.uid,
+        sessionCode: req.params.code
+      });
+
+      res.json({
+        ok: true,
+        ...result
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// =====================================================
+// CAST VOTE
+// POST /api/sessions/:code/vote
+// =====================================================
+
 router.post("/:code/vote", async (req, res, next) => {
   try {
-    const { placeId, yes, special } = req.body;
+    const { placeId, yes, special } = req.body || {};
 
     if (
       typeof placeId !== "string" ||
-      placeId.trim() === ""
+      !placeId.trim()
     ) {
       throw fail(400, "Invalid place ID");
     }
@@ -344,7 +471,9 @@ router.post("/:code/vote", async (req, res, next) => {
       throw fail(400, "Unknown vote type");
     }
 
-    const ref = db.collection("sessions").doc(req.params.code);
+    const ref = db
+      .collection("sessions")
+      .doc(req.params.code);
 
     const result = await db.runTransaction(async tx => {
       const snap = await tx.get(ref);
@@ -359,13 +488,13 @@ router.post("/:code/vote", async (req, res, next) => {
         throw fail(409, "Voting is not open");
       }
 
-      if (session.expiresAt.toMillis() < Date.now()) {
+      if (isExpired(session)) {
         throw fail(410, "Session has expired");
       }
 
       if (
         session.votingEndsAt &&
-        Date.now() > session.votingEndsAt + 2000
+        Date.now() > session.votingEndsAt
       ) {
         throw fail(409, "Time's up");
       }
@@ -374,19 +503,41 @@ router.post("/:code/vote", async (req, res, next) => {
         throw fail(403, "You are not in this session");
       }
 
-      const place = session.shortlist.find(
-        p => p.id === placeId
+      const place = (session.shortlist || []).find(
+        item => item.id === placeId
       );
 
       if (!place) {
-        throw fail(400, "That place is not on the shortlist");
+        throw fail(
+          400,
+          "That place is not on the shortlist"
+        );
       }
 
-      const votes = session.votes || {};
-      const superLikes = session.superLikes || {};
-      const vetoes = session.vetoes || {};
+      const votes = {
+        ...(session.votes || {})
+      };
 
-      // Vetoed restaurants are removed from voting.
+      const superLikes = {
+        ...(session.superLikes || {})
+      };
+
+      const vetoes = {
+        ...(session.vetoes || {})
+      };
+
+      const extraSuperLikes = {
+        ...(session.extraSuperLikes || {})
+      };
+
+      const extraSuperLikeVotes = {
+        ...(session.extraSuperLikeVotes || {})
+      };
+
+      // ---------------------------------------------
+      // VALIDATE VOTE
+      // ---------------------------------------------
+
       if (Object.values(vetoes).includes(placeId)) {
         throw fail(
           409,
@@ -394,28 +545,61 @@ router.post("/:code/vote", async (req, res, next) => {
         );
       }
 
-      // Prevent duplicate votes.
       if (votes[placeId]?.[req.uid] !== undefined) {
         throw fail(409, "You have already voted");
       }
 
-      // Bought Super Likes (Makan Points): { uid: [placeId, ...] }
-      const bonusSuperLikes = session.bonusSuperLikes || {};
-      const myBonus = [].concat(bonusSuperLikes[req.uid] || []);   // old sessions stored one id, not a list
-      const bought = Number(session.boughtSupers?.[req.uid] || 0);  // how many I've paid for
+      // ---------------------------------------------
+      // SUPER LIKE
+      // ---------------------------------------------
 
-      // 1 free Super Like per session, plus each one bought with Makan Points
       if (special === "super") {
         if (!superLikes[req.uid]) {
-          superLikes[req.uid] = placeId;                    // the free one
-        } else if (myBonus.length < bought) {
-          bonusSuperLikes[req.uid] = [...myBonus, placeId]; // a bought one
+          // First Super Like is free.
+          superLikes[req.uid] = placeId;
         } else {
-          throw fail(409, "No Super Likes left: buy one with Makan Points");
+          // Free Super Like already used.
+          // Consume one purchased Super Like.
+
+          const available =
+            purchasedSuperLikesAvailable(
+              session,
+              req.uid
+            );
+
+          if (available < 1) {
+            throw fail(
+              409,
+              "No Super Likes remaining. Buy an extra Super Like for 20 points."
+            );
+          }
+
+          const record = extraSuperLikes[req.uid] || {
+            purchased: 0,
+            used: 0,
+            refunded: 0
+          };
+
+          // Mark one purchased Super Like as used.
+          extraSuperLikes[req.uid] = {
+            ...record,
+            used: (record.used || 0) + 1
+          };
+
+          // IMPORTANT:
+          // Record the restaurant that received it.
+          // winner.js uses this to add its bonus point.
+          extraSuperLikeVotes[req.uid] = [
+            ...(extraSuperLikeVotes[req.uid] || []),
+            placeId
+          ];
         }
       }
 
-      // Enforce one Veto per session.
+      // ---------------------------------------------
+      // VETO
+      // ---------------------------------------------
+
       if (special === "veto") {
         if (vetoes[req.uid]) {
           throw fail(
@@ -426,6 +610,10 @@ router.post("/:code/vote", async (req, res, next) => {
 
         vetoes[req.uid] = placeId;
       }
+
+      // ---------------------------------------------
+      // RECORD VOTE
+      // ---------------------------------------------
 
       const isYes =
         special === "super"
@@ -439,17 +627,24 @@ router.post("/:code/vote", async (req, res, next) => {
         [req.uid]: isYes
       };
 
-      const memberIds = Object.keys(session.members);
+      const memberIds = Object.keys(
+        session.members || {}
+      );
+
       const vetoed = Object.values(vetoes);
 
       const update = {
         votes,
         superLikes,
         vetoes,
-        bonusSuperLikes
+        extraSuperLikes,
+        extraSuperLikeVotes
       };
 
-      // Immediate unanimous YES winner.
+      // ---------------------------------------------
+      // UNANIMOUS WINNER
+      // ---------------------------------------------
+
       if (
         !vetoed.includes(placeId) &&
         memberIds.every(
@@ -460,37 +655,42 @@ router.post("/:code/vote", async (req, res, next) => {
           ...update,
           winner: place,
           status: "done",
-          tieBreak: null
+          tieBreak: null,
+          completedAt: Date.now()
         });
 
         return {
           done: true,
-          session,
           winner: place
         };
       }
 
       tx.update(ref, update);
 
-      // Check whether everyone voted on
-      // every restaurant still in play.
-      const remaining = session.shortlist.filter(
-        p => !vetoed.includes(p.id)
+      // ---------------------------------------------
+      // CHECK IF EVERYONE HAS VOTED
+      // ---------------------------------------------
+
+      const remaining = (
+        session.shortlist || []
+      ).filter(
+        item => !vetoed.includes(item.id)
       );
 
-      const allVoted = remaining.every(p =>
+      const allVoted = remaining.every(place =>
         memberIds.every(
-          uid => votes[p.id]?.[uid] !== undefined
+          uid =>
+            votes[place.id]?.[uid] !== undefined
         )
       );
 
       return { allVoted };
     });
 
-    if (result.done && result.winner) {
-  await saveHistory(result.session, result.winner);
-  await saveSessionRewards(result.session);
-}
+    if (result.done) {
+      await processCompletedSession(ref.id);
+    }
+
     if (result.allVoted) {
       await endVoting(ref, {
         requireTimeUp: false
@@ -506,11 +706,17 @@ router.post("/:code/vote", async (req, res, next) => {
   }
 });
 
+// =====================================================
 // FINISH VOTING
-// Called when the countdown ends.
+// POST /api/sessions/:code/finish
+// =====================================================
+
 router.post("/:code/finish", async (req, res, next) => {
   try {
-    const ref = db.collection("sessions").doc(req.params.code);
+    const ref = db
+      .collection("sessions")
+      .doc(req.params.code);
+
     const snap = await ref.get();
 
     if (!snap.exists) {
@@ -518,7 +724,19 @@ router.post("/:code/finish", async (req, res, next) => {
     }
 
     if (!snap.data().members?.[req.uid]) {
-      throw fail(403, "You are not in this session");
+      throw fail(
+        403,
+        "You are not in this session"
+      );
+    }
+
+    if (snap.data().status === "done") {
+      await processCompletedSession(ref.id);
+
+      return res.json({
+        ok: true,
+        alreadyFinished: true
+      });
     }
 
     await endVoting(ref, {
@@ -531,44 +749,6 @@ router.post("/:code/finish", async (req, res, next) => {
   }
 });
 
-// BUY AN EXTRA SUPER LIKE with Makan Points.
-// Rules: use your free one first; use each bought one before buying the next;
-// price rises (20, 40, 60...); you can star at most half the cards, so a star still means "this one".
-// Vetoes can never be bought.
-router.post("/:code/buy-super", async (req, res, next) => {
-  try {
-    const ref = db.collection("sessions").doc(req.params.code);
-    const result = await db.runTransaction(async tx => {
-      const snap = await tx.get(ref);
-      if (!snap.exists) throw fail(404, "Session not found");
-      const s = snap.data();
-      if (s.status !== "voting") throw fail(409, "Voting is not open");
-      if (!s.members?.[req.uid]) throw fail(403, "You are not in this session");
-      if (!s.superLikes?.[req.uid]) throw fail(409, "Use your free Super Like first");
 
-      const bought = Number(s.boughtSupers?.[req.uid] || 0);
-      const used = [].concat(s.bonusSuperLikes?.[req.uid] || []).length;
-      if (used < bought) throw fail(409, "Use the Super Like you already bought first");
-
-      // At most half the cards can have my star (the free one counts), e.g. 8 cards -> 3 extra
-      const maxExtra = Math.max(0, Math.floor((s.shortlist || []).length / 2) - 1);
-      if (bought >= maxExtra) throw fail(409, "You've starred half the places: that's the limit for this session");
-
-      const cost = POINT_RULES.EXTRA_SUPER;   // flat 20 points for each extra Super Like
-      const account = await spendPointsInTx(tx, {
-        uid: req.uid,
-        eventId: `extra-super_${req.params.code}_${bought + 1}`,  // one ledger entry per purchase; a double tap can't charge twice
-        points: cost,
-        reason: "Extra Super Like",
-        sessionCode: req.params.code
-      });
-      tx.update(ref, { [`boughtSupers.${req.uid}`]: bought + 1 });
-      return { account, cost };
-    });
-    res.json({ ok: true, cost: result.cost, balance: result.account.balance });
-  } catch (err) {
-    next(err);
-  }
-});
 
 export default router;

@@ -9,17 +9,31 @@ const error = ref('')
 
 const API_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/points`
 
+
+// [JANANIJ] START: Pre-order and Fastpass points history labels
 const reasonLabels = {
   SESSION_COMPLETE: 'Completed a Makan Session',
   HOST_BONUS: 'Hosted a Makan Session',
   VERIFIED_REPORT: 'Verified crowd report',
   INVALID_REPORT: 'Invalid crowd report',
-  'Extra Super Like': 'Bought an extra Super Like ⭐'
+  'Extra Super Like': 'Bought an extra Super Like ⭐',
+  // [M3] the reason codes the server really saves for bought and refunded Super Likes
+  EXTRA_SUPER_LIKE_PURCHASE: 'Bought an extra Super Like ⭐',
+  EXTRA_SUPER_LIKE_REFUND: 'Refund: unused Super Like ⭐'
 }
 
 function formatReason(reason) {
+  if (reason?.startsWith('Fastpass for a pre-order at ')) {
+    return '⚡ ' + reason
+  }
+
+  if (reason?.startsWith('Collected a pre-order from ')) {
+    return '🍽️ ' + reason
+  }
+
   return reasonLabels[reason] || reason || 'Points adjustment'
 }
+// [JANANIJ] END
 
 function formatDate(timestamp) {
   if (!timestamp) return '-'
@@ -73,7 +87,7 @@ defineExpose({ loadHistory })
   <div class="card">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h3 class="text-lg font-bold">Points History</h3>
+        <h2>Points history</h2>
         <p class="text-sm text-slate-600">
           Your recent rewards and deductions.
         </p>
@@ -102,7 +116,7 @@ defineExpose({ loadHistory })
 
     <div v-if="history.length" class="mt-4 overflow-x-auto">
       <table class="w-full text-left text-sm">
-        <thead class="border-b bg-slate-50">
+      <thead class="border-b-[3px] border-ink bg-sky">
           <tr>
             <th class="p-3">Date</th>
             <th class="p-3">Activity</th>
@@ -114,7 +128,7 @@ defineExpose({ loadHistory })
           <tr
             v-for="entry in history"
             :key="entry.id"
-            class="border-b"
+            class="border-b-2 border-sky"
           >
             <td class="p-3 text-slate-600">
               {{ formatDate(entry.createdAt) }}

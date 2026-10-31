@@ -9,8 +9,11 @@ import {
   startVoting,
   leaveSession,
   endSession,
+  kickMember,
 } from "../services/sessions";
 import MapView from "../components/MapView.vue";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../lib/firebase";
 
 const route = useRoute();
 const router = useRouter();
@@ -27,6 +30,8 @@ const copied = ref(false);
 const notMember = computed(
   () => store.session && !store.session.members?.[auth.user?.uid],
 );
+// True if the host removed me (so I see why, not just "not part of this session")
+const wasKicked = computed(() => !!store.session?.kicked?.[auth.user?.uid]);
 
 // Copy just the 6-letter code so friends can type it on the Makan Session page
 async function copyCode() {
@@ -44,6 +49,17 @@ async function leave() {
   await leaveSession(code);
   router.push("/sessions");
 }
+
+// Host removes someone who shouldn't be here (they can't rejoin with the code)
+async function kick(uid, name) {
+  if (!confirm(`Remove ${name} from this session?`)) return;
+  try {
+    await kickMember(code, uid);
+  } catch (err) {
+    error.value = err.message;
+  }
+}
+
 async function end() {
   if (!confirm("End the session for everyone?")) return;
   await endSession(code);
@@ -52,6 +68,19 @@ async function end() {
 
 const isHost = computed(() => store.session?.hostUid === auth.user?.uid);
 const members = computed(() => Object.entries(store.session?.members || {}));
+
+// If this session was started from a Makan Kakis group, remember who owns the group:
+// the host can't kick the group's owner out of the group's own session.
+const groupOwnerUid = ref(null);
+watch(
+  () => store.session?.groupId,
+  async (groupId) => {
+    if (!groupId) return (groupOwnerUid.value = null);
+    const snap = await getDoc(doc(db, "groups", groupId)).catch(() => null);
+    groupOwnerUid.value = snap?.data()?.ownerUid || null;
+  },
+  { immediate: true },
+);
 
 onMounted(() => store.watch(code));
 onUnmounted(() => store.stop());
@@ -102,20 +131,27 @@ async function start() {
 <template>
   <!-- Outsiders see this instead of the lobby -->
   <div v-if="notMember" class="card text-center">
-    <p class="mb-3">You're not part of this session.</p>
+    <p class="mb-3">{{ wasKicked ? "The host removed you from this session." : "You're not part of this session." }}</p>
     <RouterLink to="/sessions" class="btn-primary"
       >Back to Makan Session</RouterLink
     >
   </div>
   <div v-else-if="store.session">
-    <h1 class="page-title">
-      Lobby · code
-      <span class="font-mono text-brand" data-testid="session-code">{{
-        code
-      }}</span>
-    </h1>
-    <div class="mb-4 flex flex-wrap items-center gap-2">
-      <p class="text-slate-600">
+    <p class="kicker">Station 4 · Lobby</p>
+    <h1 class="page-title">Lobby</h1>
+    <!-- the table code: big and yellow, because it's the one thing friends need -->
+    <div
+      class="mb-4 flex flex-wrap items-center gap-4 rounded-3xl border-4 border-ink bg-accent px-5 py-3 shadow-[0_6px_0_#17213b]"
+    >
+      <div class="flex-1">
+        <p class="text-xs font-black tracking-widest">TABLE CODE</p>
+        <span
+          class="font-display text-5xl tracking-[0.2em]"
+          data-testid="session-code"
+          >{{ code }}</span
+        >
+      </div>
+      <p class="flex-[1_1_220px] font-bold">
         Share the code with friends. Voting starts when the host is ready.
       </p>
       <button class="btn text-sm" data-testid="copy-code" @click="copyCode">
@@ -125,13 +161,13 @@ async function start() {
 
     <div class="grid gap-4 md:grid-cols-2">
       <div class="card">
-        <h2 class="mb-2 font-bold">Members ({{ members.length }})</h2>
+        <h2 class="mb-2 text-2xl">Party ({{ members.length }})</h2>
         <ul class="divide-y divide-slate-100" data-testid="member-list">
           <li v-for="[uid, m] in members" :key="uid" class="py-2">
             <b>{{ m.name }}</b>
             <span
               v-if="uid === store.session.hostUid"
-              class="ml-1 rounded-full bg-brand-light px-2 py-0.5 text-xs font-bold text-brand"
+              class="ml-1 rounded-full border-2 border-ink bg-coral px-2 py-0.5 text-xs font-black"
               >Host</span
             >
             <span
@@ -143,12 +179,20 @@ async function start() {
               >· ${{ m.budget }} ·
               {{ m.dietary.join(", ") || "no restrictions" }}</span
             >
+            <button
+              v-if="isHost && uid !== auth.user?.uid && uid !== groupOwnerUid"
+              class="btn ml-2 !min-h-8 px-3 py-0.5 text-xs !text-red-700"
+              :aria-label="`Remove ${m.name}`"
+              @click="kick(uid, m.name)"
+            >
+              Remove
+            </button>
           </li>
         </ul>
       </div>
 
       <div class="card space-y-3">
-        <h2 class="font-bold">Settings</h2>
+        <h2>Game rules</h2>
         <!-- Dine-in or takeaway: only the host can change it, everyone sees it live -->
         <div>
           <span class="label">Eating</span>
@@ -159,7 +203,7 @@ async function start() {
               type="button"
               :class="
                 store.session.serviceMode === mode
-                  ? 'btn-primary flex-1'
+                  ? 'btn flex-1 !bg-ink !text-white'
                   : 'btn flex-1'
               "
               :disabled="!isHost"
@@ -176,9 +220,10 @@ async function start() {
               id="walk"
               type="number"
               class="input"
+              min="1"
               :value="store.session.maxWalkMins"
               :disabled="!isHost"
-              @change="update({ maxWalkMins: +$event.target.value })"
+              @change="update({ maxWalkMins: Math.max(1, +$event.target.value || 1) })"
             />
           </div>
           <div>
@@ -187,9 +232,10 @@ async function start() {
               id="wait"
               type="number"
               class="input"
+              min="1"
               :value="store.session.maxWaitMins"
               :disabled="!isHost"
-              @change="update({ maxWaitMins: +$event.target.value })"
+              @change="update({ maxWaitMins: Math.max(1, +$event.target.value || 1) })"
             />
           </div>
           <div>
@@ -239,7 +285,7 @@ async function start() {
         </p>
         <button
           v-if="isHost"
-          class="btn-primary w-full"
+          class="btn-primary w-full min-h-14 font-display text-2xl font-normal"
           :disabled="starting || members.length < 2"
           @click="start"
         >
@@ -251,7 +297,7 @@ async function start() {
         >
           Share the code: you need at least 2 people to vote.
         </p>
-        <p v-else class="text-sm text-slate-500">
+        <p v-else-if="!isHost" class="text-sm text-slate-500">
           Waiting for the host to start…
         </p>
         <button v-if="isHost" class="w-full text-sm text-red-600" @click="end">

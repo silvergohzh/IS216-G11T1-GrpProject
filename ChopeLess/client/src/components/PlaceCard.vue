@@ -1,5 +1,7 @@
 <!-- One place, used in the swipe deck, QueueLess list and winner screen. Owner: M3 (shared) -->
 <script setup>
+// [SILVER] the coloured place tag (Hawker centre, Food court, Restaurant)
+import PlaceTag from './PlaceTag.vue'
 defineProps({
   place: { type: Object, required: true }
 })
@@ -7,17 +9,19 @@ defineProps({
 
 <template>
   <div class="card">
-    <h3 class="text-lg font-bold">{{ place.name }}</h3>
-    <p class="text-sm text-slate-500">{{ place.cuisine }} · {{ place.address }}</p>
+        <!-- [SILVER] place tag (hidden gems have no type: they already show HIDDEN GEM) -->
+    <PlaceTag v-if="place.type" :type="place.type" />
+    <h3 class="text-2xl leading-tight">{{ place.name }}</h3>
+    <p class="text-sm font-bold">{{ place.cuisine }} · {{ place.address }}</p>
     <div class="mt-3 grid grid-cols-3 gap-2 text-center text-sm">
-      <div class="rounded-lg bg-slate-100 p-2"><b class="block">${{ place.priceMin }}–{{ place.priceMax }}</b>price</div>
-      <div class="rounded-lg bg-slate-100 p-2"><b class="block">{{ place.walkMins ?? '–' }} min</b>walk</div>
-      <div class="rounded-lg bg-slate-100 p-2"><b class="block">{{ place.waitMins ?? place.latest?.waitMins ?? '–' }} min</b>queue</div>
+    <div class="stat"><b class="block font-display text-lg font-normal">${{ place.priceMin }}–{{ place.priceMax }}</b>price</div>
+    <div class="stat"><b class="block font-display text-lg font-normal">{{ place.walkMins ?? '–' }} min</b>walk</div>
+    <div class="stat"><b class="block font-display text-lg font-normal">{{ place.waitMins ?? place.latest?.waitMins ?? '–' }} min</b>queue</div>
     </div>
       <div class="mt-2 flex flex-wrap gap-1">
-      <span v-if="place.isGem" class="rounded-full bg-accent/20 px-2 py-0.5 text-xs font-bold">Hidden gem</span>
-      <span v-if="place.outside" class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">Slightly outside your limits</span>
-      <span v-if="place.visits" class="rounded-full bg-brand-light px-2 py-0.5 text-xs font-bold text-brand">Been here {{ place.visits }}×</span>
+      <span v-if="place.isGem" class="chip !bg-ink !text-accent">HIDDEN GEM</span>
+      <span v-if="place.outside" class="chip !bg-amber-100">Slightly outside your limits</span>
+      <span v-if="place.visits" class="chip !bg-brand-light">Been here {{ place.visits }}×</span>
     </div>
     <slot />
   </div>
