@@ -59,3 +59,11 @@ export async function photoToDataUrl(file) {
   }
   throw new Error('That photo is too large')
 }
+
+// Community menu
+export const getMenu = id => api(`/${id}/menu`, 'GET')
+export const addMenuItem = (id, item) => api(`/${id}/menu/items`, 'POST', item)
+export const updateMenuItem = (id, itemId, item) => api(`/${id}/menu/items/${itemId}`, 'PUT', item)
+export const deleteMenuItem = (id, itemId) => api(`/${id}/menu/items/${itemId}`, 'DELETE')
+export const addMenuPhoto = (id, imageUrl) => api(`/${id}/menu/photos`, 'POST', { imageUrl })
+export const deleteMenuPhoto = (id, photoId) => api(`/${id}/menu/photos/${photoId}`, 'DELETE')

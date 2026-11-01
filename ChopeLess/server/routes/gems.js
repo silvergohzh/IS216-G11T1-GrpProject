@@ -381,4 +381,132 @@ router.delete('/:id/reviews/:reviewId', requireAuth, async (req, res, next) => {
   }
 })
 
+// ---- Community menu: gems/{id}/menuItems/{itemId} and gems/{id}/menuPhotos/{photoId} ----
+// Added by users, not by the stall, so the app always shows a "subject to accuracy" disclaimer.
+
+function parseMenuItem(body) {
+  const name = String(body.name ?? '').trim()
+  const price = Number(body.price)
+  if (!name) throw httpError(400, 'Enter the dish name')
+  if (name.length > 60) throw httpError(400, 'Dish name is too long (max 60 characters)')
+  if (body.price === '' || body.price == null || !Number.isFinite(price) || price < 0 || price > 500) {
+    throw httpError(400, 'Enter a valid price (0 to 500)')
+  }
+  return { name, price: Math.round(price * 100) / 100 }
+}
+
+function parseMenuPhoto(imageUrl) {
+  if (typeof imageUrl !== 'string' || !imageUrl.startsWith(IMAGE_PREFIX)) throw httpError(400, 'Add a photo of the menu')
+  if (imageUrl.length > MAX_IMAGE_CHARS) throw httpError(400, 'That photo is too big. Pick a smaller one.')
+  if (!/^[A-Za-z0-9+/=]+$/.test(imageUrl.slice(IMAGE_PREFIX.length))) throw httpError(400, 'That photo is not valid')
+  return imageUrl
+}
+
+const nameOf = async uid => ((await adminAuth.getUser(uid)).email || 'someone').split('@')[0]
+const toMs = ts => ts?.toMillis?.() ?? null
+
+// GET /api/gems/:id/menu - dishes and menu photos (public)
+router.get('/:id/menu', async (req, res, next) => {
+  try {
+    const gemRef = gems.doc(req.params.id)
+    if (!(await gemRef.get()).exists) throw httpError(404, 'Gem not found')
+    const [itemSnap, photoSnap] = await Promise.all([
+      gemRef.collection('menuItems').orderBy('createdAt').get(),
+      gemRef.collection('menuPhotos').orderBy('createdAt').get()
+    ])
+    res.json({
+      items: itemSnap.docs.map(d => ({ id: d.id, ...d.data(), createdAt: toMs(d.data().createdAt) })),
+      photos: photoSnap.docs.map(d => ({ id: d.id, ...d.data(), createdAt: toMs(d.data().createdAt) }))
+    })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// POST /api/gems/:id/menu/items - add a dish (login required)
+router.post('/:id/menu/items', requireAuth, async (req, res, next) => {
+  try {
+    const gemRef = gems.doc(req.params.id)
+    if (!(await gemRef.get()).exists) throw httpError(404, 'Gem not found')
+      const ref = await gemRef.collection('menuItems').add({
+      ...parseMenuItem(req.body),
+      addedBy: req.uid,
+      addedByName: await nameOf(req.uid),
+      createdAt: FieldValue.serverTimestamp()
+    })
+    res.status(201).json({ id: ref.id })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// PUT /api/gems/:id/menu/items/:itemId - edit a dish you added (login required)
+router.put('/:id/menu/items/:itemId', requireAuth, async (req, res, next) => {
+  try {
+    const ref = gems.doc(req.params.id).collection('menuItems').doc(req.params.itemId)
+    const doc = await ref.get()
+    if (!doc.exists) throw httpError(404, 'Dish not found')
+    if (doc.data().addedBy !== req.uid) throw httpError(403, 'You can only edit dishes you added')
+    await ref.update(parseMenuItem(req.body))
+    res.json({ ok: true })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// DELETE /api/gems/:id/menu/items/:itemId - delete a dish (the person who added it, or the gem's owner)
+router.delete('/:id/menu/items/:itemId', requireAuth, async (req, res, next) => {
+  try {
+    const gemRef = gems.doc(req.params.id)
+    const gemDoc = await gemRef.get()
+    if (!gemDoc.exists) throw httpError(404, 'Gem not found')
+    const ref = gemRef.collection('menuItems').doc(req.params.itemId)
+    const doc = await ref.get()
+    if (!doc.exists) throw httpError(404, 'Dish not found')
+    if (doc.data().addedBy !== req.uid && gemDoc.data().submittedBy !== req.uid) {
+      throw httpError(403, 'You can only delete dishes you added')
+    }
+    await ref.delete()
+    res.json({ ok: true })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// POST /api/gems/:id/menu/photos - add a photo of the menu (login required)
+router.post('/:id/menu/photos', requireAuth, async (req, res, next) => {
+  try {
+    const gemRef = gems.doc(req.params.id)
+    if (!(await gemRef.get()).exists) throw httpError(404, 'Gem not found')
+        const ref = await gemRef.collection('menuPhotos').add({
+      imageUrl: parseMenuPhoto(req.body.imageUrl),
+      addedBy: req.uid,
+      addedByName: await nameOf(req.uid),
+      createdAt: FieldValue.serverTimestamp()
+    })
+    res.status(201).json({ id: ref.id })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// DELETE /api/gems/:id/menu/photos/:photoId - delete a menu photo (the uploader, or the gem's owner)
+router.delete('/:id/menu/photos/:photoId', requireAuth, async (req, res, next) => {
+  try {
+    const gemRef = gems.doc(req.params.id)
+    const gemDoc = await gemRef.get()
+    if (!gemDoc.exists) throw httpError(404, 'Gem not found')
+    const ref = gemRef.collection('menuPhotos').doc(req.params.photoId)
+    const doc = await ref.get()
+    if (!doc.exists) throw httpError(404, 'Photo not found')
+    if (doc.data().addedBy !== req.uid && gemDoc.data().submittedBy !== req.uid) {
+      throw httpError(403, 'You can only delete photos you added')
+    }
+    await ref.delete()
+    res.json({ ok: true })
+  } catch (err) {
+    next(err)
+  }
+})
+
 export default router

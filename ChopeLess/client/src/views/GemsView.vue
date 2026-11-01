@@ -1,4 +1,5 @@
-<!-- Hidden Gems board: list (live), add, edit, delete, upvote/un-upvote, photo, map picker, ratings, unlimited reviews. Owner: M5 -->
+<!-- Hidden Gems board: list (live), add, edit, delete, upvote/un-upvote, photo, map picker, ratings, unlimited reviews, community menu. Owner: M5 -->
+
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
@@ -7,6 +8,7 @@ import {
   getReviews, saveReview, updateReview, deleteReview, photoToDataUrl, UPVOTES_NEEDED
 } from '../services/gems'
 import MapView from '../components/MapView.vue'
+import GemMenu from '../components/GemMenu.vue'
 
 const auth = useAuthStore()
 const gems = ref([])
@@ -18,6 +20,7 @@ const empty = () => ({
 const form = ref(empty())
 const error = ref('')
 const photoKey = ref(0)   // changing this resets the file picker
+const menuId = ref(null)  // which gem's community menu is open
 let unsubscribe
 
 onMounted(() => { unsubscribe = watchGems(list => (gems.value = list), err => (error.value = err.message)) })
@@ -149,6 +152,9 @@ async function removeReview(g, r) {
 <template>
   <h1 class="page-title">Hidden Gems</h1>
   <p class="mb-4 text-slate-600">Places the big apps miss. {{ UPVOTES_NEEDED }} upvotes and a gem joins the voting pool.</p>
+  <p class="mb-4 rounded-lg bg-amber-50 p-2 text-sm text-amber-800">
+    Hidden Gems are suggested by the community, not verified by ChopeLess or the stalls. Details, menus and prices are subject to accuracy.
+  </p>
 
   <div class="grid gap-4 md:grid-cols-[2fr_3fr]">
     <form v-if="auth.isLoggedIn" class="card space-y-3 self-start" @submit.prevent="save">
@@ -211,7 +217,7 @@ async function removeReview(g, r) {
               {{ g.cuisine }}<template v-if="g.waitMins != null"> · ~{{ g.waitMins }} min wait</template>
             </p>
             <p class="text-sm font-semibold text-amber-600">
-              <template v-if="average(g) != null">{{ stars(Math.round(average(g))) }} </template>{{ ratingText(g) }}
+              <span v-if="average(g) != null" class="mr-1">{{ stars(Math.round(average(g))) }}</span>{{ ratingText(g) }}
             </p>
             <p class="text-xs font-semibold text-brand">▲ {{ g.upvoters.length }} {{ g.upvoters.length >= UPVOTES_NEEDED ? '· in voting pool' : '' }}</p>
           </div>
@@ -226,9 +232,16 @@ async function removeReview(g, r) {
           </div>
         </div>
 
-        <button type="button" class="text-sm font-semibold text-brand" @click="toggleReviews(g)">
-          {{ openId === g.id ? 'Hide reviews' : 'Reviews' }}
-        </button>
+        <div class="flex gap-4">
+          <button type="button" class="text-sm font-semibold text-brand" @click="menuId = menuId === g.id ? null : g.id">
+            {{ menuId === g.id ? 'Hide menu' : 'Menu' }}
+          </button>
+          <button type="button" class="text-sm font-semibold text-brand" @click="toggleReviews(g)">
+            {{ openId === g.id ? 'Hide reviews' : 'Reviews' }}
+          </button>
+        </div>
+
+        <GemMenu v-if="menuId === g.id" :gem-id="g.id" :gem-owner-uid="g.submittedBy" editable />
 
         <div v-if="openId === g.id" class="space-y-3 border-t border-slate-200 pt-3" data-testid="reviews">
           <ul class="space-y-2">
