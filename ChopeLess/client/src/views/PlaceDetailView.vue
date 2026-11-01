@@ -6,6 +6,7 @@ import { getPlace, analysePhoto, shrinkPhoto } from '../services/places'
 // [M3] Today's Quests: remember that I checked a queue with a photo today
 import { auth } from '../lib/firebase'
 import { markQuest } from '../lib/quests'
+import GemMenu from '../components/GemMenu.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -83,6 +84,11 @@ const hourLabel = h => `${h % 12 || 12}${h < 12 ? 'am' : 'pm'}`
       <h1 class="page-title">{{ place.name }}</h1>
       <p class="text-slate-600">{{ place.address }}</p>
     </div>
+
+      <div v-if="place.fromGem" class="space-y-2">
+      <p class="chip">Hidden Gem · community listing</p>
+      <GemMenu v-if="place.gemId" :gem-id="place.gemId" preorder-note />
+      </div>
 
       <div class="card card-navy" data-testid="latest">
       <h2 class="mb-2">Right now</h2>
