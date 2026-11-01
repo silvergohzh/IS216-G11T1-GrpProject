@@ -46,7 +46,12 @@ export async function getStall(placeId) {
     address: place.address,
     lat: place.lat,
     lng: place.lng,
-    menu: place.menu || []
+    menu: place.menu || [],
+    cuisine: place.cuisine || '',
+    priceMin: place.priceMin ?? null,
+    priceMax: place.priceMax ?? null,
+    fromGem: !!place.fromGem,
+    gemId: place.gemId || null
   }
 }
 
@@ -61,7 +66,7 @@ export async function listStallsInside(parentId) {
 export async function listOrderablePlaces() {
   const snap = await getDocs(collection(db, 'places'))
   const all = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-  return all.filter(p => p.menu && p.menu.length > 0)
+  return all.filter(p => p.menu && p.menu.length > 0 && !p.fromGem)
 }
 // [SILVER] END
 
