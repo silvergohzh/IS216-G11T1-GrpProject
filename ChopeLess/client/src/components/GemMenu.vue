@@ -1,7 +1,7 @@
 <!-- Community menu for a Hidden Gem: photos and dishes added by users. Owner: M5
-     Usage: <GemMenu :gem-id="id" :gem-owner-uid="uid" editable />
-     Leave out "editable" for a view-only menu (the preorder page). -->
-
+     Usage: <GemMenu :gem-id="id" :gem-owner-uid="uid" editable />        (Hidden Gems board: add, edit, delete)
+            <GemMenu :gem-id="id" preorder-note />                         (pre-order pages: view only)
+     Leave out "editable" for a view-only menu. -->
      
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
@@ -14,7 +14,8 @@ import {
 const props = defineProps({
   gemId: { type: String, required: true },
   gemOwnerUid: { type: String, default: '' },
-  editable: { type: Boolean, default: false }
+  editable: { type: Boolean, default: false },
+  preorderNote: { type: Boolean, default: false }
 })
 
 const auth = useAuthStore()
@@ -22,6 +23,7 @@ const items = ref([])
 const photos = ref([])
 const loaded = ref(false)
 const error = ref('')
+const message = ref('')
 const item = ref({ name: '', price: '' })
 const editingId = ref(null)
 const photoKey = ref(0)
@@ -45,9 +47,17 @@ async function load() {
 onMounted(load)
 watch(() => props.gemId, load)
 
+// Runs a change, shows the points message if the server gave points, then reloads the menu
 async function run(action) {
   error.value = ''
-  try { await action(); await load() } catch (err) { error.value = err.message }
+  message.value = ''
+  try {
+    const res = await action()
+    if (res?.pointsAwarded) message.value = `+${res.pointsAwarded} Makan Points for adding to this menu. Thank you!`
+    await load()
+  } catch (err) {
+    error.value = err.message
+  }
 }
 function cancelEdit() {
   editingId.value = null
@@ -58,15 +68,17 @@ function startEdit(x) {
   item.value = { name: x.name, price: x.price }
 }
 const saveItem = () => run(async () => {
-  if (editingId.value) await updateMenuItem(props.gemId, editingId.value, item.value)
-  else await addMenuItem(props.gemId, item.value)
+  const res = editingId.value
+    ? await updateMenuItem(props.gemId, editingId.value, item.value)
+    : await addMenuItem(props.gemId, item.value)
   cancelEdit()
+  return res
 })
 const removeItem = x => run(() => deleteMenuItem(props.gemId, x.id))
 async function onPhoto(e) {
   const file = e.target.files?.[0]
   if (!file) return
-  await run(async () => { await addMenuPhoto(props.gemId, await photoToDataUrl(file)) })
+  await run(async () => addMenuPhoto(props.gemId, await photoToDataUrl(file)))
   photoKey.value++
 }
 const removePhoto = p => run(() => deleteMenuPhoto(props.gemId, p.id))
@@ -76,6 +88,10 @@ const removePhoto = p => run(() => deleteMenuPhoto(props.gemId, p.id))
   <div class="space-y-3 rounded-xl border border-slate-200 p-3" data-testid="gem-menu">
     <p class="rounded-lg bg-amber-50 p-2 text-xs text-amber-800">
       Community menu: added by users, not by the stall or ChopeLess. Dishes and prices are subject to accuracy.
+    </p>
+    <p v-if="preorderNote" class="rounded-lg bg-slate-50 p-2 text-xs text-slate-600">
+      Hidden Gems can't be pre-ordered, so this menu is for viewing only.
+      Know this place? Add or fix dishes on the <RouterLink to="/gems" class="font-semibold text-brand">Hidden Gems page</RouterLink> and earn Makan Points.
     </p>
 
     <div v-if="photos.length" class="grid grid-cols-2 gap-2">
@@ -122,6 +138,7 @@ const removePhoto = p => run(() => deleteMenuPhoto(props.gemId, p.id))
     </template>
     <p v-else-if="editable" class="text-sm text-slate-500">Log in to add dishes or a menu photo.</p>
 
+    <p v-if="message" class="rounded-lg bg-brand-light px-3 py-2 text-sm text-brand">{{ message }}</p>
     <p v-if="error" class="error">{{ error }}</p>
   </div>
 </template>

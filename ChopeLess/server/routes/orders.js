@@ -165,6 +165,12 @@ router.post('/', async (req, res, next) => {
   try {
     const place = await db.collection('places').doc(req.body.placeId || 'none').get()
     if (!place.exists) throw httpError(400, 'Choose a stall to order from')
+    
+    // Hidden Gems are listed by the community, so they can be viewed but not pre-ordered
+    if (place.data().fromGem) {
+      throw httpError(400, 'Hidden Gems are community listings, so pre-orders are not available. You can still view the menu.')
+    }
+
     if (!place.data().menu || place.data().menu.length === 0) {
       throw httpError(400, 'This place has no menu. If it is a hawker centre, choose one of its stalls.')
     }

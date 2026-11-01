@@ -2,22 +2,24 @@
 // Firestore: gems/{id} { name, mustTry, cuisine, address, lat, lng, priceMin, priceMax, dietary, serviceModes,
 //                        waitMins, imageUrl, submittedBy, upvoters: [uid], ratingSum, ratingCount, createdAt }
 // The id is a readable slug of the name, e.g. "ba-buong-banh-mi".
-// A gem with UPVOTES_NEEDED upvoters is copied into "places" with the SAME id, in the same shape as the
-// seeded places (photo included, so it looks the same on the swipe cards).
+// A gem with UPVOTES_NEEDED upvoters is copied into "places" with the SAME id, in the same shape as the seeded places.
+// Its community menu (gems/{id}/menuItems) is mirrored into places/{id}.menu, which is where pre-orders read menus.
 
 import { Router } from 'express'
 import { FieldValue } from 'firebase-admin/firestore'
 import { db, adminAuth } from '../firebase.js'
 import { requireAuth } from '../middleware/auth.js'
+import { awardPoints, POINT_RULES } from '../services/points.js'   // Janani's Makan Points
 
 const router = Router()
 const gems = db.collection('gems')
 const places = db.collection('places')
 const UPVOTES_NEEDED = 3
+const MENU_POINTS = POINT_RULES.GEM_MENU_CONTRIBUTION
 const DIETARY = ['halal', 'vegetarian']
 const SERVICE_MODES = ['dine-in', 'takeaway']
 const IMAGE_PREFIX = 'data:image/jpeg;base64,'
-const MAX_IMAGE_CHARS = 400000   // keeps the gem document well under Firestore's 1 MB limit
+const MAX_IMAGE_CHARS = 400000   // keeps each photo well under Firestore's 1 MB document limit
 
 
 // Makes an error with an HTTP status code. The shared handler in index.js sends it to the browser.
@@ -145,6 +147,30 @@ const placeLatest = g => ({
   }
 })
 
+// Mirrors a gem's community dishes into its copy in "places" (places/{id}.menu), in the shape the
+// pre-order pages already read (price in CENTS). Does nothing unless the gem is in the voting pool.
+async function syncPlaceMenu(id) {
+  // The copy is places/<id>, or places/gem-<id> for gems made before readable IDs
+  let placeRef = null
+  for (const pid of [id, `gem-${id}`]) {
+    const snap = await places.doc(pid).get()
+    if (snap.exists && snap.data().fromGem && snap.data().gemId === id) { placeRef = snap.ref; break }
+  }
+  if (!placeRef) return
+
+  const items = await gems.doc(id).collection('menuItems').orderBy('createdAt').get()
+  const menu = items.docs.map(d => {
+    const x = d.data()
+    return { id: d.id, name: x.name, price: Math.round(Number(x.price) * 100), addedByName: x.addedByName || '' }
+  })
+  await placeRef.update({ menu })
+}
+
+// A menu change must never make the request fail, so problems are only logged
+const safeSync = async id => {
+  try { await syncPlaceMenu(id) } catch (err) { console.error('[Hidden Gems] Could not copy the menu into places:', err.message) }
+}
+
 // GET /api/gems - list gems, most upvoted first
 router.get('/', async (req, res, next) => {
   try {
@@ -201,6 +227,7 @@ router.put('/:id', requireAuth, async (req, res, next) => {
           ? placeBase(ref.id, merged)
           : { ...placeBase(ref.id, merged), ...placeLatest(merged) }
         await placeRef.set(fields, { merge: true })
+        await safeSync(ref.id)
       }
     }
     res.json({ ok: true })
@@ -216,7 +243,7 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
     const doc = await ref.get()
     if (!doc.exists) throw httpError(404, 'Gem not found')
     if (doc.data().submittedBy !== req.uid) throw httpError(403, 'You can only delete your own gems')
-    await db.recursiveDelete(ref)   // also deletes its reviews
+    await db.recursiveDelete(ref)   // also deletes its reviews and menu
 
     // Remove this gem's copy from "places" (also the older gem-<id> naming)
     for (const pid of [ref.id, `gem-${ref.id}`]) {
@@ -252,6 +279,8 @@ router.post('/:id/upvote', requireAuth, async (req, res, next) => {
       }
       return newCount
     })
+    // The gem just joined the voting pool, so its community menu comes along
+    if (upvoteCount === UPVOTES_NEEDED) await safeSync(ref.id)
     res.json({ ok: true, upvoteCount, inPool: upvoteCount >= UPVOTES_NEEDED })
   } catch (err) {
     next(err)
@@ -310,8 +339,17 @@ const reviewOwner = doc => doc.data().authorUid ?? doc.id
 router.get('/:id/reviews', async (req, res, next) => {
   try {
     const gemRef = gems.doc(req.params.id)
-    if (!(await gemRef.get()).exists) throw httpError(404, 'Gem not found')
+    const gemDoc = await gemRef.get()
+    if (!gemDoc.exists) throw httpError(404, 'Gem not found')
     const snap = await gemRef.collection('reviews').orderBy('createdAt', 'desc').get()
+
+    // Keep the gem's average in step with its reviews (fixes reviews made before ratings existed)
+    const ratingSum = snap.docs.reduce((sum, d) => sum + (Number(d.data().rating) || 0), 0)
+    const g = gemDoc.data()
+    if (g.ratingSum !== ratingSum || g.ratingCount !== snap.size) {
+      await gemRef.update({ ratingSum, ratingCount: snap.size })
+    }
+
     res.json(snap.docs.map(d => {
       const data = d.data()
       return {
@@ -383,6 +421,8 @@ router.delete('/:id/reviews/:reviewId', requireAuth, async (req, res, next) => {
 
 // ---- Community menu: gems/{id}/menuItems/{itemId} and gems/{id}/menuPhotos/{photoId} ----
 // Added by users, not by the stall, so the app always shows a "subject to accuracy" disclaimer.
+// Dishes are in DOLLARS here. They are copied into places/{id}.menu in CENTS once the gem is in the pool.
+// There is no limit on how many dishes or photos a gem can have.
 
 function parseMenuItem(body) {
   const name = String(body.name ?? '').trim()
@@ -404,6 +444,23 @@ function parseMenuPhoto(imageUrl) {
 
 const nameOf = async uid => ((await adminAuth.getUser(uid)).email || 'someone').split('@')[0]
 const toMs = ts => ts?.toMillis?.() ?? null
+
+// Makan Points for adding to a gem's menu: once per person per gem, for whatever they add first (dish or photo).
+// The ledger entry id is eventId + uid, so awardPoints ignores a second contribution to the same gem.
+async function rewardMenuContribution(uid, gemId, gemName) {
+  try {
+    const result = await awardPoints({
+      uid,
+      eventId: `gemmenu_${gemId}`,
+      points: MENU_POINTS,
+      reason: `Added a menu to the Hidden Gem "${gemName}"`
+    })
+    return result.awarded ? MENU_POINTS : 0
+  } catch (err) {
+    console.error('[Makan Points] Could not award menu points:', err.message)
+    return 0
+  }
+}
 
 // GET /api/gems/:id/menu - dishes and menu photos (public)
 router.get('/:id/menu', async (req, res, next) => {
@@ -427,14 +484,18 @@ router.get('/:id/menu', async (req, res, next) => {
 router.post('/:id/menu/items', requireAuth, async (req, res, next) => {
   try {
     const gemRef = gems.doc(req.params.id)
-    if (!(await gemRef.get()).exists) throw httpError(404, 'Gem not found')
-      const ref = await gemRef.collection('menuItems').add({
+    const gemDoc = await gemRef.get()
+    if (!gemDoc.exists) throw httpError(404, 'Gem not found')
+
+    const ref = await gemRef.collection('menuItems').add({
       ...parseMenuItem(req.body),
       addedBy: req.uid,
       addedByName: await nameOf(req.uid),
       createdAt: FieldValue.serverTimestamp()
     })
-    res.status(201).json({ id: ref.id })
+    await safeSync(gemRef.id)
+    const pointsAwarded = await rewardMenuContribution(req.uid, gemRef.id, gemDoc.data().name)
+    res.status(201).json({ id: ref.id, pointsAwarded })
   } catch (err) {
     next(err)
   }
@@ -448,6 +509,7 @@ router.put('/:id/menu/items/:itemId', requireAuth, async (req, res, next) => {
     if (!doc.exists) throw httpError(404, 'Dish not found')
     if (doc.data().addedBy !== req.uid) throw httpError(403, 'You can only edit dishes you added')
     await ref.update(parseMenuItem(req.body))
+    await safeSync(req.params.id)
     res.json({ ok: true })
   } catch (err) {
     next(err)
@@ -467,6 +529,7 @@ router.delete('/:id/menu/items/:itemId', requireAuth, async (req, res, next) => 
       throw httpError(403, 'You can only delete dishes you added')
     }
     await ref.delete()
+    await safeSync(req.params.id)
     res.json({ ok: true })
   } catch (err) {
     next(err)
@@ -477,14 +540,17 @@ router.delete('/:id/menu/items/:itemId', requireAuth, async (req, res, next) => 
 router.post('/:id/menu/photos', requireAuth, async (req, res, next) => {
   try {
     const gemRef = gems.doc(req.params.id)
-    if (!(await gemRef.get()).exists) throw httpError(404, 'Gem not found')
-        const ref = await gemRef.collection('menuPhotos').add({
+    const gemDoc = await gemRef.get()
+    if (!gemDoc.exists) throw httpError(404, 'Gem not found')
+
+    const ref = await gemRef.collection('menuPhotos').add({
       imageUrl: parseMenuPhoto(req.body.imageUrl),
       addedBy: req.uid,
       addedByName: await nameOf(req.uid),
       createdAt: FieldValue.serverTimestamp()
     })
-    res.status(201).json({ id: ref.id })
+    const pointsAwarded = await rewardMenuContribution(req.uid, gemRef.id, gemDoc.data().name)
+    res.status(201).json({ id: ref.id, pointsAwarded })
   } catch (err) {
     next(err)
   }
