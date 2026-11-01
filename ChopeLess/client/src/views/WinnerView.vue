@@ -2,11 +2,13 @@
 <!-- Winner screen: capsule reveal + confetti + walking route + live QueueLess -->
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { doc, onSnapshot } from "firebase/firestore";
 import confetti from "canvas-confetti";
+import { useAuthStore } from "../stores/auth";
 
 import { useSessionStore } from "../stores/session";
+import { startRevote } from "../services/sessions";
 import { api } from "../lib/api";
 import { db } from "../lib/firebase";
 import { sfx } from "../lib/sfx";
@@ -16,7 +18,9 @@ import MapView from "../components/MapView.vue";
 import GachaTie from "../components/GachaTie.vue";
 
 const route = useRoute();
+const router = useRouter();
 const store = useSessionStore();
+const auth = useAuthStore();
 
 const winner = computed(() => store.session?.winner);
 const tie = computed(() => store.session?.tieBreak);
@@ -85,6 +89,87 @@ watch(
         stopQueue = null;
       }
     });
+  },
+  { immediate: true }
+);
+
+// =====================================================
+// [JANANIJ] END
+// =====================================================
+
+// =====================================================
+// [JANANIJ] START: QueueLess group re-voting
+// =====================================================
+
+// Members can request another vote before ordering begins.
+// The backend decides whether the session can enter re-voting.
+
+const revoteBusy = ref(false);
+const revoteError = ref("");
+
+const currentWaitMins = computed(() => {
+  const value = queueInfo.value?.latest?.waitMins;
+
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const minutes = Number(value);
+
+  return Number.isFinite(minutes) && minutes >= 0
+    ? minutes
+    : null;
+});
+
+const canStartRevote = computed(() =>
+  store.session?.status === "done" &&
+  store.session?.hostUid === auth.user?.uid &&
+  !!winner.value &&
+  currentWaitMins.value !== null &&
+  !store.session?.orderingStarted &&
+  !store.session?.revoteCompleted &&
+  !store.session?.revoteStartedAt
+);
+
+async function requestRevote() {
+  if (revoteBusy.value || !canStartRevote.value) return;
+
+  const confirmed = window.confirm(
+    `The estimated queue at ${winner.value.name} is ${currentWaitMins.value} minutes.\n\n` +
+    "Start another group vote for alternatives with shorter queues?"
+  );
+
+  if (!confirmed) return;
+
+  revoteBusy.value = true;
+  revoteError.value = "";
+
+  try {
+    await startRevote(route.params.code);
+
+    await router.push(
+      `/sessions/${route.params.code}/vote`
+    );
+  } catch (err) {
+    revoteError.value =
+      err.response?.data?.error ||
+      err.response?.data?.message ||
+      err.message ||
+      "Unable to start QueueLess re-voting.";
+  } finally {
+    revoteBusy.value = false;
+  }
+}
+
+// All group members must follow the same session state.
+watch(
+  () => store.session?.status,
+  (status) => {
+    if (status === "revoting") {
+      router.push(
+        `/sessions/${route.params.code}/vote`
+      );
+    }
   },
   { immediate: true }
 );
@@ -447,6 +532,50 @@ onUnmounted(() => {
           View QueueLess details
         </RouterLink>
       </div>
+
+      <!-- [JANANIJ] END -->
+
+      <!-- =================================================
+           [JANANIJ] START: QueueLess group re-voting
+           ================================================= -->
+
+      <div
+        v-if="canStartRevote"
+        class="card flex flex-col gap-3"
+        data-testid="queueless-revote"
+      >
+        <h3 class="font-display text-2xl">
+          Queue too long?
+        </h3>
+
+        <p class="text-sm font-bold">
+          The current estimated wait at {{ winner.name }}
+          is {{ currentWaitMins }} minutes.
+        </p>
+
+        <p class="text-sm">
+          Your group can vote again on alternative places
+          with shorter reported queues before ordering.
+        </p>
+
+        <button
+          type="button"
+          class="btn-primary"
+          :disabled="revoteBusy"
+          data-testid="start-revote"
+          @click="requestRevote"
+        >
+          {{ revoteBusy ? "Starting re-vote..." : "Re-vote as a group" }}
+        </button>
+      </div>
+
+      <p
+        v-if="revoteError"
+        class="error"
+        role="alert"
+      >
+        {{ revoteError }}
+      </p>
 
       <!-- [JANANIJ] END -->
 

@@ -77,3 +77,128 @@ export async function buildShortlist(session) {
     latest: p.latest ?? null
   }))
 }
+
+// [JANANIJ] START: QueueLess re-vote shortlist
+// Finds alternatives with a confirmed shorter waiting time.
+// Preserves the group's original service mode, budget,
+// dietary requirements and walking-distance limit.
+
+
+// [JANANIJ] START: QueueLess re-vote shortlist
+
+export async function buildRevoteShortlist(session, rejectedWaitMins) {
+  const members = Object.values(session.members || {})
+
+  if (!members.length) return []
+
+  if (
+    typeof rejectedWaitMins !== 'number' ||
+    !Number.isFinite(rejectedWaitMins) ||
+    rejectedWaitMins <= 0
+  ) return []
+
+  const candidates = await loadCandidates()
+
+  const budgetCap = Math.min(
+    ...members.map(m => m.budget ?? Infinity)
+  )
+
+  const dietaryNeeds = [
+    ...new Set(members.flatMap(m => m.dietary || []))
+  ]
+
+  const excludedIds = new Set([
+    ...(session.rejectedWinnerIds || []),
+    session.winner?.id,
+    ...Object.values(session.vetoes || {})
+  ].filter(Boolean).map(String))
+
+  const now = Date.now()
+  const MAX_REPORT_AGE = 30 * 60 * 1000
+  const eligible = []
+
+  for (const place of candidates) {
+    // Preserve original group filters.
+    if (excludedIds.has(String(place.id))) continue
+
+    if (
+      !(place.serviceModes || []).includes(session.serviceMode)
+    ) continue
+
+    if ((place.priceMin ?? 0) > budgetCap) continue
+
+    if (
+      !dietaryNeeds.every(
+        need => (place.dietary || []).includes(need)
+      )
+    ) continue
+
+    // Preserve walking-distance limit.
+    const walkMins = session.meetingPoint?.lat != null
+      ? await walkingMinutes(session.meetingPoint, place)
+      : 0
+
+    if (
+      !Number.isFinite(walkMins) ||
+      walkMins < 0 ||
+      walkMins > (session.maxWalkMins ?? 10)
+    ) continue
+
+    // QueueLess report must have a known waiting time.
+    const latest = place.latest ?? null
+    const waitMins = latest?.waitMins
+
+    if (
+      typeof waitMins !== 'number' ||
+      !Number.isFinite(waitMins) ||
+      waitMins < 0
+    ) continue
+
+    // Only use reports from the last 30 minutes.
+    const reportTime = Date.parse(latest?.at || '')
+
+    if (
+      !Number.isFinite(reportTime) ||
+      reportTime > now ||
+      now - reportTime > MAX_REPORT_AGE
+    ) continue
+
+    // Require medium or high confidence.
+    if (
+      latest.confidence !== 'medium' &&
+      latest.confidence !== 'high'
+    ) continue
+
+    // Must be faster than the rejected winner.
+    if (waitMins >= rejectedWaitMins) continue
+
+    // Preserve the original maximum waiting-time limit.
+    if (waitMins > (session.maxWaitMins ?? 15)) continue
+
+    eligible.push({
+      ...place,
+      walkMins,
+      waitMins,
+      latest
+    })
+  }
+
+  eligible.sort(
+    (a, b) =>
+      (a.walkMins + a.waitMins) -
+      (b.walkMins + b.waitMins)
+  )
+
+  return eligible.slice(0, SHORTLIST_SIZE).map(place => ({
+    ...place,
+    priceMin: place.priceMin ?? place.priceMax ?? 0,
+    priceMax: place.priceMax ?? place.priceMin ?? 0,
+    cuisine: place.cuisine ?? '',
+    address: place.address ?? '',
+    dietary: place.dietary || [],
+    latest: place.latest ?? null
+  }))
+}
+
+// [JANANIJ] END
+
