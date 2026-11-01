@@ -107,8 +107,8 @@ service cloud.firestore {
     //   - the people in that group order (their receipt)
     //   - the hawker of that stall (their earnings)
     //   - admins
-    // Nobody can WRITE from the browser: only the server creates, refunds or deletes them
-    // (server/routes/payments.js), so nobody can fake a payment or a refund.
+    // Nobody can WRITE from the browser: only the server creates or deletes them
+    // (server/routes/payments.js), so nobody can fake a payment.
     match /payments/{paymentId} {
       allow read: if signedIn() && (
         request.auth.uid in resource.data.memberUids

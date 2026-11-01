@@ -1,7 +1,7 @@
 // Payment records for the browser. Owner: M6
 // Firestore: payments/{orderId}  (one record per paid order, created by the server)
 // READ: live from Firestore. firestore.rules only lets you see the payments you are allowed to.
-// CHANGES (refund, delete): through our server, which checks your role.
+// DELETE: through our server, which checks your role.
 import { collection, onSnapshot, query, where } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { api } from '../lib/api'
@@ -35,10 +35,7 @@ export function watchAllPayments(onChange, onError) {
   return onSnapshot(collection(db, 'payments'), snap => onChange(toList(snap)), onError)
 }
 
-// ---------- UPDATE and DELETE (through the server) ----------
-
-// Hawker (own stall) or admin: give the money back, with a reason
-export const refundPayment = (id, reason) => api(`/payments/${id}/refund`, { method: 'POST', body: { reason } })
+// ---------- DELETE (through the server) ----------
 
 // Admin only: remove a payment record
 export const deletePayment = id => api(`/payments/${id}`, { method: 'DELETE' })

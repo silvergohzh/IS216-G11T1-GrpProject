@@ -46,7 +46,6 @@ Please keep the code style simple (beginner style, comments in plain English), l
 | File | Marked block |
 | --- | --- |
 | `server/routes/orders.js` | imports, `FASTPASS_COST` and `PREORDER_POINTS`, the `priority: false` flag, points on collect, the Fastpass and queue routes |
-| `server/routes/payments.js` | TODO on the refund route |
 | `server/seed/platform.js` | starting points for the demo accounts |
 | `client/src/services/orders.js` | `buyFastpass`, `getQueuePosition`, `getMyPoints` |
 | `client/src/views/CartView.vue` | Fastpass state, `canBuyFastpass`, loading points and queue, the `fastpass()` button, the Fastpass and queue template |
@@ -55,7 +54,7 @@ Please keep the code style simple (beginner style, comments in plain English), l
 | `client/e2e/orders.spec.js` | the "Fastpass: ..." test |
 
 **TODO**
-1. Give the 150 points back when a Fastpass order is cancelled (`/:id/cancel`) or refunded (`/api/payments/:id/refund`).
+1. Give the 150 points back when a Fastpass order is cancelled (`/:id/cancel`).
    Use JJyayy's `reversePoints` or `awardPoints` with an eventId like `fastpass_refund_<orderId>`.
 2. `FASTPASS_COST = 150` is written in both `CartView.vue` and the server. Send it from the server (for example in the `/queue` reply) so it is only in one place.
 
@@ -131,7 +130,7 @@ Give them a nice label or icon (for example ⚡ for Fastpass).
 Pull the latest code first (the `myat` branch, or `main` after it is merged), then paste your prompt.
 
 **Nawaz**
-> Read ChopeLess/HANDOVER.md, the "Nawaz" section. Then find every block marked `[NAWAZ]` (`grep -rn "\[NAWAZ\]" server client/src client/e2e`). The Fastpass and pre-order Makan Points code is already working. Explain to me how each marked block works, in simple words, so I can present it. Then do the `[NAWAZ] TODO` items: give the Fastpass points back when an order is cancelled or refunded, and send `FASTPASS_COST` from the server instead of hard-coding 150 in CartView.vue. Keep the code beginner-style with plain-English comments, like the existing code. Only change `[NAWAZ]` blocks unless you really need to, and don't edit code marked for other people. Add or update a Playwright test in client/e2e/orders.spec.js, and run `npm run test:e2e` in client/ with the emulators, API and seed running (see README). When a TODO is done, delete that TODO line but keep the START/END markers.
+> Read ChopeLess/HANDOVER.md, the "Nawaz" section. Then find every block marked `[NAWAZ]` (`grep -rn "\[NAWAZ\]" server client/src client/e2e`). The Fastpass and pre-order Makan Points code is already working. Explain to me how each marked block works, in simple words, so I can present it. Then do the `[NAWAZ] TODO` items: give the Fastpass points back when an order is cancelled, and send `FASTPASS_COST` from the server instead of hard-coding 150 in CartView.vue. Keep the code beginner-style with plain-English comments, like the existing code. Only change `[NAWAZ]` blocks unless you really need to, and don't edit code marked for other people. Add or update a Playwright test in client/e2e/orders.spec.js, and run `npm run test:e2e` in client/ with the emulators, API and seed running (see README). When a TODO is done, delete that TODO line but keep the START/END markers.
 
 **Silver**
 > Read ChopeLess/HANDOVER.md, the "Silver" section. Then find every block marked `[SILVER]` (`grep -rn "\[SILVER\]" server client/src client/e2e`), and also look at server/seed/stalls.json. The hawker centre, food court, stall and place tag code is already working. Explain to me how it fits together in simple words (the place `type`, `parentId` and `parentName`, how a centre opens its stalls, and how sign-up and admin approval create a stall). Then do the TODO ideas: use PlaceTag on PlaceCard.vue and the Winner page, and style the stall cards and tags to match the Makan Quest theme. Keep the code beginner-style with plain-English comments. Don't change the logic of blocks marked for other people. Run `npm run test:e2e` in client/ (see README for starting the emulators, API and seed). When a TODO is done, delete that TODO line but keep the START/END markers.

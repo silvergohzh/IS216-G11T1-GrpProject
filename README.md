@@ -49,7 +49,7 @@ Open the live app and log in with a demo account (password for all: **`test1234`
 | **QueueLess** | Crowd level for each place, an hourly chart, and AI queue estimates from a photo (OpenAI vision). Crowd reports from diners, verified for points. | Jonathan (QueueLess), Janani (crowd reports) |
 | **Hidden Gems** | Add, edit, delete and upvote small local spots, with reviews. A gem with 3 upvotes is added to the places list. | Jan |
 | **Makan Points** | Points for finishing sessions, verified crowd reports and collecting orders. Points history, leaderboard, priority queue for Fastpass orders. | Janani |
-| **Pre-order + payments** | Group carts with a share code, split bill, Stripe checkout (test mode), hawker order board, pickup timer with photo proof, refunds, Fastpass. Hawker centres and food courts contain their own stalls. | Myat (Nawaz: Fastpass) |
+| **Pre-order + payments** | Group carts with a share code, split bill, Stripe checkout (test mode), hawker order board, pickup timer with photo proof, Fastpass. Hawker centres and food courts contain their own stalls. | Myat (Nawaz: Fastpass) |
 | **Hawker portal + admin** | Hawkers apply, an admin approves, the hawker manages the menu. Roles: diner, hawker, admin. | Myat |
 
 ---
@@ -179,7 +179,7 @@ All routes need a logged-in user unless noted. Full details are in the comments 
 | Gems | `GET/POST /api/gems`, `PUT/DELETE /:id`, `POST/DELETE /:id/upvote`, `GET/POST/PUT/DELETE /:id/reviews` |
 | Points | `GET /api/points/me`, `/history`, `/leaderboard`, `/priority`; `PATCH /ledger/:id/reverse`, `DELETE /ledger/:id` (admin) |
 | Orders | `POST /api/orders`, `/join`, `/:id/items`, `/:id/cancel`, `/:id/checkout`, `/:id/preparing`, `/:id/ready`, `/:id/collect`, `/:id/fastpass`; `GET /:id/queue` |
-| Payments | `POST /api/payments/webhook` (Stripe, signed), `POST /:id/refund`, `DELETE /:id` (admin) |
+| Payments | `POST /api/payments/webhook` (Stripe, signed), `DELETE /:id` (admin) |
 | Hawkers / admin | `POST /api/hawkers/apply`, `/menu`, `/menu/many`; `PATCH/DELETE /menu/:dishId`; `GET /api/admin/users`, `/applications`; approve / reject |
 
 ---
