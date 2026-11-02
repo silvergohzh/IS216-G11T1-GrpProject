@@ -10,6 +10,7 @@ import {
   leaveSession,
   endSession,
   kickMember,
+  updateMyDetails,
 } from "../services/sessions";
 import MapView from "../components/MapView.vue";
 import { doc, getDoc } from "firebase/firestore";
@@ -24,7 +25,6 @@ const error = ref("");
 const starting = ref(false);
 
 const copied = ref(false);
-// const shareLink = `${location.origin}/sessions?join=${code}`;
 
 // True once the session has loaded and I'm not one of its members
 const notMember = computed(
@@ -72,15 +72,42 @@ const members = computed(() => Object.entries(store.session?.members || {}));
 // If this session was started from a Makan Kakis group, remember who owns the group:
 // the host can't kick the group's owner out of the group's own session.
 const groupOwnerUid = ref(null);
+const groupName = ref(""); // [SILVER] shown at the top, so everyone knows which kaki this is
 watch(
   () => store.session?.groupId,
   async (groupId) => {
-    if (!groupId) return (groupOwnerUid.value = null);
+    if (!groupId) {
+      groupOwnerUid.value = null;
+      groupName.value = "";
+      return;
+    }
     const snap = await getDoc(doc(db, "groups", groupId)).catch(() => null);
     groupOwnerUid.value = snap?.data()?.ownerUid || null;
+    groupName.value = snap?.data()?.name || "";
   },
   { immediate: true },
 );
+
+// [M3] Edit my own budget and diet in the lobby (before voting starts)
+const DIETS = ["halal", "vegetarian"];
+const editing = ref(false);
+const mine = ref({ name: "", budget: 8, dietary: [] });
+function startEdit() {
+  const m = store.session?.members?.[auth.user?.uid];
+  if (!m) return;
+  mine.value = { name: m.name, budget: m.budget, dietary: [...(m.dietary || [])] };
+  editing.value = true;
+}
+async function saveMine() {
+  error.value = "";
+  if (!(mine.value.budget >= 1)) return (error.value = "Budget must be at least $1.");
+  try {
+    await updateMyDetails(code, mine.value);
+    editing.value = false;
+  } catch (err) {
+    error.value = err.message;
+  }
+}
 
 onMounted(() => store.watch(code));
 onUnmounted(() => store.stop());
@@ -175,12 +202,14 @@ async function start() {
   <div v-else-if="store.session">
     <p class="kicker">Station 4 · Lobby</p>
     <h1 class="page-title">Lobby</h1>
+    <!-- [M3] started from a Makan Kakis group? show which one -->
+    <p v-if="groupName" class="chip mb-3 !bg-accent !text-sm" data-testid="lobby-group-name">Makan Kakis · {{ groupName }}</p>
     <!-- the table code: big and yellow, because it's the one thing friends need -->
     <div
       class="mb-4 flex flex-wrap items-center gap-4 rounded-3xl border-4 border-ink bg-accent px-5 py-3 shadow-[0_6px_0_#17213b]"
     >
       <div class="flex-1">
-        <p class="text-xs font-black tracking-widest">TABLE CODE</p>
+        <p class="text-xs font-black tracking-widest">SESSION CODE · THIS MEAL ONLY</p>
         <span
           class="font-display text-5xl tracking-[0.2em]"
           data-testid="session-code"
@@ -191,7 +220,8 @@ async function start() {
         Share the code with friends. Voting starts when the host is ready.
       </p>
       <button class="btn text-sm" data-testid="copy-code" @click="copyCode">
-        {{ copied ? "Code copied ✓" : "Copy code" }}
+        <!-- [M3] says "session" so it isn't mixed up with a Kaki code -->
+        {{ copied ? "Session code copied ✓" : "Copy session code" }}
       </button>
     </div>
 
@@ -215,6 +245,29 @@ async function start() {
               >· ${{ m.budget }} ·
               {{ m.dietary.join(", ") || "no restrictions" }}</span
             >
+            <!-- [M3] change my own budget / diet before voting -->
+            <button
+              v-if="uid === auth.user?.uid && !editing"
+              class="btn ml-2 !min-h-8 px-3 py-0.5 text-xs"
+              data-testid="edit-mine"
+              @click="startEdit"
+            >
+              Edit my budget &amp; diet
+            </button>
+            <form
+              v-if="uid === auth.user?.uid && editing"
+              class="mt-2 flex flex-wrap items-end gap-2 rounded-2xl bg-sky p-2"
+              @submit.prevent="saveMine"
+            >
+              <label class="text-xs font-black">My budget ($)
+                <input v-model.number="mine.budget" type="number" min="1" class="input w-24" />
+              </label>
+              <label v-for="d in DIETS" :key="d" class="inline-flex min-h-11 items-center gap-2 rounded-full border-[3px] border-ink bg-white px-3 text-sm font-extrabold has-[:checked]:bg-accent">
+                <input type="checkbox" :value="d" v-model="mine.dietary" /> {{ d }}
+              </label>
+              <button class="btn-primary text-sm" type="submit">Save</button>
+              <button class="btn text-sm" type="button" @click="editing = false">Cancel</button>
+            </form>
             <button
               v-if="isHost && uid !== auth.user?.uid && uid !== groupOwnerUid"
               class="btn ml-2 !min-h-8 px-3 py-0.5 text-xs !text-red-700"

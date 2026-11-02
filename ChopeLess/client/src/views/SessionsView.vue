@@ -5,6 +5,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { createSession, joinSession } from '../services/sessions'
 import { getProfile } from '../services/users'
+// [M3] to tell a Makan Kakis (group) code apart from a session code
+import { doc, getDoc } from 'firebase/firestore'
+import { db } from '../lib/firebase'
 
 
 const router = useRouter()
@@ -45,7 +48,16 @@ async function join() {
   error.value = check()   // clear the old error and re-check name + budget
   if (error.value) return
   loading.value = true
-  try { router.push(`/sessions/${await joinSession(joinCode.value, me.value)}`) } catch (err) { error.value = err.message } finally { loading.value = false }
+  try { router.push(`/sessions/${await joinSession(joinCode.value, me.value)}`) }
+  catch (err) {
+    // [M3] Typed a Makan Kakis code by mistake? Open that group instead of showing an error.
+    const code = joinCode.value.trim().toUpperCase()
+    const group = err.message === 'No session with that code' && code.length === 6
+      ? await getDoc(doc(db, 'groups', code)).catch(() => null) : null
+    if (group?.exists()) return router.push(`/groups/${code}`)
+    error.value = err.message
+  }
+  finally { loading.value = false }
 }
 </script>
 
@@ -79,6 +91,8 @@ async function join() {
         <form class="card card-navy space-y-2" @submit.prevent="join">
         <span class="chip !bg-accent">PLAYER 2+</span>
         <h2>Join with a code</h2>
+        <!-- [M3] say which code goes here: session codes are for one meal, Kaki codes are for a saved group -->
+        <p class="text-sm font-bold">Paste the <b>session code</b> your host shared. (Got a Makan Kakis group code? It works here too and opens the group.)</p>
         <input v-model="joinCode" class="input font-display text-2xl uppercase tracking-[0.3em] text-ink" placeholder="ABCDEF" maxlength="6" required data-testid="join-code" />
         <button class="btn" type="submit" :disabled="loading">Join</button>
       </form>

@@ -175,6 +175,18 @@ export function updateSettings(code, changes) {
 // LEAVE SESSION
 // =====================================================
 
+// [M3] A member changes their own budget or diet while still in the lobby.
+// The security rules only let you change your OWN entry, and only before voting starts.
+export function updateMyDetails(code, me) {
+  return updateDoc(doc(db, "sessions", code), {
+    [`members.${auth.currentUser.uid}`]: {
+      name: me.name,
+      budget: Number(me.budget),
+      dietary: [...me.dietary],
+    },
+  });
+}
+
 // A member removes themselves from the lobby.
 
 export function leaveSession(code) {

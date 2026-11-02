@@ -19,7 +19,8 @@ const auth = useAuthStore()
 const QUESTS = [
   { id: 'session', text: 'Finish a Makan Session',     reward: '+10 pts',         to: '/sessions' },
   { id: 'win',     text: 'Win with your ⭐ Super Like', reward: 'Bragging rights', to: '/sessions' },
-  { id: 'queue',   text: 'Check a queue with a photo', reward: '+15 if verified', to: '/queueless' },
+  // [SILVER] ticks for a queue photo OR a crowd report; only a verified crowd report earns +15
+  { id: 'queue',   text: 'Check a queue', reward: 'Crowd report +15', to: '/queueless' },
   { id: 'gem',     text: 'Add a Hidden Gem',           reward: 'Helps the town',  to: '/gems' }
 ]
 
