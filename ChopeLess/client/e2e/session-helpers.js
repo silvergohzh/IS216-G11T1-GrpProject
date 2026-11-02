@@ -23,8 +23,19 @@ export async function openLobby(host, guest) {
   return code
 }
 
-// Host turns the vote timer off (so slow computers can't run out of time) and starts voting
+// [NAWAZ] START: the host must set a meeting point before voting can start
+// Host taps the middle of the lobby map (SMU), and waits until the "Required" message goes away.
+// The test server walks in straight lines (OSRM_OFFLINE in playwright.config.js), so from SMU
+// the shortlist is the same every run.
+export async function setMeetingPoint(host) {
+  await host.getByTestId('map').click()
+  await expect(host.getByTestId('meeting-point-required')).toHaveCount(0)
+}
+// [NAWAZ] END
+
+// Host sets the meeting point, turns the vote timer off (so slow computers can't run out of time) and starts voting
 export async function startVotingNoTimer(host, guest) {
+  await setMeetingPoint(host)
   await host.getByLabel('Vote timer').selectOption('0')
   await expect(guest.getByLabel('Vote timer')).toHaveValue('0')   // the guest sees the change live
   await host.getByRole('button', { name: 'Start voting' }).click()

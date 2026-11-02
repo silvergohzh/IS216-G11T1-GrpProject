@@ -32,7 +32,8 @@ export default defineConfig({
       // STRIPE_WEBHOOK_SECRET: a made-up secret, so e2e/orders.spec.js can send a signed "payment worked" message
       // STRIPE_SECRET_KEY and OPENAI_API_KEY: empty, so payments use demo mode and the AI returns sample data
       // (no cost, no internet needed, even if your server/.env has real keys)
-      env: { ...emulatorEnv, PORT: '3001', CLIENT_URL: 'http://localhost:5174', STRIPE_WEBHOOK_SECRET: 'whsec_test_chopeless', STRIPE_SECRET_KEY: '', OPENAI_API_KEY: '' }
+      // OSRM_OFFLINE: walking times use the straight-line estimate, so shortlists are the same every run
+      env: { ...emulatorEnv, PORT: '3001', CLIENT_URL: 'http://localhost:5174', STRIPE_WEBHOOK_SECRET: 'whsec_test_chopeless', STRIPE_SECRET_KEY: '', OPENAI_API_KEY: '', OSRM_OFFLINE: 'true' }
     }
   ]
 })

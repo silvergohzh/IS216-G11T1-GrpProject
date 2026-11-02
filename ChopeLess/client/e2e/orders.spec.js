@@ -2,6 +2,7 @@
 import { test, expect } from '@playwright/test'
 import { createHmac } from 'crypto'
 import { signUp, logIn } from './helpers.js'
+import { setMeetingPoint } from './session-helpers.js'
 
 const CENTRE = 'Albert Centre Market & Food Centre' // a hawker centre with stalls inside
 const STALL = 'Ah Seng Chicken Rice'                 // a stall inside it, run by hawker@chopeless.test
@@ -258,7 +259,8 @@ test('Makan Session: pick a place together, then pre-order as a group', async ({
   await guest.getByRole('button', { name: 'Join' }).click()
   await expect(host.getByTestId('member-list').locator('li')).toHaveCount(2)
 
-  // Confirm the food spot: both vote yes on the first card
+  // Confirm the food spot: the host picks the meeting point, then both vote yes on the first card
+  await setMeetingPoint(host)
   await host.getByRole('button', { name: 'Start voting' }).click()
   await expect(host).toHaveURL(/\/vote$/)
   await expect(guest).toHaveURL(/\/vote$/)
