@@ -3,33 +3,26 @@
 import { db } from '../firebase.js'
 import { walkingMinutes } from './osrm.js'
 
-const GEM_UPVOTES_NEEDED = 3
+
 const SHORTLIST_SIZE = 8
+
 
 async function loadCandidates() {
   const placesSnap = await db.collection('places').get()
-  // [SILVER] START: Hawker centres, food courts, stalls & place tags (built by Myat, see HANDOVER.md)
-  // Stalls inside a hawker centre or food court (parentId) are not voted on by themselves:
-  // the group votes for the centre, then picks a stall when pre-ordering (M6)
-  const places = placesSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => !p.parentId)
+
+  // [SILVER] START: Hawker centres, food courts, stalls & place tags
+  // Stalls inside a hawker centre or food court are not voted on individually.
+  // The group votes for the centre, then picks a stall when pre-ordering.
+  const places = placesSnap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .filter(p => !p.parentId)
   // [SILVER] END
 
-  // Hidden gems with 3+ upvotes join the pool (M5's data)
-  const gemsSnap = await db.collection('gems').get()
-  const gems = gemsSnap.docs
-    .map(d => ({ id: d.id, ...d.data() }))
-    .filter(g => (g.upvoters || []).length >= GEM_UPVOTES_NEEDED && g.lat)
-    .map(g => ({
-      id: 'gem-' + g.id, name: g.name, cuisine: g.mustTry, address: g.address, lat: g.lat, lng: g.lng,
-      // Gems may store one price, or a min/max range. Use whichever exists, and 0 if neither does.
-      priceMin: g.priceMin ?? g.price ?? 0,
-      priceMax: g.priceMax ?? g.price ?? g.priceMin ?? 0,
-      dietary: g.dietary || [], serviceModes: ['dine-in', 'takeaway'],
-      isGem: true, latest: null
-    }))
-
-  return [...places, ...gems]
+  // [JANANIJ] Promoted Hidden Gems (3+ upvotes) are already in "places".
+  // This avoids duplicate Gems and preserves their QueueLess reports.
+  return places
 }
+
 
 export async function buildShortlist(session) {
   let places = await loadCandidates()
@@ -113,8 +106,8 @@ export async function buildRevoteShortlist(session, rejectedWaitMins) {
     ...Object.values(session.vetoes || {})
   ].filter(Boolean).map(String))
 
-  const now = Date.now()
-  const MAX_REPORT_AGE = 30 * 60 * 1000
+  // [JANANIJ] Accept the latest available QueueLess report
+  // regardless of age or confidence.
   const eligible = []
 
   for (const place of candidates) {
@@ -154,20 +147,7 @@ export async function buildRevoteShortlist(session, rejectedWaitMins) {
       waitMins < 0
     ) continue
 
-    // Only use reports from the last 30 minutes.
-    const reportTime = Date.parse(latest?.at || '')
 
-    if (
-      !Number.isFinite(reportTime) ||
-      reportTime > now ||
-      now - reportTime > MAX_REPORT_AGE
-    ) continue
-
-    // Require medium or high confidence.
-    if (
-      latest.confidence !== 'medium' &&
-      latest.confidence !== 'high'
-    ) continue
 
     // Must be faster than the rejected winner.
     if (waitMins >= rejectedWaitMins) continue

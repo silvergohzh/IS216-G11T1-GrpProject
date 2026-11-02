@@ -809,19 +809,16 @@ router.post("/:code/start-revote", async (req, res, next) => {
       throw fail(404, "Winning place not found");
     }
 
+    // [JANANIJ] Use the latest available QueueLess report,
+    // // regardless of age or confidence.
     const latest = winnerSnap.data().latest;
     const rejectedWaitMins = latest?.waitMins;
-    const reportTime = Date.parse(latest?.at || "");
-
     if (
       typeof rejectedWaitMins !== "number" ||
       !Number.isFinite(rejectedWaitMins) ||
-      !Number.isFinite(reportTime) ||
-      reportTime > Date.now() ||
-      Date.now() - reportTime > 30 * 60 * 1000 ||
-      !["medium", "high"].includes(latest?.confidence)
+      rejectedWaitMins < 0
     ) {
-      throw fail(409, "No recent reliable QueueLess report for the winner");
+      throw fail(409, "No valid QueueLess waiting-time report for the winner");
     }
 
     // Only trigger when the wait exceeds the group's configured maximum.
