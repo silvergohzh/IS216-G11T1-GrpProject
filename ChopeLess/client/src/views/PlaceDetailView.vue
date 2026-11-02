@@ -6,6 +6,7 @@ import { getPlace, analysePhoto, shrinkPhoto, checkLiveQueue, livePhotoUrl } fro
 // [M3] Today's Quests: remember that I checked a queue with a photo today
 import { auth } from '../lib/firebase'
 import { markQuest } from '../lib/quests'
+import GemMenu from '../components/GemMenu.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -56,11 +57,13 @@ async function analyse() {
 // See Live Queue: the server analyses a photo from the place, then we reload to show it
 const liveLoading = ref(false)
 const liveError = ref('')
+const liveResult = ref(null)
 async function seeLive() {
   liveLoading.value = true
   liveError.value = ''
+  liveResult.value = null
   try {
-    await checkLiveQueue(route.params.id)
+    liveResult.value = await checkLiveQueue(route.params.id)
     await load()
   } catch (err) {
     liveError.value = err.message
@@ -113,13 +116,19 @@ const toggleHour = h => (selectedHour.value = selectedHour.value === h ? null : 
 <template>
   <div v-if="place" class="space-y-4">
     <div>
-      <button class="btn mb-2 text-sm" @click="goBack">← Back</button>
-      <p class="kicker">Station 2 · Queue Tower</p>
+      <button class="btn mb-2 text-sm" @click="goBack">â† Back</button>
+      <p class="kicker">Station 2 Â· Queue Tower</p>
       <h1 class="page-title">{{ place.name }}</h1>
       <p class="text-slate-600">{{ place.address }}</p>
     </div>
 
+    <div v-if="place.fromGem" class="space-y-2">
+      <p class="chip">Hidden Gem Â· community listing</p>
+      <GemMenu v-if="place.gemId" :gem-id="place.gemId" preorder-note />
+    </div>
+
     <div class="card card-navy" data-testid="latest">
+
       <h2 class="mb-2">Right now</h2>
       <div v-if="nowStats" class="grid grid-cols-3 gap-2 text-center">
         <div><p class="font-display text-4xl text-accent">~{{ nowStats.waitMins }}</p><p class="text-xs font-bold">min wait</p></div>
@@ -128,8 +137,8 @@ const toggleHour = h => (selectedHour.value = selectedHour.value === h ? null : 
       </div>
       <p v-else class="font-bold">No estimate yet. Upload a photo below.</p>
       <p v-if="place.latest" class="mt-2 text-xs font-bold">
-        <span v-if="nowStats?.reports">Average of {{ nowStats.reports }} report{{ nowStats.reports === 1 ? '' : 's' }} this hour · </span>
-        Updated {{ ago(place.latest.at) }} ·
+        <span v-if="nowStats?.reports">Average of {{ nowStats.reports }} report{{ nowStats.reports === 1 ? '' : 's' }} this hour Â· </span>
+        Updated {{ ago(place.latest.at) }} Â·
         <span class="rounded-full px-2 py-0.5 font-bold" :class="confidenceColours[place.latest.confidence]">{{ place.latest.confidence }} confidence</span>
       </p>
     </div>
@@ -139,8 +148,12 @@ const toggleHour = h => (selectedHour.value = selectedHour.value === h ? null : 
       <p v-if="bestHour" class="chip mb-3 !bg-green-200 !text-sm" data-testid="best-time">
         Best time to go: <strong>{{ hourLabel(bestHour.hour) }}</strong> (about {{ Math.round(bestHour.avgWait) }} min)
       </p>
+      <!-- No reports yet (e.g. a new place): say so instead of showing an empty chart -->
+      <p v-if="!place.trend.length" class="rounded-2xl border-[3px] border-dashed border-ink bg-white/70 px-4 py-6 text-center text-sm font-bold" data-testid="no-trend">
+        No hourly data yet. Snap the queue below or tap See Live Queue to start the chart.
+      </p>
       <!-- Simple CSS bar chart -->
-      <div class="flex h-44 items-end gap-1.5 overflow-x-auto border-b-[3px] border-ink">
+      <div v-else class="flex h-44 items-end gap-1.5 overflow-x-auto border-b-[3px] border-ink">
         <button v-for="t in place.trend" :key="t.hour" type="button" @click="toggleHour(t.hour)" :aria-pressed="t.hour === selectedHour"
           :aria-label="`${hourLabel(t.hour)}: about ${Math.round(t.avgWait)} min wait`"
           class="flex h-full min-w-6 flex-1 cursor-pointer flex-col items-center justify-end gap-1 rounded hover:bg-slate-100"
@@ -165,8 +178,12 @@ const toggleHour = h => (selectedHour.value = selectedHour.value === h ? null : 
       <p class="text-sm font-bold">Get the latest photo from the food court. AI reads it and updates the numbers above.</p>
       <img v-if="place.latest?.photo" :src="livePhotoUrl(place.latest.photo)" alt="Live photo of the queue" class="max-h-64 rounded-2xl border-[3px] border-ink" data-testid="live-photo" />
       <button class="btn-primary" :disabled="liveLoading" @click="seeLive" data-testid="live-btn">
-        {{ liveLoading ? 'Checking…' : 'See Live Queue' }}
+        {{ liveLoading ? 'Checkingâ€¦' : 'See Live Queue' }}
       </button>
+      <p v-if="liveResult" class="rounded-2xl border-[3px] border-ink bg-white px-3 py-2 text-sm font-bold" data-testid="live-result">
+        Live check: we estimate {{ liveResult.peopleInQueue }} people in the queue, about {{ liveResult.waitMins }} min wait,
+        and {{ liveResult.seatOccupancy }}% of seats taken ({{ liveResult.confidence }} confidence).
+      </p>
       <p v-if="liveError" class="error">{{ liveError }}</p>
     </div>
 
@@ -175,14 +192,14 @@ const toggleHour = h => (selectedHour.value = selectedHour.value === h ? null : 
       <p class="text-sm font-bold">Snap the queue and seating area. AI estimates how busy it is and everyone sees the update.</p>
       <!-- The real file input is hidden; the label is the big, clear button people tap -->
            <label class="flex cursor-pointer flex-col items-center gap-1 rounded-2xl border-[3px] border-dashed border-ink bg-white/70 px-4 py-6 text-center hover:bg-white focus-within:ring-4 focus-within:ring-coral">
-        <span class="text-3xl" aria-hidden="true">📷</span>
+        <span class="text-3xl" aria-hidden="true">ðŸ“·</span>
         <span class="font-black">{{ photo ? 'Change photo' : 'Take or choose a photo' }}</span>
         <span class="text-xs text-slate-500">{{ photoName || 'JPG, PNG or WebP from your camera or gallery' }}</span>
         <input type="file" accept="image/*" class="sr-only" @change="choosePhoto" data-testid="photo-input" />
       </label>
       <img v-if="photo" :src="photo" alt="Your photo" class="max-h-64 rounded-lg" />
       <button class="btn-primary !bg-ink !text-white" :disabled="!photo || loading" @click="analyse" data-testid="analyse-btn">
-        {{ loading ? 'Analysing…' : 'Analyse photo' }}
+        {{ loading ? 'Analysingâ€¦' : 'Analyse photo' }}
       </button>
       <p v-if="result" class="rounded-2xl border-[3px] border-ink bg-white px-3 py-2 text-sm font-bold" data-testid="analysis-result">
         Thanks! We estimate {{ result.peopleInQueue }} people in the queue, about {{ result.waitMins }} min wait,
@@ -192,5 +209,5 @@ const toggleHour = h => (selectedHour.value = selectedHour.value === h ? null : 
     </div>
   </div>
   <p v-else-if="error" class="error">{{ error }}</p>
-  <p v-else>Loading…</p>
+  <p v-else>Loadingâ€¦</p>
 </template>

@@ -156,18 +156,24 @@ async function updateOrder(orderId, change) {
 router.use(requireAuth)
 
 // CREATE: POST /api/orders   body: { placeId, sessionCode (optional) }
- // Starts a new, empty cart for one stall. You are the owner (the "group leader") and the first member.
- // If you already have an open cart at this stall, you get that one back instead of a second cart.
- //
- // From a Makan Session: send its sessionCode, and EVERYONE in the session is added to the order
- // straight away (no join code needed). The stall must be the session's winner, or a stall inside it.
- router.post('/', async (req, res, next) => {
-   try {
-     const place = await db.collection('places').doc(req.body.placeId || 'none').get()
-     if (!place.exists) throw httpError(400, 'Choose a stall to order from')
-     if (!place.data().menu || place.data().menu.length === 0) {
-       throw httpError(400, 'This place has no menu. If it is a hawker centre, choose one of its stalls.')
-     }
+// Starts a new, empty cart for one stall. You are the owner (the "group leader") and the first member.
+// If you already have an open cart at this stall, you get that one back instead of a second cart.
+//
+// From a Makan Session: send its sessionCode, and EVERYONE in the session is added to the order
+// straight away (no join code needed). The stall must be the session's winner, or a stall inside it.
+router.post('/', async (req, res, next) => {
+  try {
+    const place = await db.collection('places').doc(req.body.placeId || 'none').get()
+    if (!place.exists) throw httpError(400, 'Choose a stall to order from')
+
+    // Hidden Gems are listed by the community, so they can be viewed but not pre-ordered
+    if (place.data().fromGem) {
+      throw httpError(400, 'Hidden Gems are community listings, so pre-orders are not available. You can still view the menu.')
+    }
+
+    if (!place.data().menu || place.data().menu.length === 0) {
+      throw httpError(400, 'This place has no menu. If it is a hawker centre, choose one of its stalls.')
+    }
 
      // [JANANIJ] START: Match existing carts to the correct Makan Session
      // Prevent an unrelated cart from bypassing re-vote checks.

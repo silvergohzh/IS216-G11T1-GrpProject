@@ -16,6 +16,7 @@ import { sfx } from "../lib/sfx";
 import PlaceCard from "../components/PlaceCard.vue";
 import MapView from "../components/MapView.vue";
 import GachaTie from "../components/GachaTie.vue";
+import GemMenu from "../components/GemMenu.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -96,14 +97,6 @@ watch(
 // =====================================================
 // [JANANIJ] END
 // =====================================================
-
-// =====================================================
-// [JANANIJ] START: QueueLess group re-voting
-// =====================================================
-
-// Members can request another vote before ordering begins.
-// The backend decides whether the session can enter re-voting.
-
 const revoteBusy = ref(false);
 const revoteError = ref("");
 
@@ -174,10 +167,10 @@ watch(
   { immediate: true }
 );
 
-// =====================================================
-// [JANANIJ] END
-// =====================================================
-
+// Hidden Gems are community listings: the menu can be viewed, but they can't be pre-ordered
+const isGem = computed(() =>
+  !!queueInfo.value?.fromGem || String(winner.value?.id || "").startsWith("gem-")
+);
 // =====================================================
 // Capsule reveal + sound effects + confetti
 // =====================================================
@@ -356,7 +349,7 @@ onUnmounted(() => {
     <span
       class="rounded-full bg-ink px-4 py-1 text-sm font-black tracking-widest text-accent"
     >
-      TIE BREAK · GACHA TIME
+      TIE BREAK Â· GACHA TIME
     </span>
 
     <h1 class="page-title mt-3">It's a tie!</h1>
@@ -391,7 +384,7 @@ onUnmounted(() => {
       <h1
         class="text-6xl leading-none text-white [-webkit-text-stroke:3px_#17213b] [text-shadow:0_6px_0_#17213b]"
       >
-        {{ capsule === "open" ? "Chope'd!" : "Your pick is…" }}
+        {{ capsule === "open" ? "Chope'd!" : "Your pick isâ€¦" }}
       </h1>
     </div>
 
@@ -441,7 +434,7 @@ onUnmounted(() => {
         <PlaceCard :place="winner" />
 
         <p v-if="memberCount" class="font-extrabold">
-          {{ memberCount }} kakis voted · finishing earns
+          {{ memberCount }} kakis voted Â· finishing earns
           Makan Points (up to 3 sessions a day,
           <RouterLink to="/points" class="underline">
             see points
@@ -535,11 +528,7 @@ onUnmounted(() => {
 
       <!-- [JANANIJ] END -->
 
-      <!-- =================================================
-           [JANANIJ] START: QueueLess group re-voting
-           ================================================= -->
-
-      <div
+            <div
         v-if="canStartRevote"
         class="card flex flex-col gap-3"
         data-testid="queueless-revote"
@@ -579,6 +568,9 @@ onUnmounted(() => {
 
       <!-- [JANANIJ] END -->
 
+      <!-- Hidden Gem: community menu (view only) -->
+      <GemMenu v-if="queueInfo?.fromGem && queueInfo.gemId" :gem-id="queueInfo.gemId" preorder-note />
+
       <!-- Existing winner actions -->
       <div class="flex flex-wrap gap-3">
         <a
@@ -592,7 +584,7 @@ onUnmounted(() => {
 
         <!-- M6: Group pre-order -->
         <RouterLink
-          v-if="!String(winner.id).startsWith('gem-')"
+          v-if="!queueLoading && !isGem"
           :to="`/orders?session=${route.params.code}`"
           class="btn"
           data-testid="group-preorder"
@@ -654,7 +646,7 @@ onUnmounted(() => {
     {{ store.error }}
   </p>
 
-  <p v-else>Loading…</p>
+  <p v-else>Loadingâ€¦</p>
 </template>
 
 <style scoped>

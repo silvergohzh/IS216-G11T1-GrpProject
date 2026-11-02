@@ -14,7 +14,8 @@ export const POINT_RULES = {
   MAX_DAILY_REWARDED_SESSIONS: 3,
   EXTRA_SUPER: 20,  // each extra Super Like costs 20 points (max: half the cards per session, free one included)
   FASTPASS: 150,
-  PREORDER_COLLECTED: 10
+  PREORDER_COLLECTED: 10,
+  GEM_MENU_CONTRIBUTION: 30
 };
 
 const fail = (status, message) =>
