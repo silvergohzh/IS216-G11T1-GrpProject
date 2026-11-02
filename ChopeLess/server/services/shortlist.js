@@ -5,12 +5,16 @@ import { walkingMinutes } from './osrm.js'
 
 const SHORTLIST_SIZE = 8
 
+
 async function loadCandidates() {
   const placesSnap = await db.collection('places').get()
-  // [SILVER] START: Hawker centres, food courts, stalls & place tags (built by Myat, see HANDOVER.md)
-  // Stalls inside a hawker centre or food court (parentId) are not voted on by themselves:
-  // the group votes for the centre, then picks a stall when pre-ordering (M6)
-  const places = placesSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => !p.parentId)
+
+  // [SILVER] START: Hawker centres, food courts, stalls & place tags
+  // Stalls inside a hawker centre or food court are not voted on individually.
+  // The group votes for the centre, then picks a stall when pre-ordering.
+  const places = placesSnap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .filter(p => !p.parentId)
   // [SILVER] END
 
   // Hidden gems: when a gem gets enough upvotes, gems.js (M5) copies it into "places" with fromGem: true.
@@ -18,6 +22,7 @@ async function loadCandidates() {
   // We mark the copy as a gem here instead of in the database, so copies made before this change work too.
   return places.map(p => (p.fromGem ? { ...p, isGem: true } : p))
 }
+
 
 export async function buildShortlist(session) {
   let places = await loadCandidates()
@@ -101,8 +106,8 @@ export async function buildRevoteShortlist(session, rejectedWaitMins) {
     ...Object.values(session.vetoes || {})
   ].filter(Boolean).map(String))
 
-  const now = Date.now()
-  const MAX_REPORT_AGE = 30 * 60 * 1000
+  // [JANANIJ] Accept the latest available QueueLess report
+  // regardless of age or confidence.
   const eligible = []
 
   for (const place of candidates) {
@@ -142,20 +147,7 @@ export async function buildRevoteShortlist(session, rejectedWaitMins) {
       waitMins < 0
     ) continue
 
-    // Only use reports from the last 30 minutes.
-    const reportTime = Date.parse(latest?.at || '')
 
-    if (
-      !Number.isFinite(reportTime) ||
-      reportTime > now ||
-      now - reportTime > MAX_REPORT_AGE
-    ) continue
-
-    // Require medium or high confidence.
-    if (
-      latest.confidence !== 'medium' &&
-      latest.confidence !== 'high'
-    ) continue
 
     // Must be faster than the rejected winner.
     if (waitMins >= rejectedWaitMins) continue
