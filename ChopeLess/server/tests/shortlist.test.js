@@ -139,3 +139,67 @@ test("a dine-in-only gem is left out of a takeaway session", async () => {
 
   assert.deepEqual(ids(list), ["p0"]);
 });
+
+// ---- Places with no queue data (waitUnknown) ----
+
+test("a place with no queue data is not dropped by a low wait limit", async () => {
+  fakeData = {
+    places: [
+      place("short-queue", 1, { latest: { waitMins: 3 } }),
+      place("long-queue", 1, { latest: { waitMins: 20 } }),
+      place("no-data", 1, { latest: null })
+    ],
+    gems: []
+  };
+
+  const list = await buildShortlist(makeSession({ maxWaitMins: 5 }));
+
+  assert.deepEqual(ids(list).sort(), ["no-data", "short-queue"]);
+  const noData = list.find(p => p.id === "no-data");
+  assert.equal(noData.waitUnknown, true);
+  assert.equal(noData.waitMins, null);   // null, not undefined, and not a made-up number
+  assert.equal(list.find(p => p.id === "short-queue").waitUnknown, false);
+});
+
+test("a place with no queue data ranks at the median wait, not first", async () => {
+  // Known waits 2, 8 and 20 -> the median is 8. The unknown place walks 1 minute, so it ranks as 1 + 8 = 9.
+  fakeData = {
+    places: [
+      place("a", 1, { latest: { waitMins: 2 } }),    // 1 + 2  = 3
+      place("b", 3, { latest: { waitMins: 8 } }),    // 3 + 8  = 11
+      place("c", 1, { latest: { waitMins: 20 } }),   // 1 + 20 = 21
+      place("no-data", 1, { latest: {} })            // 1 + 8  = 9 (if it counted as 0, it would be first)
+    ],
+    gems: []
+  };
+
+  const list = await buildShortlist(makeSession());
+
+  assert.deepEqual(ids(list), ["a", "no-data", "b", "c"]);
+  assert.equal(list[1].waitMins, null);   // the median was only used for sorting
+});
+
+test("if no place has queue data, nothing crashes and they are sorted by walk", async () => {
+  fakeData = {
+    places: [place("far", 9, { latest: null }), place("near", 2, { latest: null }), place("middle", 5, { latest: null })],
+    gems: []
+  };
+
+  const list = await buildShortlist(makeSession({ maxWaitMins: 1 }));
+
+  assert.deepEqual(ids(list), ["near", "middle", "far"]);
+  assert.ok(list.every(p => p.waitUnknown === true && p.waitMins === null));
+});
+
+test("a place with known queue data is still dropped by the wait limit", async () => {
+  fakeData = {
+    places: [place("ok", 1, { latest: { waitMins: 10 } }), place("too-long", 1, { latest: { waitMins: 30 } })],
+    gems: []
+  };
+
+  const list = await buildShortlist(makeSession({ maxWaitMins: 15 }));
+
+  assert.deepEqual(ids(list), ["ok"]);
+  assert.equal(list[0].waitMins, 10);
+  assert.equal(list[0].waitUnknown, false);
+});
