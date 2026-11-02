@@ -3,7 +3,6 @@
 import { db } from '../firebase.js'
 import { walkingMinutes } from './osrm.js'
 
-const GEM_UPVOTES_NEEDED = 3
 const SHORTLIST_SIZE = 8
 
 async function loadCandidates() {
@@ -14,21 +13,10 @@ async function loadCandidates() {
   const places = placesSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => !p.parentId)
   // [SILVER] END
 
-  // Hidden gems with 3+ upvotes join the pool (M5's data)
-  const gemsSnap = await db.collection('gems').get()
-  const gems = gemsSnap.docs
-    .map(d => ({ id: d.id, ...d.data() }))
-    .filter(g => (g.upvoters || []).length >= GEM_UPVOTES_NEEDED && g.lat)
-    .map(g => ({
-      id: 'gem-' + g.id, name: g.name, cuisine: g.mustTry, address: g.address, lat: g.lat, lng: g.lng,
-      // Gems may store one price, or a min/max range. Use whichever exists, and 0 if neither does.
-      priceMin: g.priceMin ?? g.price ?? 0,
-      priceMax: g.priceMax ?? g.price ?? g.priceMin ?? 0,
-      dietary: g.dietary || [], serviceModes: ['dine-in', 'takeaway'],
-      isGem: true, latest: null
-    }))
-
-  return [...places, ...gems]
+  // Hidden gems: when a gem gets enough upvotes, gems.js (M5) copies it into "places" with fromGem: true.
+  // That copy is the gem's only entry, so we don't read the "gems" collection here (that made duplicates).
+  // We mark the copy as a gem here instead of in the database, so copies made before this change work too.
+  return places.map(p => (p.fromGem ? { ...p, isGem: true } : p))
 }
 
 export async function buildShortlist(session) {
