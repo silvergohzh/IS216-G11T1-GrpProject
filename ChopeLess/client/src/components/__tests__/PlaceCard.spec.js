@@ -40,6 +40,19 @@ describe('PlaceCard', () => {
     expect(wrapper.text()).toContain('9 min')
   })
 
+  // [NAWAZ] START: no queue data yet
+  // Verify a place with no queue data shows a friendly message, not "– min" or a made-up number
+  it('shows "No queue data yet" when the queue time is unknown', () => {
+    const wrapper = mount(PlaceCard, {
+      props: { place: { ...place, waitMins: null, waitUnknown: true } }
+    })
+
+    expect(wrapper.find('[data-testid="queue-unknown"]').text()).toContain('No queue data yet')
+    expect(wrapper.text()).not.toContain('– min')
+    expect(wrapper.text()).toContain('6 min')   // the walk time still shows as normal
+  })
+  // [NAWAZ] END
+
   // Verify the chips only appear when they apply (conditional rendering, v-if)
   it('shows HIDDEN GEM, outside-limits and visit chips only when they apply', () => {
     const plain = mount(PlaceCard, { props: { place } })

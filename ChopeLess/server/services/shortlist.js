@@ -23,6 +23,16 @@ async function loadCandidates() {
   return places.map(p => (p.fromGem ? { ...p, isGem: true } : p))
 }
 
+// The middle number of a list (or the average of the two middle ones if the list has an even length).
+// An empty list gives 0.
+function median(numbers) {
+  if (numbers.length === 0) return 0
+  const sorted = [...numbers].sort((a, b) => a - b)
+  const middle = Math.floor(sorted.length / 2)
+  if (sorted.length % 2 === 1) return sorted[middle]
+  return (sorted[middle - 1] + sorted[middle]) / 2
+}
+
 
 export async function buildShortlist(session) {
   let places = await loadCandidates()
@@ -45,11 +55,30 @@ export async function buildShortlist(session) {
   places = places.filter(p => p.walkMins <= session.maxWalkMins)
 
   // Step 5: waiting time from the latest QueueLess estimate (M4's data)
-  for (const p of places) p.waitMins = p.latest?.waitMins ?? 0
-  places = places.filter(p => p.waitMins <= session.maxWaitMins)
+  // A place with no queue number yet is "unknown". We don't pretend it has no queue (0 minutes):
+  // its waitMins is null (Firestore can't save undefined) and waitUnknown is true, so the card can say so.
+  for (const p of places) {
+    const wait = p.latest?.waitMins
+    if (Number.isFinite(wait)) {
+      p.waitMins = wait
+      p.waitUnknown = false
+    } else {
+      p.waitMins = null
+      p.waitUnknown = true
+    }
+  }
 
-  // Step 6: sort by total time = walk + wait
-  places.sort((a, b) => (a.walkMins + a.waitMins) - (b.walkMins + b.waitMins))
+  // For sorting only: an unknown place counts as the median wait of the places we DO know
+  // (out of everything that passed steps 1 to 4). If we know none, it counts as 0.
+  // This guess is never saved as waitMins, so a card never shows a made-up number.
+  const guessedWait = median(places.filter(p => !p.waitUnknown).map(p => p.waitMins))
+
+  // The wait limit only checks places whose wait we know. Unknown places stay in.
+  places = places.filter(p => p.waitUnknown || p.waitMins <= session.maxWaitMins)
+
+  // Step 6: sort by total time = walk + wait (an unknown wait counts as the median from above)
+  const waitForSorting = p => (p.waitUnknown ? guessedWait : p.waitMins)
+  places.sort((a, b) => (a.walkMins + waitForSorting(a)) - (b.walkMins + waitForSorting(b)))
 
   // Step 7: keep at least one hidden gem in the top results. If none made the cut, the best-ranked gem
   // takes the last slot. It is slower than everything above it, so the list stays sorted by total time.
@@ -67,7 +96,8 @@ export async function buildShortlist(session) {
     cuisine: p.cuisine ?? '',
     address: p.address ?? '',
     dietary: p.dietary || [],
-    latest: p.latest ?? null
+    latest: p.latest ?? null,
+    waitMins: p.waitMins ?? null   // an unknown wait stays null (never undefined)
   }))
 }
 

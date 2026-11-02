@@ -17,7 +17,11 @@ defineProps({
     <div class="mt-3 grid grid-cols-3 gap-2 text-center text-sm">
     <div class="stat"><b class="block font-display text-lg font-normal">${{ place.priceMin }}–{{ place.priceMax }}</b>price</div>
     <div class="stat"><b class="block font-display text-lg font-normal">{{ place.walkMins ?? '–' }} min</b>walk</div>
-    <div class="stat"><b class="block font-display text-lg font-normal">{{ place.waitMins ?? place.latest?.waitMins ?? '–' }} min</b>queue</div>
+    <!-- [NAWAZ] START: no queue data yet = a friendly message, not a made-up number -->
+    <!-- Smaller text than the numbers, so it fits the box on a small phone (it wraps to 2 lines) -->
+    <div v-if="place.waitUnknown" class="stat" data-testid="queue-unknown"><b class="block text-sm leading-tight">No queue data yet</b>queue</div>
+    <div v-else class="stat"><b class="block font-display text-lg font-normal">{{ place.waitMins ?? place.latest?.waitMins ?? '–' }} min</b>queue</div>
+    <!-- [NAWAZ] END -->
     </div>
       <div class="mt-2 flex flex-wrap gap-1">
       <span v-if="place.isGem" class="chip !bg-ink !text-accent">HIDDEN GEM</span>

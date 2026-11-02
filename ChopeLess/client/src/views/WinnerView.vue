@@ -557,15 +557,14 @@ onUnmounted(() => {
               lat: winner.lat,
               lng: winner.lng,
               label: winner.name,
-              color: '#ffd23f',
-              radius: 12,
+              icon: 'finish',
             },
             ...(from
               ? [
                   {
                     ...from,
                     label: 'Meeting point',
-                    color: '#17213b',
+                    icon: 'start',
                   },
                 ]
               : []),

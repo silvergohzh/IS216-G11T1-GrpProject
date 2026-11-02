@@ -362,10 +362,11 @@ async function start() {
             {{ locationError }}
           </p>
           <!-- [NAWAZ] END -->
+          <!-- [NAWAZ] START: the meeting point uses the "start" badge (icon: 'start') -->
           <MapView
             :markers="
               store.session.meetingPoint
-                ? [{ ...store.session.meetingPoint, label: 'Meet here' }]
+                ? [{ ...store.session.meetingPoint, label: 'Meet here', icon: 'start' }]
                 : []
             "
             @pick="
@@ -374,6 +375,7 @@ async function start() {
                 update({ meetingPoint: { ...p, label: 'Meeting point' } })
             "
           />
+          <!-- [NAWAZ] END -->
         </div>
         <div
           v-if="error"
