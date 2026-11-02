@@ -35,11 +35,10 @@ let stopProofs = null
 let stopStall = null
 
 // [NAWAZ] START: Fastpass & Makan Points in pre-orders (built by Myat, see HANDOVER.md)
-// [NAWAZ] TODO: FASTPASS_COST is typed in twice (here and the server); return it from the server instead
 // ---------- Fastpass ----------
 // The group leader can spend Makan Points so the hawker prepares this order first.
 // (The server checks everything again: who you are, your points, and the order's status.)
-const FASTPASS_COST = 150
+const fastpassCost = ref(null)       // the Fastpass price, sent by the server (so it's only written in one place)
 const myPoints = ref(null)           // my Makan Points balance (only loaded for the group leader)
 const queue = ref(null)              // { position, waiting } once the order is paid
 // [NAWAZ] END
@@ -111,12 +110,14 @@ onMounted(() => {
 })
 
 // [NAWAZ] START: Fastpass & Makan Points in pre-orders (built by Myat, see HANDOVER.md)
-// When the order changes: load my points (group leader), and my place in the queue (once paid)
+// When the order changes: load my points and the Fastpass price (group leader), and my place in the queue (once paid)
 watch(order, async now => {
   if (!now) return
   if (now.ownerUid === auth.user.uid && myPoints.value === null) {
     const account = await getMyPoints()
     myPoints.value = account.balance
+    const info = await getQueuePosition(orderId)   // the queue reply also has the Fastpass price
+    fastpassCost.value = info.fastpassCost
   }
   if (now.status === 'paid' && now.memberUids.includes(auth.user.uid)) {
     queue.value = await getQueuePosition(orderId)
@@ -269,16 +270,21 @@ async function copyLink() {
 
     <!-- [NAWAZ] START: Fastpass & Makan Points in pre-orders (built by Myat, see HANDOVER.md) -->
     <!-- Fastpass: everyone in the group order sees it once it's on -->
-    <section v-if="order.priority" class="card card-sun" data-testid="fastpass-on">
+    <!-- Cancelled after buying a Fastpass: the server gave the points back -->
+    <section v-if="order.status === 'cancelled' && order.fastpassRefunded" class="card" data-testid="fastpass-refunded">
+      <p class="font-bold">⚡ Fastpass refunded</p>
+      <p class="text-sm">The order was cancelled, so {{ order.fastpassRefunded }} Makan Points went back to {{ order.priorityBy }}.</p>
+    </section>
+    <section v-else-if="order.priority && order.status !== 'cancelled'" class="card card-sun" data-testid="fastpass-on">
       <p class="font-bold">⚡ Fastpass on</p>
       <p class="text-sm">{{ order.priorityBy }} used Makan Points, so the hawker prepares this group order first.</p>
     </section>
     <section v-else-if="canBuyFastpass" class="card space-y-2" data-testid="fastpass-offer">
       <p class="font-bold">⚡ Skip the queue with a Fastpass</p>
-      <p class="text-sm">Use {{ FASTPASS_COST }} Makan Points and the hawker prepares your order first. Everyone in this group order gets it.</p>
-      <p class="text-sm">You have <b>{{ myPoints ?? '...' }}</b> points.</p>
-      <button class="btn-primary" :disabled="busy || myPoints === null || myPoints < FASTPASS_COST" @click="fastpass">
-        {{ myPoints !== null && myPoints < FASTPASS_COST ? 'Not enough points' : `Use ${FASTPASS_COST} points` }}
+      <p class="text-sm">Use {{ fastpassCost ?? '...' }} Makan Points and the hawker prepares your order first. Everyone in this group order gets it.</p>
+      <p class="text-sm">You have <b data-testid="my-points">{{ myPoints ?? '...' }}</b> points.</p>
+      <button class="btn-primary" :disabled="busy || myPoints === null || fastpassCost === null || myPoints < fastpassCost" @click="fastpass">
+        {{ myPoints !== null && fastpassCost !== null && myPoints < fastpassCost ? 'Not enough points' : `Use ${fastpassCost ?? '...'} points` }}
       </button>
     </section>
 

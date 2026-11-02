@@ -28,7 +28,7 @@ import { db } from '../firebase.js'
 import { requireAuth, requireRole } from '../middleware/auth.js'
 import { stripe, stripeEnabled, markOrderPaid } from '../services/payments.js'
 // [NAWAZ] START: Fastpass & Makan Points in pre-orders (built by Myat, see HANDOVER.md)
-import { awardPoints, spendPointsInTx, POINT_RULES } from '../services/points.js'   // Janani's Makan Points
+import { awardPoints, spendPointsInTx, reversePoints, POINT_RULES } from '../services/points.js'   // Janani's Makan Points
 import { sortPriorityQueue } from '../services/priorityQueue.js'                    // Janani's priority queue
 // [NAWAZ] END
 
@@ -330,18 +330,36 @@ router.delete('/:id/items/:lineId', async (req, res, next) => {
 })
 
 // CANCEL: POST /api/orders/:id/cancel
-// [NAWAZ] TODO: if this order had a Fastpass, give the points back (JJyayy's reversePoints in services/points.js)
 // Only the owner, and only before paying. We keep the order (status "cancelled") instead of deleting it.
 router.post('/:id/cancel', async (req, res, next) => {
   try {
-    await updateOrder(req.params.id, order => {
+    const order = await updateOrder(req.params.id, order => {
       if (order.ownerUid !== req.uid) throw httpError(403, 'Only the person who started the order can cancel it')
       if (order.status !== 'cart' && order.status !== 'awaiting_payment') {
         throw httpError(409, 'Paid orders cannot be cancelled')
       }
       order.status = 'cancelled'
     })
-    res.json({ ok: true })
+
+    // [NAWAZ] START: Fastpass refund when a Fastpass order is cancelled
+    // Buying the Fastpass saved one entry in the points ledger: "fastpass_<orderId>_<leaderUid>", worth -150.
+    // Janani's reversePoints undoes that entry: the 150 points go back into the leader's balance,
+    // and the entry is marked "reversed". A reversed entry can't be reversed again, so the points
+    // can never come back twice. (Badges don't change, because buying the Fastpass never lowered them.)
+    // We also save fastpassRefunded on the order, so everyone in the group sees the refund live.
+    let refunded = 0
+    if (order.priority) {
+      try {
+        await reversePoints(`fastpass_${req.params.id}_${order.ownerUid}`, 'Fastpass refund: the order was cancelled', req.uid)
+        await orders.doc(req.params.id).update({ fastpassRefunded: FASTPASS_COST })
+        refunded = FASTPASS_COST
+      } catch (err) {
+        // The order is already cancelled, so we only log the problem (same as the points on collect)
+        console.error('[Makan Points] Could not refund the Fastpass:', err.message)
+      }
+    }
+    res.json({ ok: true, refunded: refunded })
+    // [NAWAZ] END
   } catch (err) {
     next(err)
   }
@@ -506,9 +524,10 @@ router.post('/:id/fastpass', async (req, res, next) => {
 })
 
 // ---------- Where am I in the queue? ----------
-// GET /api/orders/:id/queue  ->  { position, waiting }
+// GET /api/orders/:id/queue  ->  { position, waiting, fastpassCost }
 // Uses Janani's priority queue (services/priorityQueue.js): Fastpass orders first,
 // then first come, first served. Only paid orders that are waiting to be prepared are in the queue.
+// It also sends the Fastpass price, so the price is only written here on the server (CartView reads it).
 router.get('/:id/queue', async (req, res, next) => {
   try {
     const snap = await orders.doc(req.params.id).get()
@@ -524,7 +543,7 @@ router.get('/:id/queue', async (req, res, next) => {
 
     // findIndex gives 0 for the first one, so add 1 (0 means "not in the queue")
     const position = queue.findIndex(o => o.id === req.params.id) + 1
-    res.json({ position: position, waiting: queue.length })
+    res.json({ position: position, waiting: queue.length, fastpassCost: FASTPASS_COST })
   } catch (err) {
     next(err)
   }
