@@ -11,6 +11,13 @@ test('add, edit and delete a gem', async ({ page }) => {
   await page.getByLabel('Must try').fill('Mee rebus')
   await page.getByLabel('Cuisine').fill('Malay')          // the gem form now needs a cuisine and an address
   await page.getByLabel('Address').fill('1 Test Street')
+  await page.getByLabel('Min price ($)').fill('5')
+  await page.getByLabel('Max price ($)').fill('15')
+  await page.getByLabel('Typical wait (minutes)').fill('20')
+  await page.locator('#g-photo').setInputFiles(
+    'e2e/fixtures/gem-test.png'
+  )
+  await expect(page.getByAltText('Preview of the place')).toBeVisible()
   await page.getByTestId('map').click() // a gem needs a location: click the map to pick one
   await page.getByRole('button', { name: 'Add gem' }).click()
   const row = page.getByTestId('gem-row').filter({ hasText: name })

@@ -3,7 +3,6 @@
 import { db } from '../firebase.js'
 import { walkingMinutes } from './osrm.js'
 
-const GEM_UPVOTES_NEEDED = 3
 const SHORTLIST_SIZE = 8
 
 async function loadCandidates() {
@@ -14,21 +13,10 @@ async function loadCandidates() {
   const places = placesSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => !p.parentId)
   // [SILVER] END
 
-  // Hidden gems with 3+ upvotes join the pool (M5's data)
-  const gemsSnap = await db.collection('gems').get()
-  const gems = gemsSnap.docs
-    .map(d => ({ id: d.id, ...d.data() }))
-    .filter(g => (g.upvoters || []).length >= GEM_UPVOTES_NEEDED && g.lat)
-    .map(g => ({
-      id: 'gem-' + g.id, name: g.name, cuisine: g.mustTry, address: g.address, lat: g.lat, lng: g.lng,
-      // Gems may store one price, or a min/max range. Use whichever exists, and 0 if neither does.
-      priceMin: g.priceMin ?? g.price ?? 0,
-      priceMax: g.priceMax ?? g.price ?? g.priceMin ?? 0,
-      dietary: g.dietary || [], serviceModes: ['dine-in', 'takeaway'],
-      isGem: true, latest: null
-    }))
-
-  return [...places, ...gems]
+  // Hidden gems: when a gem gets enough upvotes, gems.js (M5) copies it into "places" with fromGem: true.
+  // That copy is the gem's only entry, so we don't read the "gems" collection here (that made duplicates).
+  // We mark the copy as a gem here instead of in the database, so copies made before this change work too.
+  return places.map(p => (p.fromGem ? { ...p, isGem: true } : p))
 }
 
 export async function buildShortlist(session) {
@@ -77,3 +65,128 @@ export async function buildShortlist(session) {
     latest: p.latest ?? null
   }))
 }
+
+// [JANANIJ] START: QueueLess re-vote shortlist
+// Finds alternatives with a confirmed shorter waiting time.
+// Preserves the group's original service mode, budget,
+// dietary requirements and walking-distance limit.
+
+
+// [JANANIJ] START: QueueLess re-vote shortlist
+
+export async function buildRevoteShortlist(session, rejectedWaitMins) {
+  const members = Object.values(session.members || {})
+
+  if (!members.length) return []
+
+  if (
+    typeof rejectedWaitMins !== 'number' ||
+    !Number.isFinite(rejectedWaitMins) ||
+    rejectedWaitMins <= 0
+  ) return []
+
+  const candidates = await loadCandidates()
+
+  const budgetCap = Math.min(
+    ...members.map(m => m.budget ?? Infinity)
+  )
+
+  const dietaryNeeds = [
+    ...new Set(members.flatMap(m => m.dietary || []))
+  ]
+
+  const excludedIds = new Set([
+    ...(session.rejectedWinnerIds || []),
+    session.winner?.id,
+    ...Object.values(session.vetoes || {})
+  ].filter(Boolean).map(String))
+
+  const now = Date.now()
+  const MAX_REPORT_AGE = 30 * 60 * 1000
+  const eligible = []
+
+  for (const place of candidates) {
+    // Preserve original group filters.
+    if (excludedIds.has(String(place.id))) continue
+
+    if (
+      !(place.serviceModes || []).includes(session.serviceMode)
+    ) continue
+
+    if ((place.priceMin ?? 0) > budgetCap) continue
+
+    if (
+      !dietaryNeeds.every(
+        need => (place.dietary || []).includes(need)
+      )
+    ) continue
+
+    // Preserve walking-distance limit.
+    const walkMins = session.meetingPoint?.lat != null
+      ? await walkingMinutes(session.meetingPoint, place)
+      : 0
+
+    if (
+      !Number.isFinite(walkMins) ||
+      walkMins < 0 ||
+      walkMins > (session.maxWalkMins ?? 10)
+    ) continue
+
+    // QueueLess report must have a known waiting time.
+    const latest = place.latest ?? null
+    const waitMins = latest?.waitMins
+
+    if (
+      typeof waitMins !== 'number' ||
+      !Number.isFinite(waitMins) ||
+      waitMins < 0
+    ) continue
+
+    // Only use reports from the last 30 minutes.
+    const reportTime = Date.parse(latest?.at || '')
+
+    if (
+      !Number.isFinite(reportTime) ||
+      reportTime > now ||
+      now - reportTime > MAX_REPORT_AGE
+    ) continue
+
+    // Require medium or high confidence.
+    if (
+      latest.confidence !== 'medium' &&
+      latest.confidence !== 'high'
+    ) continue
+
+    // Must be faster than the rejected winner.
+    if (waitMins >= rejectedWaitMins) continue
+
+    // Preserve the original maximum waiting-time limit.
+    if (waitMins > (session.maxWaitMins ?? 15)) continue
+
+    eligible.push({
+      ...place,
+      walkMins,
+      waitMins,
+      latest
+    })
+  }
+
+  eligible.sort(
+    (a, b) =>
+      (a.walkMins + a.waitMins) -
+      (b.walkMins + b.waitMins)
+  )
+
+  return eligible.slice(0, SHORTLIST_SIZE).map(place => ({
+    ...place,
+    priceMin: place.priceMin ?? place.priceMax ?? 0,
+    priceMax: place.priceMax ?? place.priceMin ?? 0,
+    cuisine: place.cuisine ?? '',
+    address: place.address ?? '',
+    dietary: place.dietary || [],
+    latest: place.latest ?? null
+  }))
+}
+
+// [JANANIJ] END
+

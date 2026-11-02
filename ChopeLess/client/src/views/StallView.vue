@@ -1,7 +1,7 @@
 <!-- Public stall page: menu, location and a pre-order button. Owner: M6
      Anyone can open it, even without logging in, so a hawker can share the link like their own website.
      Hidden Gems (community listings, fromGem) show a view-only community menu and no pre-order button. (M5) -->
-     
+
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -65,7 +65,7 @@ async function preOrder() {
         <!-- [SILVER] tag here and the Inside line below -->
         <PlaceTag v-if="stall.type" :type="stall.type" />
         <h1 class="page-title">{{ stall.name }}</h1>
-        <p class="text-slate-600">{{ stall.cuisine }} · {{ stall.address }}</p>
+        <p class="text-slate-600">{{ stall.cuisine }} Â· {{ stall.address }}</p>
         <p v-if="stall.parentName" class="text-sm font-bold">Inside {{ stall.parentName }}</p>
         <p class="mt-1 flex flex-wrap gap-1">
           <span v-for="d in stall.dietary" :key="d" class="chip !bg-brand-light !text-brand">{{ d }}</span>

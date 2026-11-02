@@ -246,6 +246,41 @@ export const buyExtraSuperLike = (code) =>
 export const finishVoting = (code) =>
   api(`/sessions/${code}/finish`, { method: "POST" });
 
+
+
+ // =====================================================
+ // [JANANIJ] START: QUEUELESS RE-VOTE API
+ // =====================================================
+
+ // Host starts a re-vote when the winning place has a
+ // reliable QueueLess wait longer than the group's limit.
+ // The backend checks that ordering has not started.
+  export const startRevote = (code) =>
+   api(`/sessions/${code}/start-revote`, {
+     method: "POST",
+   });
+
+ // A member votes YES or NO for an alternative place.
+ // Original votes are preserved by the backend.
+ // Super Likes and Vetoes are not used in the re-vote.
+ export const castRevote = (code, placeId, yes) =>
+   api(`/sessions/${code}/revote`, {
+     method: "POST",
+     body: { placeId, yes },
+   });
+
+ // Finishes the re-vote when everyone has voted
+ // or the re-vote timer has expired.
+ // No additional session points are awarded.
+ export const finishRevote = (code) =>
+   api(`/sessions/${code}/finish-revote`, {
+     method: "POST",
+   });
+
+ // [JANANIJ] END: QUEUELESS RE-VOTE API
+
+
+
 // Join a session if I'm not in it yet; if I already am, just open it
 export async function joinOrOpen(code, me) {
   const snap = await getDoc(doc(db, "sessions", code));
