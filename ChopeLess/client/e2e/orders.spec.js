@@ -281,7 +281,7 @@ test('Makan Session: pick a place together, then pre-order as a group', async ({
   await expect(guest.getByTestId('active-order')).toHaveCount(1)
 })
 
-test('group order: a friend joins with the code, the bill splits, and both get a split receipt after paying', async ({ page, browser, request }) => {
+test('group order: a friend joins with the code, the leader splits the bill, and the friend sees what to transfer', async ({ page, browser, request }) => {
   // Alice starts the order and adds chicken rice ($4.50)
   await signUp(page, 'alice')
   const orderId = await startOrder(page)
@@ -306,8 +306,15 @@ test('group order: a friend joins with the code, the bill splits, and both get a
 
   // By item: Alice $4.50, Ben $5.00.  Equally: $4.75 each.
   await expect(page.getByTestId('share')).toHaveText([/\$4\.50/, /\$5\.00/])
+  await expect(ben.getByTestId('my-share')).toContainText('$5.00')
   await page.getByRole('button', { name: 'Equally' }).click()
   await expect(page.getByTestId('share')).toHaveText([/\$4\.75/, /\$4\.75/])
+
+  // Only Alice can split. Ben just sees his own share, split the way Alice chose (saved live).
+  await expect(ben.getByRole('button', { name: 'Equally' })).toHaveCount(0)
+  await expect(ben.getByTestId('share')).toHaveCount(0)
+  await expect(ben.getByTestId('my-share')).toContainText('$4.75')
+  await expect(ben.getByTestId('my-share')).toContainText('splits it equally')
 
   // The split is only a guide: Alice pays the whole bill
   await expect(page.getByTestId('split-guide')).toContainText('You pay the whole bill ($9.50)')
@@ -322,9 +329,12 @@ test('group order: a friend joins with the code, the bill splits, and both get a
   await page.getByTestId('split-receipt').getByRole('button', { name: 'By item' }).click()
   await expect(page.getByTestId('receipt-share')).toHaveText([/\$4\.50/, /\$5\.00/])
 
-  // Ben sees how much he owes Alice
-  await expect(ben.getByTestId('receipt-summary')).toContainText('You owe')
-  await expect(ben.getByTestId('receipt-summary')).toContainText('$5.00')
+  // Ben's receipt: his own dish, the total Alice paid, and how much to transfer to her.
+  // Alice switched back to By item, so Ben's amount follows: $5.00.
+  await expect(ben.getByTestId('receipt-item')).toHaveText([/Roast pork rice.*\$5\.00/])
+  await expect(ben.getByTestId('split-receipt')).toContainText('$9.50')
+  await expect(ben.getByTestId('receipt-summary')).toContainText(/Transfer \$5\.00 to/)
+  await expect(ben.getByTestId('receipt-share')).toHaveCount(0)
 })
 
 test('the share link joins the group order', async ({ page, browser }) => {

@@ -10,6 +10,7 @@
 //     items: [{ lineId, itemId, name, price, qty, addedBy, addedByName }],   price is in CENTS
 //     (a dish's qty can't go over the stall's stock, see checkStock)
 //     total,                         in cents, worked out by the server
+//     splitMode,                     'item' or 'equal': how the group leader chose to split the bill
 //     status,                        see the steps below
 //     readyAt, pickupBy,             when it was ready, and the pickup deadline (milliseconds)
 //     collectedAt, collectedByName,  who picked it up, and when
@@ -425,6 +426,25 @@ router.post('/:id/cancel', async (req, res, next) => {
     }
     res.json({ ok: true, refunded: refunded })
     // [NAWAZ] END
+  } catch (err) {
+    next(err)
+  }
+})
+
+// UPDATE: the group leader picks how to split the bill: 'item' (what you added) or 'equal'
+// PATCH /api/orders/:id/split   body: { mode }
+// The split is only a guide (the leader pays the whole bill), but it is saved on the order
+// so every friend sees the same "you owe" amount.
+router.patch('/:id/split', async (req, res, next) => {
+  try {
+    const mode = req.body.mode
+    if (mode !== 'item' && mode !== 'equal') throw httpError(400, 'Choose to split by item or equally')
+    await updateOrder(req.params.id, order => {
+      if (order.ownerUid !== req.uid) throw httpError(403, 'Only the person who started the order can choose how to split it')
+      if (order.status === 'cancelled') throw httpError(409, 'This order was cancelled')
+      order.splitMode = mode
+    })
+    res.json({ ok: true })
   } catch (err) {
     next(err)
   }

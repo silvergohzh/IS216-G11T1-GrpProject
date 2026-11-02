@@ -122,6 +122,8 @@ export const changeQty = (orderId, lineId, qty) => api(`/orders/${orderId}/items
 export const removeItem = (orderId, lineId) => api(`/orders/${orderId}/items/${lineId}`, { method: 'DELETE' })
 export const cancelOrder = orderId => api(`/orders/${orderId}/cancel`, { method: 'POST' })
 export const checkout = orderId => api(`/orders/${orderId}/checkout`, { method: 'POST' })
+// Group leader: split the bill 'item' or 'equal' (saved, so everyone sees the same amount)
+export const setSplitMode = (orderId, mode) => api(`/orders/${orderId}/split`, { method: 'PATCH', body: { mode } })
 
 // Hawker: start cooking, then mark ready with a photo (starts the 15-minute pickup timer)
 export const startPreparing = orderId => api(`/orders/${orderId}/preparing`, { method: 'POST' })

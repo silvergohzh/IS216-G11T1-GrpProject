@@ -178,7 +178,7 @@ All routes need a logged-in user unless noted. Full details are in the comments 
 | Crowd reports | `POST /api/crowd-reports`, `GET /mine`, `GET /pending`, `PATCH /:id/verify` |
 | Gems | `GET/POST /api/gems`, `PUT/DELETE /:id`, `POST/DELETE /:id/upvote`, `GET/POST/PUT/DELETE /:id/reviews` |
 | Points | `GET /api/points/me`, `/history`, `/leaderboard`, `/priority`; `PATCH /ledger/:id/reverse`, `DELETE /ledger/:id` (admin) |
-| Orders | `POST /api/orders`, `/join`, `/:id/items`, `/:id/cancel`, `/:id/checkout`, `/:id/preparing`, `/:id/ready`, `/:id/collect`, `/:id/fastpass`; `GET /:id/queue` |
+| Orders | `POST /api/orders`, `/join`, `/:id/items`, `/:id/cancel`, `/:id/checkout`, `/:id/preparing`, `/:id/ready`, `/:id/collect`, `/:id/fastpass`; `PATCH /:id/split`; `GET /:id/queue` |
 | Payments | `POST /api/payments/webhook` (Stripe, signed), `DELETE /:id` (admin) |
 | Hawkers / admin | `POST /api/hawkers/apply`, `/menu`, `/menu/many`; `PATCH/DELETE /menu/:dishId`; `GET /api/admin/users`, `/applications`; approve / reject |
 
