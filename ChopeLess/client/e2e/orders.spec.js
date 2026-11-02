@@ -219,6 +219,30 @@ test('Fastpass: the group leader spends points and the order jumps the queue', a
   await first.getByRole('button', { name: 'Start preparing' }).click()
   await expect(page.getByTestId('order-status')).toHaveText('Preparing')
 })
+
+test('Fastpass refund: cancelling a Fastpass order gives the points back, once', async ({ page }) => {
+  // Ben is seeded with Makan Points, and no other test spends them
+  await logIn(page, 'ben@chopeless.test')
+  await startOrder(page)
+  await page.getByRole('button', { name: 'Add Chicken rice' }).click()
+  const offer = page.getByTestId('fastpass-offer')
+  await expect(offer.getByTestId('my-points')).toHaveText(/^\d+$/)   // wait for the balance to load
+  const before = Number(await offer.getByTestId('my-points').textContent())
+
+  // He buys a Fastpass (the button's price comes from the server)
+  await offer.getByRole('button', { name: 'Use 150 points' }).click()
+  await expect(page.getByTestId('fastpass-on')).toContainText('Ben Lim')
+
+  // He cancels: the order says the points went back, and the Fastpass is no longer shown as on
+  await page.getByRole('button', { name: 'Cancel order' }).click()
+  await expect(page.getByTestId('order-status')).toHaveText('Cancelled')
+  await expect(page.getByTestId('fastpass-refunded')).toContainText('150 Makan Points went back to Ben Lim')
+  await expect(page.getByTestId('fastpass-on')).toHaveCount(0)
+
+  // A new order at the same stall shows his balance: exactly what he started with (not 150 too many)
+  await startOrder(page)
+  await expect(page.getByTestId('my-points')).toHaveText(String(before))
+})
 // [NAWAZ] END
 
 test('Makan Session: pick a place together, then pre-order as a group', async ({ browser }) => {
