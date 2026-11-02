@@ -103,6 +103,12 @@ test('quests: adding a Hidden Gem ticks the gem quest', async ({ page }) => {
   await page.getByLabel('Cuisine').fill('Malay')
   await page.getByLabel('Address').fill('1 Test Street')
   await page.getByTestId('map').click()            // a gem needs a location
+  await page.getByLabel('Min price ($)').fill('5')
+  await page.getByLabel('Max price ($)').fill('15')
+  await page.getByLabel('Typical wait (minutes)').fill('20')
+  await page.locator('#g-photo').setInputFiles(
+    'e2e/fixtures/gem-test.png'
+  )
   await page.getByRole('button', { name: 'Add gem' }).click()
   await expect(page.getByTestId('gem-row').first()).toBeVisible()
 
