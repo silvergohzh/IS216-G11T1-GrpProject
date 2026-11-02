@@ -39,7 +39,8 @@ test('hawker signs up inside a hawker centre, admin approves, hawker builds the 
   await expect(notice).toContainText('approved')
   await notice.getByRole('button', { name: 'Set up my menu' }).click()
   await expect(page).toHaveURL(/\/hawker\/menu$/)
-  await expect(page.locator('nav a[href="/hawker/menu"]')).toBeAttached() // hawker links unlocked (inside ☰ on phones)
+  // [M3] the link is in both the ☰ menu and the laptop dropdown now, so check the first one
+  await expect(page.locator('nav a[href="/hawker/menu"]').first()).toBeAttached() // hawker links unlocked
 
   // Type in a dish, then change its price
   await page.locator('#dish-name').fill('Laksa')

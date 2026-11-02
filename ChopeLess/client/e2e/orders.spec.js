@@ -144,7 +144,7 @@ test('a fake payment message is rejected', async ({ page, request }) => {
   await expect(page.getByTestId('order-status')).toHaveText('In cart')
 })
 
-test('payments: diner receipt, hawker earnings and refund, admin delete', async ({ page, browser }) => {
+test('payments: diner receipt, hawker earnings, admin delete', async ({ page, browser }) => {
   // A diner pays (demo mode: no Stripe keys in the test server)
   await signUp(page, 'payer')
   const orderId = await startOrder(page)
@@ -158,19 +158,14 @@ test('payments: diner receipt, hawker earnings and refund, admin delete', async 
   await expect(receipt).toContainText('$5.00')
   await expect(receipt.getByTestId('payment-status')).toHaveText('Paid')
 
-  // UPDATE: the stall's hawker sees it in their earnings and refunds it
+  // READ: the stall's hawker sees it in their earnings
   const hawker = await (await browser.newContext()).newPage()
   await logIn(hawker, 'hawker@chopeless.test')
   await hawker.goto('/payments')
   await expect(hawker.getByRole('heading', { name: 'Earnings' })).toBeVisible()
   const row = hawker.getByTestId('payment-row').filter({ hasText: codeOf(orderId) })
-  await row.getByLabel('Refund reason').fill('Sold out of roast pork')
-  await row.getByRole('button', { name: 'Refund' }).click()
-  await expect(row.getByTestId('payment-status')).toHaveText('Refunded')
-
-  // The diner sees the refund live, and the unpaid-for order is cancelled
-  await expect(receipt.getByTestId('payment-status')).toHaveText('Refunded')
-  await expect(receipt).toContainText('Sold out of roast pork')
+  await expect(row).toContainText('$5.00')
+  await expect(row.getByTestId('payment-status')).toHaveText('Paid')
 
   // DELETE: an admin removes the record
   const admin = await (await browser.newContext()).newPage()

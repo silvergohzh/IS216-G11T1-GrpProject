@@ -17,11 +17,11 @@ export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_not_s
 
 // Mark an order as paid, and save a PAYMENT RECORD for it. Called by the webhook (or straight away in demo mode).
 //   method:        'stripe' or 'demo'
-//   paymentIntent: Stripe's id for the payment (we need it to refund later). Empty in demo mode.
+//   paymentIntent: Stripe's id for the payment. Empty in demo mode.
 //
 // Firestore: payments/{orderId}   (one payment per order, so the id is the order's id)
 //   { orderId, placeId, placeName, payerUid, payerName, memberUids, amount (cents),
-//     method, paymentIntent, status ('paid' or 'refunded'), refundReason, paidAt, updatedAt }
+//     method, paymentIntent, status ('paid'), paidAt, updatedAt }
 export async function markOrderPaid(orderId, method = 'demo', paymentIntent = '') {
   const ref = db.collection('orders').doc(orderId)
   const snap = await ref.get()
@@ -48,7 +48,6 @@ export async function markOrderPaid(orderId, method = 'demo', paymentIntent = ''
     method: method,
     paymentIntent: paymentIntent,
     status: 'paid',
-    refundReason: '',
     paidAt: Date.now(),
     updatedAt: Date.now()
   })

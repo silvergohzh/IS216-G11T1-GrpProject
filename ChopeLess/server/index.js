@@ -62,7 +62,7 @@ app.use('/api/crowd-reports', crowdReportVerificationRouter)
 
 // Orders, payments and admin (M6)
 app.use('/api/orders', ordersRouter)
-app.use('/api/payments', paymentsRouter)   // webhook + refund + delete
+app.use('/api/payments', paymentsRouter)   // webhook + delete
 app.use('/api/admin', adminRouter)
 app.use('/api/hawkers', hawkersRouter)
 

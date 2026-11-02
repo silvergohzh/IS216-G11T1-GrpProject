@@ -32,13 +32,14 @@ const MELODY = [
 const hz = note => 440 * Math.pow(2, (note - 69) / 12)
 
 // One note that fades out (like a plucked or struck instrument)
-function voice(t, freq, { wave = 'sine', decay = 0.3, volume = 0.1 } = {}) {
+function voice(t, freq, { wave = 'sine', decay = 0.3, volume = 0.1, attack = 0.01 } = {}) {
   const osc = ctx.createOscillator()
   const gain = ctx.createGain()
   osc.type = wave
   osc.frequency.setValueAtTime(freq, t)
-  gain.gain.setValueAtTime(0.0001, t)
-  gain.gain.exponentialRampToValueAtTime(volume, t + 0.005)
+  // [FIX] start from silence and rise smoothly; a 5 ms jump made a "click" on some notes
+  gain.gain.setValueAtTime(0, t)
+  gain.gain.linearRampToValueAtTime(volume, t + attack)
   gain.gain.exponentialRampToValueAtTime(0.0001, t + decay)
   osc.connect(gain).connect(out)
   osc.start(t)
@@ -46,14 +47,15 @@ function voice(t, freq, { wave = 'sine', decay = 0.3, volume = 0.1 } = {}) {
 }
 const marimba = (t, n) => { voice(t, hz(n), { decay: 0.45, volume: 0.09 }); voice(t, hz(n) * 4, { decay: 0.08, volume: 0.02 }) }
 const pluck = (t, n) => voice(t, hz(n), { wave: 'triangle', decay: 0.2, volume: 0.05 })
-const bass = (t, n) => voice(t, hz(n), { decay: 0.5, volume: 0.12 })
+// [FIX] slower attack for the bass: very low notes click if they start too fast
+const bass = (t, n) => voice(t, hz(n), { decay: 0.5, volume: 0.1, attack: 0.03 })
 
 // What plays on each eighth note
 function playStep(s, t) {
   const bar = Math.floor(s / 8) % 4
   const beat = s % 8
   const chord = CHORDS[bar]
-  if (beat === 0 || beat === 4) bass(t, chord[0] - 12)          // bass on beats 1 and 3
+  if (beat === 0 || beat === 4) bass(t, chord[0])          // bass on beats 1 and 3
   if (beat % 2 === 1) pluck(t, chord[(beat >> 1) % 3] + 12)     // plucked chord notes in between
   if (MELODY[s]) marimba(t, MELODY[s])                          // the tune
 }
@@ -61,6 +63,9 @@ function playStep(s, t) {
 // Look a little ahead and book the next notes, so the rhythm stays even
 function schedule() {
   const eighth = 60 / BPM / 2
+  // [FIX] If the page was busy (e.g. opening a new page) and we fell behind, skip the missed notes.
+  // Before, they were all played at once, which was the glitch.
+  if (nextTime < ctx.currentTime) nextTime = ctx.currentTime + 0.05
   while (nextTime < ctx.currentTime + 0.25) {
     playStep(step % MELODY.length, nextTime)
     nextTime += eighth * (step % 2 === 0 ? 1 + SWING : 1 - SWING)
@@ -73,13 +78,11 @@ export function startMusic() {
   if (timer || isMuted()) return
   const AudioCtx = window.AudioContext || window.webkitAudioContext
   if (!AudioCtx) return
-  if (!ctx) {
-    ctx = new AudioCtx()
-    out = ctx.createGain()
-    out.connect(ctx.destination)
-  }
+  if (!ctx) ctx = new AudioCtx()
   if (ctx.state === 'suspended') ctx.resume()
-  out.gain.cancelScheduledValues(ctx.currentTime)
+  // [FIX] a fresh volume knob every start, so notes booked before a stop can't come back at full volume
+  out = ctx.createGain()
+  out.connect(ctx.destination)
   out.gain.setValueAtTime(0.0001, ctx.currentTime)
   out.gain.exponentialRampToValueAtTime(VOLUME, ctx.currentTime + 1)   // fade in over 1 s
   step = 0
@@ -92,7 +95,8 @@ export function stopMusic() {
   if (!timer) return
   clearInterval(timer)
   timer = null
-  out.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.08)             // quick fade out
+  const old = out
+  setTimeout(() => old.disconnect(), 600)                             // unplug it once silent
 }
 
 // Pause while the tab is hidden (browsers slow down timers there, which would make it stutter)
