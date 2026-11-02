@@ -31,8 +31,14 @@ function straightLineMinutes(a, b) {
 }
 
 async function osrmRoute(from, to, query) {
-  const res = await fetch(`${OSRM_URL}/${from.lng},${from.lat};${to.lng},${to.lat}?${query}`)
+  const url = `${OSRM_URL}/${from.lng},${from.lat};${to.lng},${to.lat}?${query}`
+
+  const res = await fetch(url, {
+    signal: AbortSignal.timeout(3000)
+  })
+
   if (!res.ok) throw new Error('OSRM ' + res.status)
+
   const data = await res.json()
   return data.routes[0]
 }

@@ -55,9 +55,18 @@ export async function buildShortlist(session, options = {}) {
   places = places.filter(p => needs.every(n => (p.dietary || []).includes(n)))
 
   // Step 4: walking time from the meeting point
+  // // Calculate all walking times concurrently to avoid delays.
   const from = session.meetingPoint
-  for (const p of places) p.walkMins = from?.lat ? await walkingMinutes(from, p) : 0
-  places = places.filter(p => p.walkMins <= session.maxWalkMins)
+  places = await Promise.all(
+    places.map(async p => ({
+      ...p,
+      walkMins: from?.lat != null && from?.lng != null
+      ? await walkingMinutes(from, p)
+      : 0
+    }))
+  )
+
+places = places.filter(p => p.walkMins <= session.maxWalkMins)
 
   // Step 5: waiting time from the latest QueueLess estimate (M4's data)
   // A place with no queue number yet is "unknown". We don't pretend it has no queue (0 minutes):
