@@ -20,9 +20,11 @@ db.collection = name => ({
 // Make sure offline mode is off (even if server/.env turns it on), so the fake below is used
 process.env.OSRM_OFFLINE = "false";
 const walkTimes = new Map();
+let lookedUp = [];   // every place the fake OSRM was asked about, as "lng,lat"
 
 globalThis.fetch = async url => {
   const to = url.split("/").pop().split("?")[0].split(";")[1]; // "lng,lat" of the place
+  lookedUp.push(to);
   const mins = walkTimes.get(to);
   return { ok: true, json: async () => ({ routes: [{ duration: mins * 60 }] }) };
 };
@@ -202,4 +204,50 @@ test("a place with known queue data is still dropped by the wait limit", async (
   assert.deepEqual(ids(list), ["ok"]);
   assert.equal(list[0].waitMins, 10);
   assert.equal(list[0].waitUnknown, false);
+});
+
+// ---- excludeIds (Round 2 skips places the group has already seen or vetoed) ----
+
+test("excludeIds removes places before the top-8 cap, so the fresh ones all come back", async () => {
+  // 12 places that all qualify. Round 1 showed the 8 quickest (p0 to p7).
+  fakeData = { places: Array.from({ length: 12 }, (_, i) => place("p" + i, i + 1)), gems: [] };
+  const seen = ["p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7"];
+
+  const list = await buildShortlist(makeSession(), { excludeIds: seen });
+
+  assert.deepEqual(ids(list), ["p8", "p9", "p10", "p11"]);
+});
+
+test("excluded places are never sent to the walk-time lookup", async () => {
+  const skipped = place("skipped", 1);
+  const kept = place("kept", 2);
+  fakeData = { places: [skipped, kept], gems: [] };
+  lookedUp = [];
+
+  const list = await buildShortlist(makeSession(), { excludeIds: new Set(["skipped"]) });   // a Set works too
+
+  assert.deepEqual(ids(list), ["kept"]);
+  assert.deepEqual(lookedUp, [`${kept.lng},${kept.lat}`]);
+});
+
+test("excluding nothing gives the same result as before", async () => {
+  fakeData = { places: [...tenPlaces(), gemCopy("slow-gem", 20)], gems: [] };
+
+  const before = await buildShortlist(makeSession());
+  const emptyList = await buildShortlist(makeSession(), { excludeIds: [] });
+  const noOption = await buildShortlist(makeSession(), {});
+
+  assert.deepEqual(emptyList, before);
+  assert.deepEqual(noOption, before);
+});
+
+test("the gem guarantee only picks a gem that isn't excluded", async () => {
+  // Two slow gems. The quicker one was already seen, so the other one takes the last slot.
+  fakeData = { places: [...tenPlaces(), gemCopy("seen-gem", 20), gemCopy("fresh-gem", 30)], gems: [] };
+
+  const list = await buildShortlist(makeSession(), { excludeIds: ["seen-gem"] });
+
+  assert.equal(list.length, 8);
+  assert.equal(list[7].id, "fresh-gem");
+  assert.ok(!ids(list).includes("seen-gem"));
 });

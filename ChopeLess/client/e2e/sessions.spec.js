@@ -1,5 +1,6 @@
 // Owner: M3 (front-end) and M1 (back-end rules). Two people, two browsers, one live session.
 import { test, expect } from '@playwright/test'
+import { createRequire } from 'module'   // [NAWAZ] for resetSeededQueueTimes (Round 2 test)
 import { signUp, logIn } from './helpers.js'
 import { newPerson, openLobby, startVotingNoTimer, cardName, voteThrough, setMeetingPoint } from './session-helpers.js'
 
@@ -333,5 +334,91 @@ test('shortlist: a place further than the walk limit is left out', async ({ brow
 
   expect(names).toContain('Bras Basah Complex food court')
   expect(names).not.toContain('Albert Centre Market & Food Centre')
+})
+// [NAWAZ] END
+
+// [NAWAZ] START: Round 2 shows only places the group hasn't seen
+
+// Puts every seeded place's queue estimate ("latest") back to its value in server/seed/places.json.
+// Why: all tests share one database, and other tests change these waits (the QueueLess photo upload
+// saves a random wait for Waterloo Centre). The Round 2 counts depend on them.
+// Only "latest" is rewritten, so accounts, points and everything else other tests use stay as they are.
+// Returns the places whose wait changed, e.g. ["waterloo-centre: 17 -> 8"].
+async function resetSeededQueueTimes() {
+  // Use the server's firebase-admin (the client has no copy), pointed at the emulator, never a real database
+  const requireFromServer = createRequire(new URL('../../server/package.json', import.meta.url))
+  const { initializeApp, getApps } = requireFromServer('firebase-admin/app')
+  const { getFirestore } = requireFromServer('firebase-admin/firestore')
+  process.env.FIRESTORE_EMULATOR_HOST = '127.0.0.1:8080'
+  const app = getApps().find(a => a.name === 'e2e-reset') || initializeApp({ projectId: 'demo-hiddengems' }, 'e2e-reset')
+  const db = getFirestore(app)
+
+  const seeded = requireFromServer('./seed/places.json')
+  const changed = []
+  const batch = db.batch()
+  for (const p of seeded) {
+    const ref = db.collection('places').doc(p.id)
+    const before = (await ref.get()).data()?.latest?.waitMins
+    if (before !== p.latestWaitMins) changed.push(`${p.id}: ${before} -> ${p.latestWaitMins}`)
+    // The same shape server/seed/seed.js writes
+    batch.update(ref, {
+      latest: {
+        peopleInQueue: Math.round(p.latestWaitMins / 0.8),
+        waitMins: p.latestWaitMins,
+        seatOccupancy: p.latestWaitMins * 6,
+        confidence: 'medium',
+        at: new Date().toISOString()
+      }
+    })
+  }
+  await batch.commit()
+  return changed
+}
+// Says no to every card in this round and returns the names, in order.
+// Waits for each vote to be saved (the "N/M done" count goes up) before the next one.
+async function sayNoToAll(page) {
+  const progress = page.getByText(/\d+\/\d+ done/)
+  await expect(page.getByTestId('swipe-card')).toBeVisible()
+  const total = Number((await progress.textContent()).match(/(\d+)\/(\d+) done/)[2])
+  const names = []
+  for (let i = 0; i < total; i++) {
+    await expect(progress).toContainText(`${i}/${total} done`)
+    names.push(await cardName(page))
+    await page.getByTestId('vote-no').click()
+  }
+  await expect(progress).toContainText(`${total}/${total} done`)
+  return names
+}
+
+test('round 2: nobody matched, so Round 2 shows only fresh places', async ({ browser }) => {
+  // Start from the seeded queue times, whatever earlier tests did to them
+  const changed = await resetSeededQueueTimes()
+  console.log(`Queue times reset: ${changed.length ? changed.join(', ') : 'nothing had changed'}`)
+
+  const host = await newPerson(browser)
+  const guest = await newPerson(browser)
+  await openLobby(host, guest)
+
+  // Meeting point at SMU and the default limits. Walking is worked out offline (straight lines),
+  // so Round 1 is the same 7 places every run.
+  await startVotingNoTimer(host, guest)
+  const round1 = await sayNoToAll(host)
+  expect(round1).toHaveLength(7)
+
+  // The guest says no to everything too. Their last vote ends Round 1 with no match.
+  await voteThrough(guest, -1, false)
+
+  // Round 2 starts by itself on both phones, with a fresh set of cards
+  await expect(host.getByTestId('round-two')).toBeVisible()
+  await expect(guest.getByTestId('round-two')).toBeVisible()
+  await expect(host.getByText(/\d+\/\d+ done/)).toContainText(/ 0\/\d+ done/)
+
+  const round2 = await sayNoToAll(host)
+  console.log(`Round 2 has ${round2.length} places: ${round2.join(', ')}`)
+  // 4 fresh places: Hot Spot, Taste Good, Ice Lab and Warung Leko. This number comes from the seeded places
+  // and the offline (straight-line) walking estimate, so update it if the seed data changes.
+  // (Before the Round 2 fix it was 3, because seen places used up some of the 8 slots.)
+  expect(round2).toHaveLength(4)
+  for (const name of round2) expect(round1).not.toContain(name)   // nothing from Round 1 comes back
 })
 // [NAWAZ] END

@@ -34,8 +34,13 @@ function median(numbers) {
 }
 
 
-export async function buildShortlist(session) {
-  let places = await loadCandidates()
+// options.excludeIds (optional): ids of places to leave out completely, as an array or a Set.
+// Round 2 uses it to skip places the group has already seen or vetoed.
+export async function buildShortlist(session, options = {}) {
+  // Leave out the excluded places first, so they never use up a filter check, a walk-time lookup
+  // or one of the 8 slots. (Ids are compared as text, in case one side is a number.)
+  const excluded = new Set([...(options.excludeIds || [])].map(String))
+  let places = (await loadCandidates()).filter(p => !excluded.has(String(p.id)))
   const members = Object.values(session.members)
 
   // Step 1: service mode (dine-in or takeaway)

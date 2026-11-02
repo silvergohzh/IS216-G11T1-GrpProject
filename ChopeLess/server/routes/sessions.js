@@ -162,19 +162,12 @@ async function startRound2(ref) {
     Object.values(first.vetoes || {})
   );
 
-  let list = await buildShortlist(relaxed);
-
-  list = list.filter(
-    place => !vetoedIds.has(place.id)
-  );
-
-  const fresh = list.filter(
-    place => !seen.has(place.id)
-  );
-
-  if (fresh.length) {
-    list = fresh;
-  }
+  // [NAWAZ] START: Round 2 only looks at places the group hasn't seen or vetoed
+  // They are left out BEFORE the top-8 cap, so every Round 2 slot can go to a fresh place.
+  let list = await buildShortlist(relaxed, {
+    excludeIds: [...seen, ...vetoedIds]
+  });
+  // [NAWAZ] END
 
   if (!list.length) {
     list = (first.shortlist || []).filter(
