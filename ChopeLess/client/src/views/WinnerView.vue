@@ -1,4 +1,3 @@
-
 <!-- Winner screen: capsule reveal + confetti + walking route + live QueueLess -->
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
@@ -28,8 +27,8 @@ const tie = computed(() => store.session?.tieBreak);
 const revealed = ref(false);
 const from = computed(() => store.session?.meetingPoint);
 
-const memberCount = computed(() =>
-  Object.keys(store.session?.members || {}).length
+const memberCount = computed(
+  () => Object.keys(store.session?.members || {}).length,
 );
 
 onMounted(() => store.watch(route.params.code));
@@ -62,23 +61,21 @@ watch(
         if (snap.exists()) {
           queueInfo.value = {
             id: snap.id,
-            ...snap.data()
+            ...snap.data(),
           };
 
           queueError.value = "";
         } else {
           queueInfo.value = null;
-          queueError.value =
-            "Queue information is not available.";
+          queueError.value = "Queue information is not available.";
         }
       },
 
       () => {
         queueLoading.value = false;
         queueInfo.value = null;
-        queueError.value =
-          "Could not load queue information.";
-      }
+        queueError.value = "Could not load queue information.";
+      },
     );
 
     stopQueue = unsubscribe;
@@ -91,7 +88,7 @@ watch(
       }
     });
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 // =====================================================
@@ -109,19 +106,18 @@ const currentWaitMins = computed(() => {
 
   const minutes = Number(value);
 
-  return Number.isFinite(minutes) && minutes >= 0
-    ? minutes
-    : null;
+  return Number.isFinite(minutes) && minutes >= 0 ? minutes : null;
 });
 
-const canStartRevote = computed(() =>
-  store.session?.status === "done" &&
-  store.session?.hostUid === auth.user?.uid &&
-  !!winner.value &&
-  currentWaitMins.value !== null &&
-  !store.session?.orderingStarted &&
-  !store.session?.revoteCompleted &&
-  !store.session?.revoteStartedAt
+const canStartRevote = computed(
+  () =>
+    store.session?.status === "done" &&
+    store.session?.hostUid === auth.user?.uid &&
+    !!winner.value &&
+    currentWaitMins.value !== null &&
+    !store.session?.orderingStarted &&
+    !store.session?.revoteCompleted &&
+    !store.session?.revoteStartedAt,
 );
 
 async function requestRevote() {
@@ -129,7 +125,7 @@ async function requestRevote() {
 
   const confirmed = window.confirm(
     `The estimated queue at ${winner.value.name} is ${currentWaitMins.value} minutes.\n\n` +
-    "Start another group vote for alternatives with shorter queues?"
+      "Start another group vote for alternatives with shorter queues?",
   );
 
   if (!confirmed) return;
@@ -140,9 +136,7 @@ async function requestRevote() {
   try {
     await startRevote(route.params.code);
 
-    await router.push(
-      `/sessions/${route.params.code}/vote`
-    );
+    await router.push(`/sessions/${route.params.code}/vote`);
   } catch (err) {
     revoteError.value =
       err.response?.data?.error ||
@@ -159,17 +153,17 @@ watch(
   () => store.session?.status,
   (status) => {
     if (status === "revoting") {
-      router.push(
-        `/sessions/${route.params.code}/vote`
-      );
+      router.push(`/sessions/${route.params.code}/vote`);
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 // Hidden Gems are community listings: the menu can be viewed, but they can't be pre-ordered
-const isGem = computed(() =>
-  !!queueInfo.value?.fromGem || String(winner.value?.id || "").startsWith("gem-")
+const isGem = computed(
+  () =>
+    !!queueInfo.value?.fromGem ||
+    String(winner.value?.id || "").startsWith("gem-"),
 );
 // =====================================================
 // Capsule reveal + sound effects + confetti
@@ -181,13 +175,7 @@ let autoOpen = null;
 let popTimer = null;
 let confettiTimer = null;
 
-const COLOURS = [
-  "#ffd23f",
-  "#ff7a45",
-  "#7bc96f",
-  "#ffffff",
-  "#8fd3ff"
-];
+const COLOURS = ["#ffd23f", "#ff7a45", "#7bc96f", "#ffffff", "#8fd3ff"];
 
 function celebrate() {
   // Preserve sound effects from main
@@ -197,7 +185,7 @@ function celebrate() {
   const base = {
     colors: COLOURS,
     disableForReducedMotion: true,
-    zIndex: 2000
+    zIndex: 2000,
   };
 
   confetti({
@@ -205,7 +193,7 @@ function celebrate() {
     particleCount: 120,
     spread: 90,
     startVelocity: 45,
-    origin: { y: 0.4 }
+    origin: { y: 0.4 },
   });
 
   clearTimeout(confettiTimer);
@@ -216,7 +204,7 @@ function celebrate() {
       particleCount: 60,
       angle: 60,
       spread: 60,
-      origin: { x: 0, y: 0.7 }
+      origin: { x: 0, y: 0.7 },
     });
 
     confetti({
@@ -224,7 +212,7 @@ function celebrate() {
       particleCount: 60,
       angle: 120,
       spread: 60,
-      origin: { x: 1, y: 0.7 }
+      origin: { x: 1, y: 0.7 },
     });
   }, 250);
 }
@@ -249,8 +237,8 @@ function pop() {
 }
 
 // Start reveal when the winner is ready
-const readyToReveal = computed(() =>
-  !!winner.value && (!tie.value || revealed.value)
+const readyToReveal = computed(
+  () => !!winner.value && (!tie.value || revealed.value),
 );
 
 watch(
@@ -262,7 +250,7 @@ watch(
       autoOpen = setTimeout(pop, 1200);
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 // =====================================================
@@ -307,13 +295,11 @@ watch(
 
     path.value = [
       [from.value.lat, from.value.lng],
-      [winner.value.lat, winner.value.lng]
+      [winner.value.lat, winner.value.lng],
     ];
 
     try {
-      const data = await api(
-        `/shortlist/${route.params.code}/route`
-      );
+      const data = await api(`/shortlist/${route.params.code}/route`);
 
       if (!cancelled && data.route?.length) {
         path.value = data.route;
@@ -322,7 +308,7 @@ watch(
       // Keep the straight line if the route fails
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 // =====================================================
@@ -349,14 +335,14 @@ onUnmounted(() => {
     <span
       class="rounded-full bg-ink px-4 py-1 text-sm font-black tracking-widest text-accent"
     >
-      TIE BREAK Â· GACHA TIME
+      TIE BREAK · GACHA TIME
     </span>
 
     <h1 class="page-title mt-3">It's a tie!</h1>
 
     <p class="mb-4 font-extrabold">
-      {{ tie.candidates.length }} places got the same votes.
-      The machine picks one.
+      {{ tie.candidates.length }} places got the same votes. The machine picks
+      one.
     </p>
 
     <GachaTie
@@ -366,16 +352,12 @@ onUnmounted(() => {
     />
 
     <p class="mt-3 text-sm font-bold">
-      The server already picked fairly.
-      The machine just shows it.
+      The server already picked fairly. The machine just shows it.
     </p>
   </div>
 
   <!-- 2. Winner -->
-  <div
-    v-else-if="winner"
-    class="mx-auto flex max-w-xl flex-col gap-4"
-  >
+  <div v-else-if="winner" class="mx-auto flex max-w-xl flex-col gap-4">
     <div class="text-center">
       <p class="font-black tracking-widest">
         {{ capsule === "open" ? "STAGE CLEAR" : "TAP THE CAPSULE" }}
@@ -384,7 +366,7 @@ onUnmounted(() => {
       <h1
         class="text-6xl leading-none text-white [-webkit-text-stroke:3px_#17213b] [text-shadow:0_6px_0_#17213b]"
       >
-        {{ capsule === "open" ? "Chope'd!" : "Your pick isâ€¦" }}
+        {{ capsule === "open" ? "Chope'd!" : "Your pick is…" }}
       </h1>
     </div>
 
@@ -416,29 +398,19 @@ onUnmounted(() => {
 
     <!-- Winner prize -->
     <template v-else>
-      <div
-        class="capsule-prize card flex flex-col gap-3"
-        role="status"
-      >
-        <p class="text-xs font-black tracking-widest">
-          YOU PULLED
-        </p>
+      <div class="capsule-prize card flex flex-col gap-3" role="status">
+        <p class="text-xs font-black tracking-widest">YOU PULLED</p>
 
-        <h2
-          class="text-4xl leading-tight text-brand"
-          data-testid="winner-name"
-        >
+        <h2 class="text-4xl leading-tight text-brand" data-testid="winner-name">
           {{ winner.name }}
         </h2>
 
         <PlaceCard :place="winner" />
 
         <p v-if="memberCount" class="font-extrabold">
-          {{ memberCount }} kakis voted Â· finishing earns
-          Makan Points (up to 3 sessions a day,
-          <RouterLink to="/points" class="underline">
-            see points
-          </RouterLink>)
+          {{ memberCount }} kakis voted · finishing earns Makan Points (up to 3
+          sessions a day,
+          <RouterLink to="/points" class="underline"> see points </RouterLink>)
         </p>
       </div>
 
@@ -446,22 +418,15 @@ onUnmounted(() => {
            [JANANIJ] START: Winner to QueueLess integration
            ================================================= -->
 
-      <div
-        class="card flex flex-col gap-3"
-        data-testid="winner-queueless"
-      >
-        <h3 class="font-display text-2xl">
-          QueueLess at {{ winner.name }}
-        </h3>
+      <div class="card flex flex-col gap-3" data-testid="winner-queueless">
+        <h3 class="font-display text-2xl">QueueLess at {{ winner.name }}</h3>
 
         <p class="text-sm font-bold">
           Check the estimated queue before heading there!
         </p>
 
         <!-- Loading -->
-        <p v-if="queueLoading" class="text-sm">
-          Loading queue information...
-        </p>
+        <p v-if="queueLoading" class="text-sm">Loading queue information...</p>
 
         <!-- Error -->
         <p v-else-if="queueError" class="text-sm">
@@ -469,10 +434,7 @@ onUnmounted(() => {
         </p>
 
         <!-- Queue information available -->
-        <div
-          v-else-if="queueInfo?.latest"
-          class="flex flex-col gap-3"
-        >
+        <div v-else-if="queueInfo?.latest" class="flex flex-col gap-3">
           <div class="grid grid-cols-2 gap-3">
             <div
               class="rounded-2xl border-2 border-ink bg-white p-3 text-center"
@@ -481,9 +443,7 @@ onUnmounted(() => {
                 {{ queueInfo.latest.waitMins ?? "?" }}
               </p>
 
-              <p class="text-sm font-bold">
-                Minutes wait
-              </p>
+              <p class="text-sm font-bold">Minutes wait</p>
             </div>
 
             <div
@@ -493,9 +453,7 @@ onUnmounted(() => {
                 {{ queueInfo.latest.seatOccupancy ?? "?" }}%
               </p>
 
-              <p class="text-sm font-bold">
-                Seats occupied
-              </p>
+              <p class="text-sm font-bold">Seats occupied</p>
             </div>
           </div>
 
@@ -508,43 +466,36 @@ onUnmounted(() => {
           </p>
 
           <p class="text-xs">
-            Based on the latest QueueLess report.
-            Updates automatically when a new report is saved.
+            Based on the latest QueueLess report. Updates automatically when a
+            new report is saved.
           </p>
         </div>
 
         <!-- No report -->
-        <p v-else class="text-sm">
-          No queue estimate available yet.
-        </p>
+        <p v-else class="text-sm">No queue estimate available yet.</p>
 
-        <RouterLink
-          :to="`/places/${winner.id}`"
-          class="btn"
-        >
+        <RouterLink :to="`/places/${winner.id}`" class="btn">
           View QueueLess details
         </RouterLink>
       </div>
 
       <!-- [JANANIJ] END -->
 
-            <div
+      <div
         v-if="canStartRevote"
         class="card flex flex-col gap-3"
         data-testid="queueless-revote"
       >
-        <h3 class="font-display text-2xl">
-          Queue too long?
-        </h3>
+        <h3 class="font-display text-2xl">Queue too long?</h3>
 
         <p class="text-sm font-bold">
-          The current estimated wait at {{ winner.name }}
-          is {{ currentWaitMins }} minutes.
+          The current estimated wait at {{ winner.name }} is
+          {{ currentWaitMins }} minutes.
         </p>
 
         <p class="text-sm">
-          Your group can vote again on alternative places
-          with shorter reported queues before ordering.
+          Your group can vote again on alternative places with shorter reported
+          queues before ordering.
         </p>
 
         <button
@@ -558,18 +509,18 @@ onUnmounted(() => {
         </button>
       </div>
 
-      <p
-        v-if="revoteError"
-        class="error"
-        role="alert"
-      >
+      <p v-if="revoteError" class="error" role="alert">
         {{ revoteError }}
       </p>
 
       <!-- [JANANIJ] END -->
 
       <!-- Hidden Gem: community menu (view only) -->
-      <GemMenu v-if="queueInfo?.fromGem && queueInfo.gemId" :gem-id="queueInfo.gemId" preorder-note />
+      <GemMenu
+        v-if="queueInfo?.fromGem && queueInfo.gemId"
+        :gem-id="queueInfo.gemId"
+        preorder-note
+      />
 
       <!-- Existing winner actions -->
       <div class="flex flex-wrap gap-3">
@@ -607,15 +558,17 @@ onUnmounted(() => {
               lng: winner.lng,
               label: winner.name,
               color: '#ffd23f',
-              radius: 12
+              radius: 12,
             },
             ...(from
-              ? [{
-                  ...from,
-                  label: 'Meeting point',
-                  color: '#17213b'
-                }]
-              : [])
+              ? [
+                  {
+                    ...from,
+                    label: 'Meeting point',
+                    color: '#17213b',
+                  },
+                ]
+              : []),
           ]"
           :route="path"
         />
@@ -628,13 +581,10 @@ onUnmounted(() => {
     v-else-if="store.session?.status === 'done'"
     class="card mx-auto max-w-xl text-center"
   >
-    <p class="mb-3 font-display text-3xl">
-      No winner this time
-    </p>
+    <p class="mb-3 font-display text-3xl">No winner this time</p>
 
     <p class="mb-4">
-      Every place got vetoed.
-      Start a new session to try again.
+      Every place got vetoed. Start a new session to try again.
     </p>
 
     <RouterLink to="/sessions" class="btn-primary">
@@ -646,16 +596,27 @@ onUnmounted(() => {
     {{ store.error }}
   </p>
 
-  <p v-else>Loadingâ€¦</p>
+  <p v-else>Loading…</p>
 </template>
 
 <style scoped>
 @keyframes wobble {
-  0%, 100% { transform: rotate(0); }
-  20% { transform: rotate(-10deg); }
-  40% { transform: rotate(10deg); }
-  60% { transform: rotate(-6deg) scale(1.05); }
-  80% { transform: rotate(6deg); }
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  20% {
+    transform: rotate(-10deg);
+  }
+  40% {
+    transform: rotate(10deg);
+  }
+  60% {
+    transform: rotate(-6deg) scale(1.05);
+  }
+  80% {
+    transform: rotate(6deg);
+  }
 }
 
 @keyframes lid {
@@ -674,7 +635,7 @@ onUnmounted(() => {
 
 @keyframes prize {
   0% {
-    transform: translateY(60px) scale(.3);
+    transform: translateY(60px) scale(0.3);
     opacity: 0;
   }
   65% {
@@ -687,18 +648,18 @@ onUnmounted(() => {
 }
 
 .capsule-wobble {
-  animation: wobble .9s ease-in-out infinite;
+  animation: wobble 0.9s ease-in-out infinite;
 }
 
 .capsule-lid {
-  animation: lid .45s ease-out forwards;
+  animation: lid 0.45s ease-out forwards;
 }
 
 .capsule-base {
-  animation: base .45s ease-out forwards;
+  animation: base 0.45s ease-out forwards;
 }
 
 .capsule-prize {
-  animation: prize .7s cubic-bezier(.2,.9,.3,1.2) both;
+  animation: prize 0.7s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
 }
 </style>
