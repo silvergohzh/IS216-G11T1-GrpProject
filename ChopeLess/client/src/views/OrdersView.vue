@@ -52,6 +52,15 @@ function cheapest(place) {
   return formatMoney(lowest)
 }
 
+// The price line on a card. A Hidden Gem may have no menu yet, so it falls back to its price range (in dollars)
+function priceLine(place) {
+  if (place.menu && place.menu.length > 0) return `from ${cheapest(place)}`
+  if (place.priceMin != null) {
+    return place.priceMin === place.priceMax ? `$${place.priceMin}` : `$${place.priceMin}–${place.priceMax}`
+  }
+  return ''
+}
+
 // [SILVER] START: Hawker centres, food courts, stalls & place tags (built by Myat, see HANDOVER.md)
 // Open a hawker centre or food court: show only the stalls inside it
 async function openCentre(place) {
@@ -83,12 +92,17 @@ onMounted(async () => {
     }
     // [SILVER] a Makan Session that picked a centre opens its stalls
     if (isCentre(winner)) await openCentre(winner)
+    else if (winner.fromGem) places.value = [winner]   // Hidden Gem: view only
     else if (winner.menu.length > 0) places.value = [winner]
     else error.value = `${winner.name} doesn't take pre-orders yet. You can still head there!`
   } else {
     // Normal: every hawker centre, food court, and restaurant that has a menu
     const all = await listPlaces()
-    places.value = all.filter(p => isCentre(p) || (p.menu && p.menu.length > 0))
+    
+    // Hidden Gems (3+ upvotes) are listed too, but view only. They go at the end of the list.
+    places.value = all
+      .filter(p => isCentre(p) || p.fromGem || (p.menu && p.menu.length > 0))
+      .sort((a, b) => Number(!!a.fromGem) - Number(!!b.fromGem))
   }
 
   // Opened a shared link like /orders?join=KQWTRM? Join that group order straight away.
@@ -207,22 +221,31 @@ const join = () => run(async () => {
   </section>
   <!-- [SILVER] END -->
 
-  <!-- All places: hawker centres, food courts and restaurants -->
-  <section v-else class="mb-6">
+    <!-- All places: hawker centres, food courts and restaurants (and Hidden Gems, view only) -->
+  
+    <section v-else class="mb-6">
     <h2 class="mb-2">{{ session ? 'Your group\'s pick' : 'Where do you want to order from?' }}</h2>
+    <p v-if="places.some(p => p.fromGem)" class="mb-3 rounded-lg bg-amber-50 p-2 text-sm text-amber-800" data-testid="gem-disclaimer">
+      Hidden Gems are community listings with 3 or more upvotes. You can view their menus, but pre-ordering isn't available.
+      Details and prices are subject to accuracy.
+    </p>
     <p v-if="places.length === 0 && !error" class="card text-slate-500">Loading places... (if this stays empty, run <code>npm run seed</code>)</p>
     <ul class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <li v-for="p in places" :key="p.id" class="card flex flex-col justify-between gap-2 !pt-0 overflow-hidden" data-testid="place-card">
         <div>
           <div class="-mx-5 mb-3 h-3 border-b-[3px] border-ink bg-accent" aria-hidden="true"></div>
           <!-- [SILVER] place tag; centres get a See stalls button below -->
-          <PlaceTag :type="p.type" />
+          <span v-if="p.fromGem" class="chip !bg-amber-100 !text-amber-800" data-testid="gem-badge">Hidden Gem · community listing</span>
+          <PlaceTag v-else :type="p.type" />
           <h3 class="mt-1 text-xl leading-tight">{{ p.name }}</h3>
           <p v-if="isCentre(p)" class="text-sm font-bold">Many stalls inside</p>
-          <p v-else class="text-sm font-bold">{{ p.cuisine }} · from {{ cheapest(p) }}</p>
+          <p v-else class="text-sm font-bold">{{ p.cuisine }} · {{ priceLine(p) }}</p>
           <p class="text-xs text-slate-400">{{ p.address }}</p>
         </div>
         <button v-if="isCentre(p)" class="btn-primary text-sm" @click="openCentre(p)">See stalls</button>
+        <div v-else-if="p.fromGem" class="flex gap-2">
+          <RouterLink :to="`/stalls/${p.id}`" class="btn-primary flex-1 text-center text-sm" data-testid="gem-view-menu">View menu</RouterLink>
+        </div>
         <div v-else class="flex gap-2">
           <button class="btn-primary flex-1 text-sm" :disabled="busy" @click="startOrder(p)">Order here</button>
           <RouterLink :to="`/stalls/${p.id}`" class="btn text-sm">View menu</RouterLink>

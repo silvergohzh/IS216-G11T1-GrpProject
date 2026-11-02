@@ -14,6 +14,7 @@ import { sfx } from "../lib/sfx";
 import PlaceCard from "../components/PlaceCard.vue";
 import MapView from "../components/MapView.vue";
 import GachaTie from "../components/GachaTie.vue";
+import GemMenu from "../components/GemMenu.vue";
 
 const route = useRoute();
 const store = useSessionStore();
@@ -92,7 +93,10 @@ watch(
 // =====================================================
 // [JANANIJ] END
 // =====================================================
-
+// Hidden Gems are community listings: the menu can be viewed, but they can't be pre-ordered
+const isGem = computed(() =>
+  !!queueInfo.value?.fromGem || String(winner.value?.id || "").startsWith("gem-")
+);
 // =====================================================
 // Capsule reveal + sound effects + confetti
 // =====================================================
@@ -450,6 +454,9 @@ onUnmounted(() => {
 
       <!-- [JANANIJ] END -->
 
+      <!-- Hidden Gem: community menu (view only) -->
+      <GemMenu v-if="queueInfo?.fromGem && queueInfo.gemId" :gem-id="queueInfo.gemId" preorder-note />
+
       <!-- Existing winner actions -->
       <div class="flex flex-wrap gap-3">
         <a
@@ -463,7 +470,7 @@ onUnmounted(() => {
 
         <!-- M6: Group pre-order -->
         <RouterLink
-          v-if="!String(winner.id).startsWith('gem-')"
+          v-if="!queueLoading && !isGem"
           :to="`/orders?session=${route.params.code}`"
           class="btn"
           data-testid="group-preorder"

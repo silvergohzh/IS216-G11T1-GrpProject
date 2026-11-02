@@ -6,6 +6,7 @@ import { getPlace, analysePhoto, shrinkPhoto, checkLiveQueue, livePhotoUrl } fro
 // [M3] Today's Quests: remember that I checked a queue with a photo today
 import { auth } from '../lib/firebase'
 import { markQuest } from '../lib/quests'
+import GemMenu from '../components/GemMenu.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -119,7 +120,13 @@ const toggleHour = h => (selectedHour.value = selectedHour.value === h ? null : 
       <p class="text-slate-600">{{ place.address }}</p>
     </div>
 
+    <div v-if="place.fromGem" class="space-y-2">
+      <p class="chip">Hidden Gem · community listing</p>
+      <GemMenu v-if="place.gemId" :gem-id="place.gemId" preorder-note />
+    </div>
+
     <div class="card card-navy" data-testid="latest">
+      
       <h2 class="mb-2">Right now</h2>
       <div v-if="nowStats" class="grid grid-cols-3 gap-2 text-center">
         <div><p class="font-display text-4xl text-accent">~{{ nowStats.waitMins }}</p><p class="text-xs font-bold">min wait</p></div>
