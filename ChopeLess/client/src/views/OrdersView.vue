@@ -56,7 +56,7 @@ function cheapest(place) {
 function priceLine(place) {
   if (place.menu && place.menu.length > 0) return `from ${cheapest(place)}`
   if (place.priceMin != null) {
-    return place.priceMin === place.priceMax ? `$${place.priceMin}` : `$${place.priceMin}–${place.priceMax}`
+    return place.priceMin === place.priceMax ? `$${place.priceMin}` : `$${place.priceMin}â€“${place.priceMax}`
   }
   return ''
 }
@@ -98,7 +98,7 @@ onMounted(async () => {
   } else {
     // Normal: every hawker centre, food court, and restaurant that has a menu
     const all = await listPlaces()
-    
+
     // Hidden Gems (3+ upvotes) are listed too, but view only. They go at the end of the list.
     places.value = all
       .filter(p => isCentre(p) || p.fromGem || (p.menu && p.menu.length > 0))
@@ -144,7 +144,7 @@ const join = () => run(async () => {
 </script>
 
 <template>
-  <p class="kicker">Station 5 · Tingkat Pier</p>
+  <p class="kicker">Station 5 Â· Tingkat Pier</p>
   <h1 class="page-title">Pre-order for pickup</h1>
   <p class="mb-4 text-slate-600">Order ahead, pay online, and collect when it's ready. Order as a group with a join code.</p>
   <p v-if="error" class="error mb-4">{{ error }}</p>
@@ -153,7 +153,7 @@ const join = () => run(async () => {
   <section v-if="session" class="card card-navy mb-6 space-y-1" data-testid="session-banner">
     <p class="font-bold">Group pre-order for your Makan Session</p>
     <p class="text-sm">Your group picked <b>{{ session.winner?.name }}</b>. All {{ groupSize }} of you are added to the order, so everyone can add their food.</p>
-    <RouterLink :to="`/sessions/${session.code}/winner`" class="text-sm font-black underline">Not pre-ordering? Skip this and just head there →</RouterLink>
+    <RouterLink :to="`/sessions/${session.code}/winner`" class="text-sm font-black underline">Not pre-ordering? Skip this and just head there â†’</RouterLink>
   </section>
 
   <!-- Join a friend's order -->
@@ -173,9 +173,9 @@ const join = () => run(async () => {
       <li v-for="o in activeOrders" :key="o.id">
         <RouterLink :to="`/orders/${o.id}`" class="card flex items-center justify-between gap-3 !bg-[#7bc96f] transition hover:translate-x-1" data-testid="active-order">
           <div>
-            <!-- [NAWAZ] ⚡ on the next line = this order has a Fastpass -->
-            <p class="font-bold">{{ o.placeName }} <span class="text-slate-400">{{ orderCode(o.id) }}</span> <span v-if="o.priority">⚡</span></p>
-            <p class="text-sm text-slate-500">{{ o.items.length }} item(s) · {{ formatMoney(o.total) }}</p>
+            <!-- [NAWAZ] âš¡ on the next line = this order has a Fastpass -->
+            <p class="font-bold">{{ o.placeName }} <span class="text-slate-400">{{ orderCode(o.id) }}</span> <span v-if="o.priority">âš¡</span></p>
+            <p class="text-sm text-slate-500">{{ o.items.length }} item(s) Â· {{ formatMoney(o.total) }}</p>
           </div>
           <span class="chip !text-sm">{{ STATUS_LABELS[o.status] }}</span>
         </RouterLink>
@@ -191,11 +191,11 @@ const join = () => run(async () => {
       <div>
         <p class="kicker">You're inside</p>
         <h2 class="text-3xl">Stalls in {{ centre.name }}</h2>
-        <p class="font-bold">{{ centreStalls.length }} stalls · pick one to pre-order</p>
+        <p class="font-bold">{{ centreStalls.length }} stalls Â· pick one to pre-order</p>
       </div>
       <div class="flex items-center gap-2">
         <PlaceTag :type="centre.type" />
-        <button v-if="!session" class="btn text-sm" @click="closeCentre">← All places</button>
+        <button v-if="!session" class="btn text-sm" @click="closeCentre">â† All places</button>
       </div>
     </div>
     <p v-if="centreStalls.length === 0" class="card text-slate-500">No stalls here yet.</p>
@@ -210,7 +210,7 @@ const join = () => run(async () => {
             <PlaceTag type="stall" />
           </div>
           <h3 class="mt-1 text-xl leading-tight">{{ s.name }}</h3>
-          <p class="text-sm font-bold">{{ s.cuisine }} · from {{ cheapest(s) }}</p>
+          <p class="text-sm font-bold">{{ s.cuisine }} Â· from {{ cheapest(s) }}</p>
         </div>
         <div class="flex gap-2">
           <button class="btn-primary flex-1 text-sm" :disabled="busy" @click="startOrder(s)">Order here</button>
@@ -222,7 +222,7 @@ const join = () => run(async () => {
   <!-- [SILVER] END -->
 
     <!-- All places: hawker centres, food courts and restaurants (and Hidden Gems, view only) -->
-  
+
     <section v-else class="mb-6">
     <h2 class="mb-2">{{ session ? 'Your group\'s pick' : 'Where do you want to order from?' }}</h2>
     <p v-if="places.some(p => p.fromGem)" class="mb-3 rounded-lg bg-amber-50 p-2 text-sm text-amber-800" data-testid="gem-disclaimer">
@@ -235,11 +235,11 @@ const join = () => run(async () => {
         <div>
           <div class="-mx-5 mb-3 h-3 border-b-[3px] border-ink bg-accent" aria-hidden="true"></div>
           <!-- [SILVER] place tag; centres get a See stalls button below -->
-          <span v-if="p.fromGem" class="chip !bg-amber-100 !text-amber-800" data-testid="gem-badge">Hidden Gem · community listing</span>
+          <span v-if="p.fromGem" class="chip !bg-amber-100 !text-amber-800" data-testid="gem-badge">Hidden Gem Â· community listing</span>
           <PlaceTag v-else :type="p.type" />
           <h3 class="mt-1 text-xl leading-tight">{{ p.name }}</h3>
           <p v-if="isCentre(p)" class="text-sm font-bold">Many stalls inside</p>
-          <p v-else class="text-sm font-bold">{{ p.cuisine }} · {{ priceLine(p) }}</p>
+          <p v-else class="text-sm font-bold">{{ p.cuisine }} Â· {{ priceLine(p) }}</p>
           <p class="text-xs text-slate-400">{{ p.address }}</p>
         </div>
         <button v-if="isCentre(p)" class="btn-primary text-sm" @click="openCentre(p)">See stalls</button>
@@ -264,8 +264,8 @@ const join = () => run(async () => {
           <div>
             <p class="font-bold">{{ o.placeName }} <span class="text-slate-400">{{ orderCode(o.id) }}</span></p>
             <p class="text-sm text-slate-500">
-              {{ o.items.length }} item(s) · {{ formatMoney(o.total) }}
-              <span v-if="o.collectedAt"> · collected {{ new Date(o.collectedAt).toLocaleString() }}</span>
+              {{ o.items.length }} item(s) Â· {{ formatMoney(o.total) }}
+              <span v-if="o.collectedAt"> Â· collected {{ new Date(o.collectedAt).toLocaleString() }}</span>
             </p>
           </div>
           <span class="chip !text-sm">{{ STATUS_LABELS[o.status] }}</span>
