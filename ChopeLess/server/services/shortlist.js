@@ -3,7 +3,6 @@
 import { db } from '../firebase.js'
 import { walkingMinutes } from './osrm.js'
 
-
 const SHORTLIST_SIZE = 8
 
 
@@ -18,9 +17,10 @@ async function loadCandidates() {
     .filter(p => !p.parentId)
   // [SILVER] END
 
-  // [JANANIJ] Promoted Hidden Gems (3+ upvotes) are already in "places".
-  // This avoids duplicate Gems and preserves their QueueLess reports.
-  return places
+  // Hidden gems: when a gem gets enough upvotes, gems.js (M5) copies it into "places" with fromGem: true.
+  // That copy is the gem's only entry, so we don't read the "gems" collection here (that made duplicates).
+  // We mark the copy as a gem here instead of in the database, so copies made before this change work too.
+  return places.map(p => (p.fromGem ? { ...p, isGem: true } : p))
 }
 
 
