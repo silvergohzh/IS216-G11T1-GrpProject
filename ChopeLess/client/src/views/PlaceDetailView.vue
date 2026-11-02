@@ -148,8 +148,12 @@ const toggleHour = h => (selectedHour.value = selectedHour.value === h ? null : 
       <p v-if="bestHour" class="chip mb-3 !bg-green-200 !text-sm" data-testid="best-time">
         Best time to go: <strong>{{ hourLabel(bestHour.hour) }}</strong> (about {{ Math.round(bestHour.avgWait) }} min)
       </p>
+      <!-- No reports yet (e.g. a new place): say so instead of showing an empty chart -->
+      <p v-if="!place.trend.length" class="rounded-2xl border-[3px] border-dashed border-ink bg-white/70 px-4 py-6 text-center text-sm font-bold" data-testid="no-trend">
+        No hourly data yet. Snap the queue below or tap See Live Queue to start the chart.
+      </p>
       <!-- Simple CSS bar chart -->
-      <div class="flex h-44 items-end gap-1.5 overflow-x-auto border-b-[3px] border-ink">
+      <div v-else class="flex h-44 items-end gap-1.5 overflow-x-auto border-b-[3px] border-ink">
         <button v-for="t in place.trend" :key="t.hour" type="button" @click="toggleHour(t.hour)" :aria-pressed="t.hour === selectedHour"
           :aria-label="`${hourLabel(t.hour)}: about ${Math.round(t.avgWait)} min wait`"
           class="flex h-full min-w-6 flex-1 cursor-pointer flex-col items-center justify-end gap-1 rounded hover:bg-slate-100"
