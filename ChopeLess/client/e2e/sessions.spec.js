@@ -1,7 +1,7 @@
 // Owner: M3 (front-end) and M1 (back-end rules). Two people, two browsers, one live session.
 import { test, expect } from '@playwright/test'
 import { signUp, logIn } from './helpers.js'
-import { newPerson, openLobby, startVotingNoTimer, cardName, voteThrough } from './session-helpers.js'
+import { newPerson, openLobby, startVotingNoTimer, cardName, voteThrough, setMeetingPoint } from './session-helpers.js'
 
 test('two members join, vote yes on the same place, and both see the winner', async ({ browser }) => {
   const host = await (await browser.newContext()).newPage()
@@ -18,7 +18,8 @@ test('two members join, vote yes on the same place, and both see the winner', as
   await guest.getByRole('button', { name: 'Join' }).click()
   await expect(host.getByTestId('member-list').locator('li')).toHaveCount(2)
 
-  // Host starts voting; both phones move to the vote page
+  // Host picks the meeting point and starts voting; both phones move to the vote page
+  await setMeetingPoint(host)
   await host.getByRole('button', { name: 'Start voting' }).click()
   await expect(host).toHaveURL(/\/vote$/)
   await expect(guest).toHaveURL(/\/vote$/)
@@ -79,6 +80,7 @@ test('lobby: only the host changes the rules, and everyone sees them live', asyn
   await guest.getByTestId('join-code').fill(code)
   await guest.getByRole('button', { name: 'Join', exact: true }).click()
   await expect(host.getByTestId('member-list').locator('li')).toHaveCount(2)
+  await setMeetingPoint(host)
   await expect(host.getByRole('button', { name: 'Start voting' })).toBeEnabled()
 
   // Host switches to takeaway and a 15-minute walk: the guest's lobby updates by itself
@@ -271,3 +273,65 @@ test('winner: walking directions, Meal History and starting again', async ({ bro
   await expect(host).toHaveURL(/\/sessions$/)
 })
  
+
+// [NAWAZ] START: the host must choose a meeting point before voting
+test('lobby: Start voting stays off until the host picks a meeting point', async ({ browser }) => {
+  const host = await newPerson(browser)
+  const guest = await newPerson(browser)
+  await openLobby(host, guest)
+
+  // Two people are here, but there is no meeting point yet
+  const start = host.getByRole('button', { name: 'Start voting' })
+  await expect(start).toBeDisabled()
+  await expect(host.getByTestId('meeting-point-required')).toBeVisible()
+  await expect(guest.getByTestId('meeting-point-required')).toHaveCount(0)   // only the host is told
+
+  // The host taps the map: the message goes away and voting can start
+  await host.getByTestId('map').click()
+  await expect(host.getByTestId('meeting-point-required')).toHaveCount(0)
+  await expect(start).toBeEnabled()
+})
+
+test('lobby: "Use my current location" sets the meeting point', async ({ browser }) => {
+  // The host's browser shares a made-up location (Bras Basah) without asking
+  const hostContext = await browser.newContext({
+    geolocation: { latitude: 1.2967, longitude: 103.8537 },
+    permissions: ['geolocation']
+  })
+  const host = await hostContext.newPage()
+  const guest = await newPerson(browser)
+  await openLobby(host, guest)
+
+  await expect(guest.getByTestId('use-my-location')).toHaveCount(0)   // only the host gets the button
+  await host.getByTestId('use-my-location').click()
+  await expect(host.getByTestId('meeting-point-required')).toHaveCount(0)
+  await expect(host.getByRole('button', { name: 'Start voting' })).toBeEnabled()
+})
+
+test('shortlist: a place further than the walk limit is left out', async ({ browser }) => {
+  const host = await newPerson(browser)
+  const guest = await newPerson(browser)
+  await openLobby(host, guest)
+
+  // A 7-minute walk limit. From SMU (the middle of the map), Bras Basah Complex is about 6 minutes away
+  // and Albert Centre about 10. Albert Centre fits everything else (cheap, short queue), so only
+  // the walk limit can take it off the list.
+  await host.getByLabel('Max walk (min)').fill('7')
+  await host.getByLabel('Max walk (min)').press('Tab')
+  await expect(guest.getByLabel('Max walk (min)')).toHaveValue('7')
+  await startVotingNoTimer(host, guest)
+
+  // Go through every card (say no to each) and write down the names
+  const progress = host.getByText(/\d+\/\d+ done/)
+  const total = Number((await progress.textContent()).match(/(\d+)\/(\d+) done/)[2])
+  const names = []
+  for (let i = 0; i < total; i++) {
+    await expect(progress).toContainText(`${i}/${total} done`)
+    names.push(await cardName(host))
+    await host.getByTestId('vote-no').click()
+  }
+
+  expect(names).toContain('Bras Basah Complex food court')
+  expect(names).not.toContain('Albert Centre Market & Food Centre')
+})
+// [NAWAZ] END

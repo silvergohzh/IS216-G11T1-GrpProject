@@ -351,6 +351,13 @@ router.post("/:code/start", async (req, res, next) => {
       throw fail(400, "You need at least 2 people to vote");
     }
 
+    // [NAWAZ] START: the host must pick a meeting point before voting
+    // Walking times are measured from the meeting point. Without one, the walk limit can't be checked.
+    if (!session.meetingPoint?.lat) {
+      throw fail(400, "Pick a meeting point first");
+    }
+    // [NAWAZ] END
+
     const shortlist = await buildShortlist(session);
 
     if (!shortlist.length) {

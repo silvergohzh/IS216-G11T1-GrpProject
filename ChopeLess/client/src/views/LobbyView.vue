@@ -100,6 +100,42 @@ async function update(changes) {
     error.value = err.message;
   }
 }
+
+// [NAWAZ] START: the host must choose a meeting point before voting
+// Walking times are measured from the meeting point, so voting can't start without one.
+const hasMeetingPoint = computed(() => !!store.session?.meetingPoint?.lat);
+
+// "Use my current location": ask the browser where the host is, and save it as the meeting point
+const locating = ref(false);
+const locationError = ref("");
+
+function useMyLocation() {
+  locationError.value = "";
+  if (!navigator.geolocation) {
+    locationError.value = "Your browser can't share your location. Tap the map instead.";
+    return;
+  }
+  locating.value = true;
+  navigator.geolocation.getCurrentPosition(
+    // It worked: save where the host is
+    (position) => {
+      locating.value = false;
+      update({
+        meetingPoint: { lat: position.coords.latitude, lng: position.coords.longitude, label: "My location" },
+      });
+    },
+    // It didn't work: the host said no, or the location couldn't be found
+    (err) => {
+      locating.value = false;
+      locationError.value =
+        err.code === err.PERMISSION_DENIED
+          ? "Location access was blocked. Tap the map instead."
+          : "Couldn't find your location. Tap the map instead.";
+    },
+    { timeout: 10000 },
+  );
+}
+// [NAWAZ] END
 async function start() {
   error.value = "";
   starting.value = true;
@@ -256,6 +292,23 @@ async function start() {
           <span class="label"
             >Meeting point {{ isHost ? "(tap the map)" : "" }}</span
           >
+          <!-- [NAWAZ] START: "Use my current location" (host only) -->
+          <div v-if="isHost" class="mb-2 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              class="btn text-sm"
+              :disabled="locating"
+              data-testid="use-my-location"
+              @click="useMyLocation"
+            >
+              {{ locating ? "Finding you…" : "📍 Use my current location" }}
+            </button>
+            <span class="text-sm">or choose a starting point on the map</span>
+          </div>
+          <p v-if="locationError" role="alert" class="mb-2 text-sm font-medium text-red-700" data-testid="location-error">
+            {{ locationError }}
+          </p>
+          <!-- [NAWAZ] END -->
           <MapView
             :markers="
               store.session.meetingPoint
@@ -276,21 +329,24 @@ async function start() {
         >
           {{ error }}
         </div>
+        <!-- [NAWAZ] START: meeting point is required, and Start voting waits for it -->
         <p
-          v-if="isHost && !store.session.meetingPoint"
-          class="text-sm text-amber-700"
+          v-if="isHost && !hasMeetingPoint"
+          class="rounded-lg border-2 border-red-300 bg-red-50 p-3 text-sm font-bold text-red-700"
+          data-testid="meeting-point-required"
         >
-          📍 Tap the map to set a meeting point, or walking time won't be
-          checked.
+          📍 Required: choose a meeting point before you start voting.
+          Walking times are measured from there.
         </p>
         <button
           v-if="isHost"
           class="btn-primary w-full min-h-14 font-display text-2xl font-normal"
-          :disabled="starting || members.length < 2"
+          :disabled="starting || members.length < 2 || !hasMeetingPoint"
           @click="start"
         >
           {{ starting ? "Building shortlist…" : "Start voting" }}
         </button>
+        <!-- [NAWAZ] END -->
         <p
           v-if="isHost && members.length < 2"
           class="text-center text-xs text-slate-500"

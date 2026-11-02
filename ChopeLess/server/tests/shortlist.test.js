@@ -17,6 +17,8 @@ db.collection = name => ({
 });
 
 // ---- Fake OSRM: each place's walking time is stored by its "lng,lat" ----
+// Make sure offline mode is off (even if server/.env turns it on), so the fake below is used
+process.env.OSRM_OFFLINE = "false";
 const walkTimes = new Map();
 
 globalThis.fetch = async url => {

@@ -13,6 +13,7 @@ const emit = defineEmits(['pick']) // fires { lat, lng } when the map is clicked
 
 const el = ref(null)
 let map, layer
+let lastPannedTo = ''   // the marker we last moved the map to, so we only move when it changes
 
 function draw() {
   layer.clearLayers()
@@ -25,6 +26,15 @@ function draw() {
     L.polyline(props.route, { color: '#ffffff', weight: 10, opacity: 0.9, lineCap: 'round', lineJoin: 'round' }).addTo(layer)
     const line = L.polyline(props.route, { color: '#ff7a45', weight: 5, dashArray: '10 10', lineCap: 'round', lineJoin: 'round' }).addTo(layer)
     map.fitBounds(line.getBounds(), { padding: [32, 32] }) // show the whole walk, not just the destination
+  } else if (props.markers.length === 1) {
+    // One marker and no route (e.g. the meeting point, or "My location" far away): move the map to it.
+    // Only when the marker moves, so the map doesn't jump back every time something else changes.
+    const m = props.markers[0]
+    const key = `${m.lat},${m.lng}`
+    if (key !== lastPannedTo) {
+      map.panTo([m.lat, m.lng])
+      lastPannedTo = key
+    }
   }
 }
 
