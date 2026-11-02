@@ -4,8 +4,9 @@
  *
  * Rules:
  * - Vetoed restaurants cannot win.
- * - A place is eligible when nobody voted NO
- *   and at least one person voted YES.
+ * - A place is eligible when at least one person votes YES.
+ * - NO votes do not block a place from winning.
+ * - Vetoed places are excluded from both rounds.
  * - Each YES vote contributes 1 point.
  * - Each Super Like contributes 1 additional point.
  * - Free and purchased Super Likes both count.
@@ -88,9 +89,8 @@ export function rankPlaces(session) {
           (place.waitMins || 0)
       };
     })
-    .filter(result =>
-      result.no === 0 && result.yes > 0
-    )
+    .filter(result => result.yes > 0)
+
     .sort(
       (a, b) =>
         b.score - a.score ||

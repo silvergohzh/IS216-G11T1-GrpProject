@@ -54,7 +54,7 @@ test("Super Like counts as two points", () => {
   assert.equal(ranked[0].score, 2);
 });
 
-test("NO vote excludes a restaurant from normal selection", () => {
+test("NO vote does not block a restaurant from winning Round 1", () => {
   const session = makeSession({
     votes: {
       A: {
@@ -62,14 +62,15 @@ test("NO vote excludes a restaurant from normal selection", () => {
         user2: false
       },
       B: {
-        user1: true
+        user1: false,
+        user2: false
       }
     }
   });
 
   const result = decide(session);
 
-  assert.equal(result.winner.id, "B");
+  assert.equal(result.winner.id, "A");
 });
 
 test("Vetoed restaurants cannot win", () => {
