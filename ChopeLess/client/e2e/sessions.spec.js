@@ -219,30 +219,47 @@ test('vote: a second Super Like costs 20 points and the tally counts both (and n
   await expect(host.getByTestId('tally-row').filter({ hasText: first })).toContainText('⭐×1')
 })
 
-test('tie: two places with the same score go to the gacha machine, and both phones get the same winner', async ({ browser }) => {
-  test.setTimeout(120_000)   // two full rounds of voting
+test('tie: highest scoring places go to gacha in Round 1, and both phones get the same winner', async ({ browser }) => {
+  test.setTimeout(120_000)
+
   const host = await newPerson(browser)
   const guest = await newPerson(browser)
+
   await openLobby(host, guest)
   await startVotingNoTimer(host, guest)
 
-  // Round 1: host likes only card 1, guest likes only card 2 -> no place everyone likes
-  await voteThrough(host, 0)
-  await voteThrough(guest, 1, false)
-  await expect(host.getByTestId('round-two')).toBeVisible()
-  await expect(guest.getByTestId('round-two')).toBeVisible()
-
-  // Round 2: same again -> card 1 and card 2 have 1 vote each -> tie
+  // Host likes card 1, guest likes card 2.
+  // Both receive one Yes, so both are eligible
+  // under the new Round 1 rules.
   await voteThrough(host, 0)
   await voteThrough(guest, 1, false)
 
-  await expect(host.getByRole('heading', { name: "It's a tie!" })).toBeVisible({ timeout: 15000 })
-  await expect(host.getByTestId('spin-wheel').locator('ol li')).toHaveCount(2)
-  // The machine runs by itself, then the capsule pops and the winner shows on both phones
-  await expect(host.getByTestId('winner-name')).toBeVisible({ timeout: 30000 })
-  await expect(guest.getByTestId('winner-name')).toBeVisible({ timeout: 30000 })
-  const winner = (await host.getByTestId('winner-name').textContent()).trim()
-  await expect(guest.getByTestId('winner-name')).toHaveText(winner)
+  // Both restaurants tie for the highest score.
+  // Round 1 should proceed directly to gacha.
+  await expect(
+    host.getByRole('heading', { name: "It's a tie!" })
+  ).toBeVisible({ timeout: 30000 })
+
+  await expect(
+    host.getByTestId('spin-wheel').locator('ol li')
+  ).toHaveCount(2)
+
+  // Both users should receive the same final winner.
+  await expect(
+    host.getByTestId('winner-name')
+  ).toBeVisible({ timeout: 30000 })
+
+  await expect(
+    guest.getByTestId('winner-name')
+  ).toBeVisible({ timeout: 30000 })
+
+  const winner = (
+    await host.getByTestId('winner-name').textContent()
+  ).trim()
+
+  await expect(
+    guest.getByTestId('winner-name')
+  ).toHaveText(winner)
 })
 
 test('winner: walking directions, Meal History and starting again', async ({ browser }) => {
