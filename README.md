@@ -75,7 +75,7 @@ Browser (Vue)  ──── reads/writes directly ────▶  Firestore  (p
 | Styling | Tailwind CSS v4 plus shared classes in `client/src/style.css`. Responsive from 375px phones to desktop |
 | Data | Cloud Firestore and Firebase Authentication (email + password) |
 | Back end | Node.js + Express with the Firebase Admin SDK |
-| External APIs | OSRM (walking routes), OpenStreetMap tiles via Leaflet, OpenAI vision (queue photos), Stripe Checkout (test mode) |
+| External APIs | OSRM (walking routes), Nominatim (address search), OpenStreetMap tiles via Leaflet, OpenAI vision (queue photos), Stripe Checkout (test mode) |
 | Browser APIs | Web Audio (sounds and music, no audio files), IntersectionObserver, Pointer Events, localStorage |
 | Testing | Vitest + Vue Test Utils (unit and component), Playwright (end to end), Node's test runner (server unit tests), GitHub Actions |
 | Hosting | Vercel (website), Render (API), Firebase (data) |
@@ -174,6 +174,7 @@ All routes need a logged-in user unless noted. Full details are in the comments 
 |---|---|
 | Sessions | `POST /api/sessions/:code/start` (host), `/vote`, `/buy-super-like`, `/finish` |
 | Shortlist | `GET /api/shortlist/:code`, `GET /api/shortlist/:code/route` (OSRM walking path) |
+| Geocode | `GET /api/geocode?q=` (address or postal code → map pin, via Nominatim; limited to 1 request per second, cached for 10 minutes) |
 | Places | `POST /api/places/:id/analyse` (photo → queue estimate; no login, rate-limited) |
 | Crowd reports | `POST /api/crowd-reports`, `GET /mine`, `GET /pending`, `PATCH /:id/verify` |
 | Gems | `GET/POST /api/gems`, `PUT/DELETE /:id`, `POST/DELETE /:id/upvote`, `GET/POST/PUT/DELETE /:id/reviews` |
@@ -187,7 +188,7 @@ All routes need a logged-in user unless noted. Full details are in the comments 
 ## Credits
 
 - **Libraries:** Vue, Vue Router, Pinia, Vite, Tailwind CSS, Express, Firebase, Leaflet, canvas-confetti (MIT), Stripe, Playwright, Vitest, Vue Test Utils.
-- **Data and services:** map data © OpenStreetMap contributors; walking routes by OSRM; queue estimates by OpenAI; payments by Stripe (test mode).
+- **Data and services:** map data © OpenStreetMap contributors; address search by Nominatim (OpenStreetMap); walking routes by OSRM; queue estimates by OpenAI; payments by Stripe (test mode).
 - **Fonts:** Lilita One and Nunito (Google Fonts, SIL Open Font License).
 - **Sound and music:** written by us in code with the Web Audio API; no audio files are used.
 - **AI use:** _TODO: one honest sentence on how the team used AI tools._ Code adapted from elsewhere is credited in a comment where it is used.
