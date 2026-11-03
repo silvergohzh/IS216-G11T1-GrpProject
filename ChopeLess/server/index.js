@@ -16,6 +16,7 @@ import ordersRouter from './routes/orders.js'           // M6
 import paymentsRouter from './routes/payments.js'       // M6
 import adminRouter from './routes/admin.js'             // M6
 import hawkersRouter from './routes/hawkers.js'         // M6
+import geocodeRouter from './routes/geocode.js'         // M2 - address lookup for Hidden Gems
 
 import crowdReportsRouter from './routes/crowdReports.js'
 import crowdReportVerificationRouter from './routes/crowdReportVerification.js'
@@ -52,6 +53,7 @@ app.use('/api/sessions', sessionsRouter)
 app.use('/api/shortlist', shortlistRouter)
 app.use('/api/places', placesRouter)
 app.use('/api/gems', gemsRouter)
+app.use('/api/geocode', geocodeRouter)
 
 // Makan Points
 app.use('/api/points', pointsRouter)
