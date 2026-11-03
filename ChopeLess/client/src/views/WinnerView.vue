@@ -115,6 +115,7 @@ const canStartRevote = computed(
     store.session?.hostUid === auth.user?.uid &&
     !!winner.value &&
     currentWaitMins.value !== null &&
+    currentWaitMins.value > (store.session?.maxWaitMins ?? 15) &&
     !store.session?.orderingStarted &&
     !store.session?.revoteCompleted &&
     !store.session?.revoteStartedAt,

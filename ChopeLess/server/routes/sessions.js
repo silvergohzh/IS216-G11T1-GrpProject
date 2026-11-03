@@ -823,7 +823,10 @@ router.post("/:code/start-revote", async (req, res, next) => {
 
     // Only trigger when the wait exceeds the group's configured maximum.
     if (rejectedWaitMins <= (session.maxWaitMins ?? 15)) {
-      throw fail(409, "The winner's wait is still within your group's limit");
+      throw fail(
+        409,
+        `The estimated queue wait is ${rejectedWaitMins} minutes, which is within your group's ${session.maxWaitMins ?? 15}-minute limit. Re-voting is only available when the wait exceeds this limit.`
+      );
     }
 
     // [JANANIJ] Find eligible alternatives with shorter reported waits.
