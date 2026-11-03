@@ -1,5 +1,5 @@
 // Seeds the data for Orders + Payments + Platform. Owner: M6
-// Run: npm run seed   (runs seed.js first, then this file)
+// Run: npm run seed   (runs seed.js first, then this file, then demo.js)
 //   1. Gives every place a TYPE tag: hawker centre, food court or restaurant.
 //   2. Restaurants get a menu (menus.json).
 //   3. Hawker centres and food courts get STALLS inside them, each with its own menu (stalls.json).

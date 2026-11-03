@@ -26,6 +26,7 @@ Open the live app and log in with a demo account (password for all: **`test1234`
 | `chloe@chopeless.test` | Chloe Ng, diner, 300 points | A third voter |
 | `hawker@chopeless.test` | Ah Seng Chicken Rice (inside Albert Centre) | Order board, My menu, Earnings |
 | `hawker2@chopeless.test` | Waterloo Nasi Lemak (inside Waterloo Centre) | A second stall |
+| `<place id>@chopeless.test` | The hawker of every other stall and restaurant, e.g. `albert-laksa@chopeless.test`, `bb-wanton-mee@chopeless.test`, `warung-leko@chopeless.test` | Whichever place wins the vote, its hawker can log in. Every board starts with demo orders (2 waiting, 1 preparing, 1 collected) |
 | `admin@chopeless.test` | Admin | Approving hawker sign-ups, changing roles |
 | `dan@chopeless.test` | Dan Koh, diner | Has a hawker application waiting for the admin |
 
@@ -158,6 +159,7 @@ Tests find elements the way users see them (`getByRole`, `getByLabel`) or by `da
 
 1. **Firebase:** turn on Email/Password sign-in and Firestore. Publish the rules with `npx firebase-tools deploy --only firestore:rules` (from `ChopeLess`). Add the Vercel domain under Authentication → Settings → Authorized domains.
 2. **Seed the live database** (once, or after the place data changes): in `server/.env`, remove the two `EMULATOR` lines and set `FIREBASE_PROJECT_ID` and `FIREBASE_SERVICE_ACCOUNT` (the key JSON on one line), then `npm run seed`. Put the emulator lines back afterwards. This replaces the seeded places and resets the demo accounts.
+   To only add the demo hawkers and fresh demo orders (without replacing places or resetting points), run `npm run seed:demo` instead. It lists every hawker email when it finishes.
 3. **Render (API):** root directory `ChopeLess/server`, start command `npm start`. Environment: the server `.env` values without the emulator lines, plus `CLIENT_URL` = the Vercel URL.
 4. **Vercel (website):** root directory `ChopeLess/client`, build `npm run build`, output `dist`. Environment: `VITE_USE_EMULATOR=false`, the `VITE_FIREBASE_*` web config, and `VITE_API_URL` = the Render URL + `/api`. Vercel installs with pnpm, so after adding a package run `npx pnpm@10 install --lockfile-only` and commit `pnpm-lock.yaml`.
 5. **Stripe (test mode):** add a webhook endpoint `https://<render-url>/api/payments/webhook` for `checkout.session.completed`, and put its signing secret in Render as `STRIPE_WEBHOOK_SECRET`.

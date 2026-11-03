@@ -1,7 +1,8 @@
 <!-- Pre-order: pick a place (or a stall inside a hawker centre / food court), join a friend's
      group order, and see my orders (active + history). Owner: M6
      From a Makan Session (/orders?session=CODE) it only shows the place the group picked,
-     and everyone in the session is added to the order automatically. -->
+     and everyone in the session is added to the order automatically. Only the host starts it:
+     anyone else is sent to the host's order (or told to wait for it). -->
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
@@ -100,6 +101,16 @@ onMounted(async () => {
     session.value = await getSession(route.query.session);
     if (!session.value || !session.value.winner) {
       error.value = "This Makan Session has no winner yet.";
+      return;
+    }
+    // Only the host starts the group order. Everyone else goes straight to it, or waits for it.
+    if (session.value.hostUid !== auth.user.uid) {
+      if (session.value.preorder) {
+        router.replace(`/orders/${session.value.preorder.orderId}`);
+        return;
+      }
+      const hostName = session.value.members?.[session.value.hostUid]?.name || "The host";
+      error.value = `${hostName} starts the group pre-order. Go back to the winner page, and you'll be taken to the order when they do.`;
       return;
     }
     const winner = await getStall(session.value.winner.id);

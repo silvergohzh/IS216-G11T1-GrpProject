@@ -246,7 +246,7 @@ test('Fastpass refund: cancelling a Fastpass order gives the points back, once',
 })
 // [NAWAZ] END
 
-test('Makan Session: pick a place together, then pre-order as a group', async ({ browser }) => {
+test('Makan Session: pick a place together, the host starts the pre-order, and everyone is taken to it', async ({ browser }) => {
   const host = await (await browser.newContext()).newPage()
   const guest = await (await browser.newContext()).newPage()
 
@@ -270,13 +270,25 @@ test('Makan Session: pick a place together, then pre-order as a group', async ({
   await host.getByRole('button', { name: 'Open the capsule' }).click({ timeout: 5000 }).catch(() => {})
   await expect(host.getByTestId('winner-name')).toBeVisible()
 
+  // Only the host can start the group pre-order. The guest is told to wait.
+  await guest.getByRole('button', { name: 'Open the capsule' }).click({ timeout: 5000 }).catch(() => {})
+  await expect(guest.getByTestId('preorder-waiting')).toBeVisible()
+  await expect(guest.getByTestId('group-preorder')).toHaveCount(0)
+
   // Then order: "Pre-order as a group" shows only the place the group picked
   await host.getByTestId('group-preorder').click()
   await expect(host.getByTestId('session-banner')).toContainText('2 of you')
   await host.getByRole('button', { name: 'Order here' }).first().click()
   await expect(host).toHaveURL(/\/orders\/\w+$/)
+  const orderId = host.url().split('/').pop()
 
-  // The guest is already in the order (no join code needed)
+  // The guest is taken to the same order automatically, and is already in it (no join code needed)
+  await expect(guest).toHaveURL(new RegExp(`/orders/${orderId}$`))
+  await expect(guest.getByTestId('join-code')).toBeVisible()
+
+  // Opening the group pre-order again also lands on that order, never a second one
+  await guest.goto(`/orders?session=${code}`)
+  await expect(guest).toHaveURL(new RegExp(`/orders/${orderId}$`))
   await guest.goto('/orders')
   await expect(guest.getByTestId('active-order')).toHaveCount(1)
 })

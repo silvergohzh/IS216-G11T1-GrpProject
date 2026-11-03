@@ -159,6 +159,28 @@ watch(
   { immediate: true },
 );
 
+// [M6] START: Group pre-order, started by the host
+// Only the host starts the group pre-order. The server saves the new order on the session
+// (session.preorder), so everyone still on this page is taken to that same order automatically.
+const isHost = computed(() => store.session?.hostUid === auth.user?.uid);
+const hostName = computed(
+  () => store.session?.members?.[store.session?.hostUid]?.name || "The host",
+);
+const groupOrder = computed(() => store.session?.preorder || null);
+
+watch(
+  () => store.session,
+  (now, before) => {
+    const orderId = now?.preorder?.orderId;
+    // Only when the order starts while I'm on this page (not when I open the page later),
+    // and not for the host, who is already on the order page
+    if (before && orderId && orderId !== before.preorder?.orderId && !isHost.value) {
+      router.push(`/orders/${orderId}`);
+    }
+  },
+);
+// [M6] END
+
 // Hidden Gems are community listings: the menu can be viewed, but they can't be pre-ordered
 const isGem = computed(
   () =>
@@ -533,15 +555,28 @@ onUnmounted(() => {
           Get walking directions
         </a>
 
-        <!-- M6: Group pre-order -->
-        <RouterLink
-          v-if="!queueLoading && !isGem"
-          :to="`/orders?session=${route.params.code}`"
-          class="btn"
-          data-testid="group-preorder"
-        >
-          Pre-order as a group
-        </RouterLink>
+        <!-- M6: Group pre-order. The host starts it, and everyone else is taken to it automatically -->
+        <template v-if="!queueLoading && !isGem">
+          <RouterLink
+            v-if="groupOrder"
+            :to="`/orders/${groupOrder.orderId}`"
+            class="btn"
+            data-testid="group-preorder"
+          >
+            Open the group order ({{ groupOrder.placeName }})
+          </RouterLink>
+          <RouterLink
+            v-else-if="isHost"
+            :to="`/orders?session=${route.params.code}`"
+            class="btn"
+            data-testid="group-preorder"
+          >
+            Pre-order as a group
+          </RouterLink>
+          <p v-else class="self-center text-sm text-slate-600" data-testid="preorder-waiting">
+            {{ hostName }} can start a group pre-order. When they do, you'll be taken to it automatically.
+          </p>
+        </template>
 
         <RouterLink to="/sessions" class="btn">
           Start another session

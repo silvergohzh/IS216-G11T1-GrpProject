@@ -162,6 +162,8 @@ router.use(requireAuth)
 //
 // From a Makan Session: send its sessionCode, and EVERYONE in the session is added to the order
 // straight away (no join code needed). The stall must be the session's winner, or a stall inside it.
+// Only the host can start it. The order is saved on the session (preorder), so everyone else
+// is taken to that same order instead of making their own.
 router.post('/', async (req, res, next) => {
   try {
     const place = await db.collection('places').doc(req.body.placeId || 'none').get()
@@ -225,6 +227,19 @@ router.post('/', async (req, res, next) => {
          const isInsideWinner = place.data().parentId === s.winner.id
          if (!isWinner && !isInsideWinner) throw httpError(400, 'Your group picked a different place')
 
+         // [M6] START: one group order per stall, started by the host
+         // The host starts the group pre-order. Anyone else in the session gets that same order
+         // (the winner page sends them there automatically), instead of making their own.
+         const sharedId = s.preorders?.[place.id]
+         if (sharedId) {
+           const shared = await tx.get(orders.doc(sharedId))
+           if (shared.exists && shared.data().status === 'cart') return { id: sharedId, created: false }
+         }
+         if (req.uid !== s.hostUid && !existingCart) {
+           throw httpError(403, "Only the host can start the group pre-order. You'll be taken to the order when they do.")
+         }
+         // [M6] END
+
          // [JANANIJ] START: Preserve existing cart reuse
          // A cart already created for this session can still be reopened.
          if (existingCart) {
@@ -259,7 +274,11 @@ router.post('/', async (req, res, next) => {
          // Multiple stalls can still have their own carts.
          tx.update(sessionRef, {
            orderingStarted: true,
-           orderingStartedAt: s.orderingStartedAt || Date.now()
+           orderingStartedAt: s.orderingStartedAt || Date.now(),
+           // [M6] where everyone in the session is sent (WinnerView watches this),
+           // and which order belongs to which stall (so nobody makes a second one)
+           preorder: { orderId: orderRef.id, placeId: place.id, placeName: place.data().name },
+           preorders: { ...(s.preorders || {}), [place.id]: orderRef.id }
          })
          tx.create(orderRef, order)
          // [JANANIJ] END
