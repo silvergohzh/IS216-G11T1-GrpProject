@@ -9,6 +9,8 @@ import {
 } from '../services/gems'
 import MapView from '../components/MapView.vue'
 import GemMenu from '../components/GemMenu.vue'
+import { api } from '../lib/api'   // [NAWAZ] for "Find on map" (address lookup)
+import { nextTick } from 'vue'     // [NAWAZ] wait for the page to update before scrolling to the lookup result
 
 const auth = useAuthStore()
 const gems = ref([])
@@ -34,6 +36,51 @@ function onPick({ lat, lng }) {
   form.value.lat = lat
   form.value.lng = lng
 }
+// [NAWAZ] START: "Find on map" - look up the typed address (OpenStreetMap, through our server)
+const finding = ref(false)       // true while waiting for the lookup
+const found = ref(null)          // the match the pin is on: { label, lat, lng }
+const allResults = ref([])       // every match, so the user can pick a different one
+const findMessage = ref('')      // "Couldn't find..." or a problem with the lookup
+const lookupResultEl = ref(null) // the box under the map with "Found:", "Not right? Try:" or the message
+
+// Show "Found: ..." only while the pin is still on that match (tapping the map moves the pin by hand)
+const pinOnFound = computed(() =>
+  !!found.value && form.value.lat === found.value.lat && form.value.lng === found.value.lng
+)
+const otherResults = computed(() => allResults.value.filter(r => r !== found.value))
+
+// Put the pin on one of the matches
+function chooseResult(result) {
+  form.value.lat = result.lat
+  form.value.lng = result.lng
+  found.value = result
+}
+
+async function findOnMap() {
+  findMessage.value = ''
+  found.value = null
+  allResults.value = []
+  finding.value = true
+  try {
+    const { results } = await api(`/geocode?q=${encodeURIComponent(form.value.address.trim())}`)
+    if (results.length === 0) {
+      findMessage.value = "Couldn't find that address, tap the map instead."
+      return
+    }
+    allResults.value = results
+    chooseResult(results[0])   // the best match first
+  } catch (err) {
+    findMessage.value = err.message
+  } finally {
+    finding.value = false
+  }
+  // Make sure the user sees the answer. "nearest" only scrolls if the box is off screen,
+  // so the page stays still when it's already visible.
+  await nextTick()
+  lookupResultEl.value?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+}
+// [NAWAZ] END
+
 function resetForm() {
   form.value = empty()
   photoKey.value++
@@ -162,7 +209,6 @@ async function removeReview(g, r) {
       <div><label class="label" for="g-name">Stall or shop</label><input id="g-name" v-model="form.name" required class="input" /></div>
       <div><label class="label" for="g-try">Must try (optional)</label><input id="g-try" v-model="form.mustTry" class="input" /></div>
       <div><label class="label" for="g-cuisine">Cuisine</label><input id="g-cuisine" v-model="form.cuisine" required class="input" placeholder="e.g. Korean, Hawker" /></div>
-      <div><label class="label" for="g-addr">Address</label><input id="g-addr" v-model="form.address" required class="input" /></div>
 
       <div class="grid grid-cols-2 gap-2">
         <div><label class="label" for="g-min">Min price ($)</label><input id="g-min" v-model.number="form.priceMin" type="number" min="0" required class="input" /></div>
@@ -190,12 +236,44 @@ async function removeReview(g, r) {
         <p v-else class="mt-1 text-xs text-slate-500">Required. A gem needs a photo to join the voting pool.</p>
       </div>
 
+      <!-- [NAWAZ] START: address with a "Find on map" button and a tip, right above the map it fills in -->
       <div>
-        <span class="label">Location (click the map)</span>
+        <label class="label" for="g-addr">Address</label>
+        <div class="flex gap-2">
+          <input id="g-addr" v-model="form.address" required class="input flex-1" placeholder="270 Queen Street or 180270" />
+          <button type="button" class="btn shrink-0 text-sm" :disabled="!form.address.trim() || finding"
+                  data-testid="find-on-map" @click="findOnMap">
+            {{ finding ? 'Finding…' : 'Find on map' }}
+          </button>
+        </div>
+        <p class="mt-1 text-xs text-slate-500">Tip: enter the exact street address or postal code. A business name alone may match the wrong place.</p>
+      </div>
+      <!-- [NAWAZ] END -->
+
+      <div>
+        <!-- [NAWAZ] the label mentions the address lookup -->
+        <span class="label">Location (find it with the address above, or click the map)</span>
         <MapView :markers="markers" @pick="onPick" />
         <p class="mt-1 text-xs text-slate-500">
           {{ form.lat != null ? `Picked: ${form.lat.toFixed(5)}, ${form.lng.toFixed(5)}` : 'No location picked yet' }}
         </p>
+        <!-- [NAWAZ] START: what "Find on map" found, and the other matches to choose from -->
+        <!-- lookupResultEl: after a lookup, we scroll this into view if it's off screen -->
+        <div ref="lookupResultEl">
+          <div v-if="pinOnFound" class="mt-1 space-y-1">
+            <p class="text-xs font-semibold text-brand" data-testid="geocode-found">Found: {{ found.label }}</p>
+            <div v-if="otherResults.length" class="flex flex-wrap gap-1">
+              <span class="text-xs text-slate-500">Not right? Try:</span>
+              <button v-for="r in otherResults" :key="`${r.lat},${r.lng}`" type="button"
+                      class="rounded-full border border-slate-300 px-2 py-0.5 text-left text-xs"
+                      data-testid="geocode-other" @click="chooseResult(r)">
+                {{ r.label }}
+              </button>
+            </div>
+          </div>
+          <p v-if="findMessage" class="mt-1 text-xs font-semibold text-red-700" data-testid="geocode-message">{{ findMessage }}</p>
+        </div>
+        <!-- [NAWAZ] END -->
       </div>
 
       <p v-if="error" class="error">{{ error }}</p>
