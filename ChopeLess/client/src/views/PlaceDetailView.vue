@@ -165,7 +165,7 @@ const toggleHour = (h) =>
     </div>
 
     <div class="card card-navy" data-testid="latest">
-      <h2 class="mb-2">Right now</h2>
+      <h2 class="mb-2">Average Wait Time</h2>
       <div v-if="nowStats" class="grid grid-cols-3 gap-2 text-center">
         <div>
           <p class="font-display text-4xl text-accent">
