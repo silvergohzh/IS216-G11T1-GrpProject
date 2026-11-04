@@ -1,4 +1,5 @@
 /* queue.spec.js  Owner: M4 (Jon)
+ Type: Unit test (one plain function at a time, no page, browser or database)
  Unit tests for the QueueLess helpers in ../queue.js.
  Run: npm run test:vitest   (from ChopeLess/client)
 
