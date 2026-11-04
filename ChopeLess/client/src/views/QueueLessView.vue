@@ -2,6 +2,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { listPlaces } from '../services/places'
+import { crowdLevel, asOf } from '../lib/queue'
 
 const places = ref([])
 const error = ref('')
@@ -15,18 +16,7 @@ onMounted(async () => {
   try { places.value = await listPlaces() } catch (err) { error.value = err.message }
 })
 
-function level(p) {
-  const occ = p.latest?.seatOccupancy ?? 0
-  return occ >= 75 ? 'Packed' : occ >= 45 ? 'Busy' : 'Quiet'
-}
-// When the latest estimate was made, in Singapore time: "6:32 pm" today, or "3 Nov, 6:32 pm" on an earlier day
-function asOf(iso) {
-  if (!iso) return ''
-  const sg = { timeZone: 'Asia/Singapore' }
-  const time = new Date(iso).toLocaleTimeString('en-SG', { ...sg, hour: 'numeric', minute: '2-digit' })
-  const day = d => new Date(d).toLocaleDateString('en-SG', { ...sg, day: 'numeric', month: 'short' })
-  return day(iso) === day(Date.now()) ? time : `${day(iso)}, ${time}`
-}
+const level = p => crowdLevel(p.latest?.seatOccupancy)
 // Quiet / Busy / Packed colours for the wait badge and the crowd meter
 const badge = { Quiet: 'bg-green-200', Busy: 'bg-amber-200', Packed: 'bg-red-200' }
 const bar = { Quiet: 'bg-green-600', Busy: 'bg-amber-400', Packed: 'bg-red-600' }
