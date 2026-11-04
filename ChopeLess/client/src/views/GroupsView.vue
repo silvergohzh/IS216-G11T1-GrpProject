@@ -8,6 +8,7 @@ import { getProfile } from '../services/users'
 // [M3] to tell a session code apart from a Makan Kakis code
 import { doc, getDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
+import { collection, query, where, onSnapshot, Timestamp } from 'firebase/firestore'   // [SILVER] for the LIVE badge
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -30,6 +31,23 @@ onMounted(() => {
     err => { error.value = err.message; loading.value = false })
 })
 onUnmounted(() => stop && stop()) // stop listening when I leave the page
+
+// [M3] START: the ● LIVE badge only for sessions that are really still going
+// A group remembers its last session code (activeSession) even after that session ends,
+// so check the session itself: still in the lobby or voting, and not expired (3 hours).
+const liveCodes = ref(new Set())
+let stopLive = null
+onMounted(() => {
+  const openSessions = query(collection(db, 'sessions'), where('expiresAt', '>', Timestamp.now()))
+  stopLive = onSnapshot(openSessions, snap => {
+    liveCodes.value = new Set(snap.docs.map(d => d.data())
+      .filter(s => ['lobby', 'voting', 'revoting'].includes(s.status))
+      .map(s => s.code))
+  }, () => { liveCodes.value = new Set() })   // offline: show no badges
+})
+onUnmounted(() => stopLive?.())
+const isLive = g => !!g.activeSession && liveCodes.value.has(g.activeSession)
+// [SILVER] END
 
 async function create() {
   error.value = ''
@@ -84,12 +102,12 @@ async function removeFromList(g) {
       <p v-else-if="!groups.length" class="text-slate-500">No groups yet. Create one, or join a friend's with their code.</p>
         <ul v-else class="flex flex-col gap-3" data-testid="group-list">
         <li v-for="g in groups" :key="g.code">
-            <RouterLink :to="`/groups/${g.code}`" class="flex items-center justify-between rounded-2xl border-[3px] border-ink bg-sky px-4 py-3 transition hover:translate-x-1" :class="{ '!bg-accent': g.activeSession }">
+            <RouterLink :to="`/groups/${g.code}`" class="flex items-center justify-between rounded-2xl border-[3px] border-ink bg-sky px-4 py-3 transition hover:translate-x-1" :class="{ '!bg-accent': isLive(g) }">
             <span>
               <b>{{ g.name }}</b>
               <span class="ml-2 text-sm text-slate-500">{{ g.memberUids.length }} members</span>
             </span>
-              <span v-if="g.activeSession" class="chip !bg-coral">● LIVE</span>
+              <span v-if="isLive(g)" class="chip !bg-coral">● LIVE</span>
           </RouterLink>
           <button class="btn mt-1 text-xs !text-red-700" @click="removeFromList(g)">
             {{ g.ownerUid === auth.user.uid ? 'Delete group' : 'Leave group' }}
