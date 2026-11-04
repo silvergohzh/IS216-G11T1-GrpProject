@@ -27,7 +27,7 @@ const route = useRoute();
 const router = useRouter();
 
 const places = ref([]); // places on the main list: hawker centres, food courts, restaurants
-// [SILVER] centre / centreStalls: the hawker centre or food court I opened
+// [M3] centre / centreStalls: the hawker centre or food court I opened
 const centre = ref(null); // the hawker centre / food court I opened (null = none)
 const centreStalls = ref([]); // the stalls inside it
 const session = ref(null); // the Makan Session, if I came from one
@@ -38,9 +38,22 @@ const busy = ref(false);
 let stopWatching = null;
 
 // Split my orders into ones still going and finished ones (history)
+// [M3] START: keep "My active orders" short
+// An empty cart started more than 2 hours ago was never used, so it isn't listed.
+const OLD_CART_MS = 2 * 60 * 60 * 1000;
+const isOldEmptyCart = (o) =>
+  o.status === "cart" &&
+  !o.items?.length &&
+  (o.createdAt?.seconds || 0) * 1000 < Date.now() - OLD_CART_MS;
 const activeOrders = computed(() =>
-  myOrders.value.filter((o) => !isFinished(o)),
+  myOrders.value.filter((o) => !isFinished(o) && !isOldEmptyCart(o)),
 );
+// Only the 3 newest at first (myOrders is already newest first). "Show all" opens the rest.
+const showAllActive = ref(false);
+const shownActive = computed(() =>
+  showAllActive.value ? activeOrders.value : activeOrders.value.slice(0, 3),
+);
+// [M3] END
 const pastOrders = computed(() => myOrders.value.filter((o) => isFinished(o)));
 const groupSize = computed(() =>
   session.value ? Object.keys(session.value.members).length : 0,
@@ -230,7 +243,8 @@ const join = () =>
   <section v-if="activeOrders.length > 0" class="mb-6">
     <h2 class="mb-2">My active orders</h2>
     <ul class="space-y-3">
-      <li v-for="o in activeOrders" :key="o.id">
+      <!-- [M3] the 3 newest, the rest behind "Show all" -->
+      <li v-for="o in shownActive" :key="o.id">
         <RouterLink
           :to="`/orders/${o.id}`"
           class="card flex items-center justify-between gap-3 !bg-[#7bc96f] transition hover:translate-x-1"
@@ -251,9 +265,19 @@ const join = () =>
         </RouterLink>
       </li>
     </ul>
+    <!-- [M3] more than 3? one button to see them all, and to fold them away again -->
+    <button
+      v-if="activeOrders.length > 3"
+      type="button"
+      class="btn mt-3 text-sm"
+      data-testid="show-all-orders"
+      @click="showAllActive = !showAllActive"
+    >
+      {{ showAllActive ? "Show fewer" : `Show all (${activeOrders.length})` }}
+    </button>
   </section>
 
-  <!-- [SILVER] START: Hawker centres, food courts, stalls & place tags (built by Myat, see HANDOVER.md) -->
+  <!-- [SILVER] START: Hawker centres
   <!-- Inside a hawker centre / food court: only its stalls -->
   <section v-if="centre" class="mb-6">
     <!-- A yellow banner so it's clear you've "entered" the centre -->

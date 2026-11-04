@@ -79,7 +79,7 @@ const joinLive = () => run(async () => {
 const joinThisGroup = () => run(async () => joinGroup(code, (await myDetails()).name))
 const rename = () => run(async () => {
   const name = prompt('New group name', group.value.name)
-  if (name?.trim()) await renameGroup(code, name.trim())
+  if (name?.trim()) await renameGroup(code, name.trim().slice(0, 40))   // [M3] max 40 letters, same as a new group
 })
 const remove = (uid, name) => run(async () => {
   if (confirm(`Remove ${name} from the group?`)) await removeMember(code, uid)
@@ -126,7 +126,8 @@ async function copyCode() {
       <span class="text-xs font-black tracking-widest">KAKI CODE</span>
       <span class="chip font-display text-lg !font-normal tracking-widest" data-testid="group-code">{{ code }}</span>
       <button class="btn text-sm" @click="copyCode">{{ copied ? 'Kaki code copied ✓' : 'Copy kaki code' }}</button>
-      <button v-if="isOwner" class="btn text-sm" @click="rename">Rename</button>
+      <!-- [M3] any kaki in the group can rename it (not only the owner) -->
+      <button class="btn text-sm" data-testid="rename-group" @click="rename">Rename</button>
     </div>
     <p v-if="error" class="error mb-3">{{ error }}</p>
 
@@ -173,7 +174,8 @@ async function copyCode() {
       </ul>
     </div>
 
-    <button v-if="isOwner" class="mt-4 text-sm text-red-600" @click="del">Delete group</button>
-    <button v-else class="mt-4 text-sm text-red-600" @click="leave">Leave group</button>
+    <!-- [M3] same style as the Leave / Delete buttons on the Makan Kakis list -->
+    <button v-if="isOwner" class="btn mt-4 text-sm !text-red-700" @click="del">Delete group</button>
+    <button v-else class="btn mt-4 text-sm !text-red-700" @click="leave">Leave group</button>
   </div>
 </template>

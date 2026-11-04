@@ -230,30 +230,34 @@ async function start() {
         <h2 class="mb-2 text-2xl">Party ({{ members.length }})</h2>
         <ul class="divide-y divide-slate-100" data-testid="member-list">
           <li v-for="[uid, m] in members" :key="uid" class="py-2">
-            <b>{{ m.name }}</b>
-            <span
-              v-if="uid === store.session.hostUid"
-              class="ml-1 rounded-full border-2 border-ink bg-coral px-2 py-0.5 text-xs font-black"
-              >Host</span
-            >
-            <span
-              v-if="uid === auth.user?.uid"
-              class="ml-1 text-xs text-slate-400"
-              >(you)</span
-            >
-            <span class="text-sm text-slate-500"
-              >· ${{ m.budget }} ·
-              {{ m.dietary.join(", ") || "no restrictions" }}</span
-            >
-            <!-- [M3] change my own budget / diet before voting -->
-            <button
-              v-if="uid === auth.user?.uid && !editing"
-              class="btn ml-2 !min-h-8 px-3 py-0.5 text-xs"
-              data-testid="edit-mine"
-              @click="startEdit"
-            >
-              Edit my budget &amp; diet
-            </button>
+            <!-- [M3] same layout as the Kakis list: name + tags on the left, buttons on the right -->
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <span>
+                <b>{{ m.name }}</b>
+                <span v-if="uid === store.session.hostUid" class="chip ml-1 !bg-coral">HOST</span>
+                <span v-if="uid === auth.user?.uid" class="ml-1 text-xs text-slate-400">(you)</span>
+                <span class="block text-sm text-slate-500">
+                  ${{ m.budget }} · {{ m.dietary.join(", ") || "no restrictions" }}
+                </span>
+              </span>
+              <!-- [M3] change my own budget / diet before voting -->
+              <button
+                v-if="uid === auth.user?.uid && !editing"
+                class="btn text-sm"
+                data-testid="edit-mine"
+                @click="startEdit"
+              >
+                Edit my budget &amp; diet
+              </button>
+              <button
+                v-if="isHost && uid !== auth.user?.uid && uid !== groupOwnerUid"
+                class="btn text-sm !text-red-700"
+                :aria-label="`Remove ${m.name}`"
+                @click="kick(uid, m.name)"
+              >
+                Remove
+              </button>
+            </div>
             <form
               v-if="uid === auth.user?.uid && editing"
               class="mt-2 flex flex-wrap items-end gap-2 rounded-2xl bg-sky p-2"
@@ -268,14 +272,6 @@ async function start() {
               <button class="btn-primary text-sm" type="submit">Save</button>
               <button class="btn text-sm" type="button" @click="editing = false">Cancel</button>
             </form>
-            <button
-              v-if="isHost && uid !== auth.user?.uid && uid !== groupOwnerUid"
-              class="btn ml-2 !min-h-8 px-3 py-0.5 text-xs !text-red-700"
-              :aria-label="`Remove ${m.name}`"
-              @click="kick(uid, m.name)"
-            >
-              Remove
-            </button>
           </li>
         </ul>
       </div>
@@ -342,9 +338,8 @@ async function start() {
           </div>
         </div>
         <div>
-          <span class="label"
-            >Meeting point {{ isHost ? "(tap the map)" : "" }}</span
-          >
+          <!-- [M3] Nawaz's line below already says how to pick it, so no "(tap the map)" here -->
+          <span class="label">Meeting point</span>
           <!-- [NAWAZ] START: "Use my current location" (host only) -->
           <div v-if="isHost" class="mb-2 flex flex-wrap items-center gap-2">
             <button
@@ -377,13 +372,8 @@ async function start() {
           />
           <!-- [NAWAZ] END -->
         </div>
-        <div
-          v-if="error"
-          role="alert"
-          class="rounded-lg border border-red-300 bg-red-50 p-3 text-sm font-medium text-red-700"
-        >
-          {{ error }}
-        </div>
+         <!-- [M3] the same red box as errors on every other page -->
+        <p v-if="error" role="alert" class="error">{{ error }}</p>
         <!-- [NAWAZ] START: meeting point is required, and Start voting waits for it -->
         <p
           v-if="isHost && !hasMeetingPoint"
@@ -411,10 +401,11 @@ async function start() {
         <p v-else-if="!isHost" class="text-sm text-slate-500">
           Waiting for the host to start…
         </p>
-        <button v-if="isHost" class="w-full text-sm text-red-600" @click="end">
+        <!-- [M3] same button style as "Leave group" / "Delete group" -->
+        <button v-if="isHost" class="btn w-full text-sm !text-red-700" @click="end">
           End session for everyone
         </button>
-        <button v-else class="w-full text-sm text-red-600" @click="leave">
+        <button v-else class="btn w-full text-sm !text-red-700" @click="leave">
           Leave session
         </button>
       </div>

@@ -27,7 +27,7 @@ const STATIONS = [
   { id: 'preorder', n: 5, x: 700, y: 120, name: 'Pre-order',     to: '/orders',    cta: 'Order ahead',
     text: 'Order as a group, split the bill, collect when the stall says ready.', rewards: [['Skip the queue', 'priority at 150 pts']] },
   { id: 'points',   n: 6, x: 200, y: 150, name: 'Makan Points',  to: '/points',    cta: 'See my points',
-    text: 'Your points, badges and this week’s leaderboard.', rewards: [['Extra Super Like', '-20 pts']] }
+    text: 'Your points, badges and this week’s leaderboard.', rewards: [['Earn: finish a session', '+10 pts'], ['Spend: extra ⭐ Super Like', '20 pts']] }
 ]
 
 // ---------- visited ticks: saved to your ACCOUNT, reset every day ----------
