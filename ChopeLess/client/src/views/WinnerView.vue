@@ -562,12 +562,15 @@ onUnmounted(() => {
 
       <!-- [JANANIJ] END -->
 
-      <!-- Hidden Gem: community menu (view only) -->
-      <GemMenu
+      <!-- [M3] Hidden Gem: community menu (view only), in the same card style as the QueueLess card -->
+      <div
         v-if="queueInfo?.fromGem && queueInfo.gemId"
-        :gem-id="queueInfo.gemId"
-        preorder-note
-      />
+        class="card flex flex-col gap-3"
+        data-testid="winner-gem-menu"
+      >
+        <h3 class="font-display text-2xl">Menu at {{ winner.name }}</h3>
+        <GemMenu :gem-id="queueInfo.gemId" preorder-note class="!border-0 !p-0" />
+      </div>
 
       <!-- Existing winner actions -->
       <div class="flex flex-wrap gap-3">
