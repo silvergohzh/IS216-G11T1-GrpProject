@@ -138,8 +138,9 @@ async function copyCode() {
       <button v-else class="btn-primary" :disabled="busy" @click="joinLive">{{ inLive ? 'Back to the lobby' : 'Join live session' }}</button>
     </div>
 
-      <div v-else-if="live && live.status === 'voting' && live.expiresAt?.toMillis() > Date.now()" class="card card-sun mb-4">
-      Voting is in progress for this group.
+      <!-- [M3] also during a QueueLess re-vote (status "revoting"), not only the first vote -->
+      <div v-else-if="live && ['voting', 'revoting'].includes(live.status) && live.expiresAt?.toMillis() > Date.now()" class="card card-sun mb-4">
+      {{ live.status === 'revoting' ? 'A QueueLess re-vote' : 'Voting' }} is in progress for this group.
       <RouterLink :to="`/sessions/${group.activeSession}/vote`" class="font-bold text-brand">Open</RouterLink>
     </div>
       <button v-else class="btn-primary mb-4 w-full font-display text-2xl font-normal md:w-auto" :disabled="busy" @click="startSession">
