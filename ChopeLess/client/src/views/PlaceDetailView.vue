@@ -156,7 +156,7 @@ const toggleHour = (h) =>
 <template>
   <div v-if="place" class="space-y-4">
     <div>
-      <button class="btn mb-2 text-sm" @click="goBack">← Back</button>
+      <button class="btn mb-2 text-sm" @click="goBack">← Back</button>
       <p class="kicker">Station 2 · Queue Tower</p>
       <h1 class="page-title">{{ place.name }}</h1>
       <p class="text-slate-600">{{ place.address }}</p>

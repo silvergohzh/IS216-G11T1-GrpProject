@@ -277,7 +277,7 @@ const join = () =>
     </button>
   </section>
 
-  <!-- [SILVER] START: Hawker centres
+  <!-- START: Hawker centres, food courts, stalls & place tags (built by Myat, see HANDOVER.md) -->
   <!-- Inside a hawker centre / food court: only its stalls -->
   <section v-if="centre" class="mb-6">
     <!-- A yellow banner so it's clear you've "entered" the centre -->
@@ -294,7 +294,7 @@ const join = () =>
       <div class="flex items-center gap-2">
         <PlaceTag :type="centre.type" />
         <button v-if="!session" class="btn text-sm" @click="closeCentre">
-          ← All places
+          ← All places
         </button>
       </div>
     </div>

@@ -109,7 +109,7 @@ async function removeFromList(g) {
             </span>
               <span v-if="isLive(g)" class="chip !bg-coral">● LIVE</span>
           </RouterLink>
-          <button class="btn mt-1 text-xs !text-red-700" @click="removeFromList(g)">
+          <button class="btn mt-2 text-sm !text-red-700" @click="removeFromList(g)"><!-- [SILVER] same size as on the group page -->
             {{ g.ownerUid === auth.user.uid ? 'Delete group' : 'Leave group' }}
           </button>
         </li>
