@@ -436,6 +436,31 @@ onUnmounted(() => {
         </p>
       </div>
 
+      <!--  Walking route map: moved up, right under the winner, so nobody has to scroll for it -->
+      <div>
+        <MapView
+          :center="[winner.lat, winner.lng]"
+          :markers="[
+            {
+              lat: winner.lat,
+              lng: winner.lng,
+              label: winner.name,
+              icon: 'finish',
+            },
+            ...(from
+              ? [
+                  {
+                    ...from,
+                    label: 'Meeting point',
+                    icon: 'start',
+                  },
+                ]
+              : []),
+          ]"
+          :route="path"
+        />
+      </div>
+
       <!-- =================================================
            [JANANIJ] START: Winner to QueueLess integration
            ================================================= -->
@@ -583,30 +608,6 @@ onUnmounted(() => {
         </RouterLink>
       </div>
 
-      <!-- Walking route map -->
-      <div>
-        <MapView
-          :center="[winner.lat, winner.lng]"
-          :markers="[
-            {
-              lat: winner.lat,
-              lng: winner.lng,
-              label: winner.name,
-              icon: 'finish',
-            },
-            ...(from
-              ? [
-                  {
-                    ...from,
-                    label: 'Meeting point',
-                    icon: 'start',
-                  },
-                ]
-              : []),
-          ]"
-          :route="path"
-        />
-      </div>
     </template>
   </div>
 

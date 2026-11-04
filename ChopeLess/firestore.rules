@@ -207,9 +207,12 @@ service cloud.firestore {
         (resource.data.ownerUid == request.auth.uid
           && changedOnly(['name', 'memberUids', 'members', 'activeSession', 'kicked']))
         ||
-        // Any member can start a session for the group
+        // Any member can start a session for the group, or rename it   [M3]
         (request.auth.uid in resource.data.memberUids
-          && changedOnly(['activeSession']))
+          && changedOnly(['activeSession', 'name'])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 40)
         ||
         // Anyone can add or remove ONLY themselves (join / leave), unless the owner removed them
         (changedOnly(['memberUids', 'members'])

@@ -65,16 +65,21 @@ test('groups: a name and a real 6-letter code are needed', async ({ page }) => {
   await expect(page.getByText('No group with that code')).toBeVisible()
 })
 
-test('groups: the owner renames the group and the friend sees it live', async ({ browser }) => {
+// [M3] any member can rename the group, and everyone sees the new name live
+test('groups: any member renames the group and everyone sees it live', async ({ browser }) => {
   const owner = await (await browser.newContext()).newPage()
   const friend = await (await browser.newContext()).newPage()
   await groupWithFriend(owner, friend, 'Old Name')
 
-  owner.once('dialog', d => d.accept('Friday Lunch Club'))   // the "New group name" box
+  // The FRIEND (not the owner) renames it, and the owner sees it
+  friend.once('dialog', d => d.accept('Friday Lunch Club'))   // the "New group name" box
+  await friend.getByRole('button', { name: 'Rename' }).click()
+  await expect(owner.getByRole('heading', { name: 'Friday Lunch Club' })).toBeVisible()
+
+  // The owner can rename it too, and the friend sees that
+  owner.once('dialog', d => d.accept('Saturday Brunch Club'))
   await owner.getByRole('button', { name: 'Rename' }).click()
-  await expect(friend.getByRole('heading', { name: 'Friday Lunch Club' })).toBeVisible()
-  // Only the owner gets the Rename button
-  await expect(friend.getByRole('button', { name: 'Rename' })).toHaveCount(0)
+  await expect(friend.getByRole('heading', { name: 'Saturday Brunch Club' })).toBeVisible()
 })
 
 test('groups: owner removes a stranger, who cannot rejoin with the code', async ({ browser }) => {

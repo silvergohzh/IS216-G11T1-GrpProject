@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { createSession, joinSession } from '../services/sessions'
 import { getProfile } from '../services/users'
+import LiveSessions from '../components/LiveSessions.vue'   // shortcut back to a live session
 // [M3] to tell a Makan Kakis (group) code apart from a session code
 import { doc, getDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
@@ -65,6 +66,8 @@ async function join() {
   <p class="kicker">Station 4 · Voting Arena</p>
   <h1 class="page-title">Makan Session</h1>
   <p class="mb-4 text-slate-600">Start a session and share the code, or join a friend's.</p>
+  <!-- left the vote page by accident? One tap back -->
+  <LiveSessions class="mb-4" />
       <div class="mb-4 flex flex-wrap gap-2">
     <RouterLink to="/groups" class="btn text-sm">Start from a Makan Kakis group</RouterLink>
     

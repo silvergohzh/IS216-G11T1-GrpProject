@@ -170,9 +170,10 @@ async function vote(yes) {
 
   busy.value = true;
   error.value = "";
-  purchaseMessage.value = "";
 
   const special = pendingSpecial.value;
+  // [M3] keep "Super Like bought" on screen for the vote that uses it (it was wiped after a split second)
+  if (special !== "super") purchaseMessage.value = "";
   pendingSpecial.value = null;
 
   const placeId = current.value.id;
