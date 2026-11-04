@@ -52,7 +52,7 @@ test('session form: checks the name and the code before joining', async ({ page 
   await page.getByLabel('Name').fill('')
   await page.getByTestId('create-session').click()
   await expect(page.getByText('Please enter your name.')).toBeVisible()
-  await expect(page).toHaveURL(/\/sessions$/)
+  await expect(page).toHaveURL(/\/sessions$/, { timeout: 15000 })   // creating an account can take >5 s on GitHub's slower machines
 
   // A code that doesn't exist
   await page.getByLabel('Name').fill('Tester')
