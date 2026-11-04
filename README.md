@@ -147,7 +147,7 @@ GitHub Actions (`.github/workflows/tests.yml`) runs all of these on every pull r
 | Silver | `today.spec.js` (Singapore-date reset) | `PlaceCard.spec.js`, `GachaTie.spec.js` | `sessions`, `groups`, `island`, `foryou` (26 tests) |
 | Janani | `winner.test.js`, `priorityQueue.test.js` | _TODO_ | _TODO_ |
 | Nawaz | _TODO_ | _TODO_ | _TODO_ |
-| Jonathan | _TODO_ | _TODO_ | `queueless` |
+| Jonathan | `queue.spec.js` (hourly averages, crowd level, "as of" time) | `PlaceDetailView.spec.js`, `QueueLessView.spec.js` | `queueless` (4 tests) |
 | Jan | _TODO_ | _TODO_ | `gems` |
 | Myat | `splitBill.test.js` | _TODO_ | `home`, `orders`, `hawkers` |
 

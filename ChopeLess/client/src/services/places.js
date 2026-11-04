@@ -5,6 +5,7 @@
 import { collection, doc, getDoc, getDocs } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { api, BASE } from '../lib/api'
+import { hourlyTrend } from '../lib/queue'
 
 
 // List all places
@@ -29,20 +30,7 @@ export async function getPlace(id) {
   if (!snap.exists()) throw new Error('Place not found')
 
   const history = await getDocs(collection(db, 'places', id, 'analyses'))
-  const byHour = {}
-  history.forEach(d => {
-    const a = d.data()
-    byHour[a.hour] ??= { total: 0, people: 0, seats: 0, count: 0 }
-    byHour[a.hour].total += a.waitMins
-    byHour[a.hour].people += a.peopleInQueue
-    byHour[a.hour].seats += a.seatOccupancy
-    byHour[a.hour].count++
-  })
-  const trend = Object.keys(byHour).map(Number).sort((a, b) => a - b)
-    .map(hour => {
-      const h = byHour[hour]
-      return { hour, avgWait: h.total / h.count, avgPeople: h.people / h.count, avgSeats: h.seats / h.count, reports: h.count }
-    })
+  const trend = hourlyTrend(history.docs.map(d => d.data()))
 
   return { id: snap.id, ...snap.data(), trend }
 }

@@ -9,6 +9,7 @@ import {
   checkLiveQueue,
   livePhotoUrl,
 } from "../services/places";
+import { crowdLevel } from "../lib/queue";
 // [M3] Today's Quests: remember that I checked a queue with a photo today
 import { auth } from "../lib/firebase";
 import { markQuest } from "../lib/quests";
@@ -136,10 +137,12 @@ const nowStats = computed(() => {
     reports: t.reports,
   };
 });
-const nowColour = computed(() => {
-  const occ = nowStats.value?.seatOccupancy ?? 0;
-  return occ >= 75 ? "bg-red-500" : occ >= 45 ? "bg-amber-400" : "bg-green-500";
-});
+const nowColour = computed(
+  () =>
+    ({ Packed: "bg-red-500", Busy: "bg-amber-400", Quiet: "bg-green-500" })[
+      crowdLevel(nowStats.value?.seatOccupancy)
+    ],
+);
 
 // The bar the user tapped (starts on the current hour); tap it again to close
 const selectedHour = ref(currentHour);
@@ -165,7 +168,7 @@ const toggleHour = (h) =>
     </div>
 
     <div class="card card-navy" data-testid="latest">
-      <h2 class="mb-2">Right now</h2>
+      <h2 class="mb-2">Average Wait Time</h2>
       <div v-if="nowStats" class="grid grid-cols-3 gap-2 text-center">
         <div>
           <p class="font-display text-4xl text-accent">

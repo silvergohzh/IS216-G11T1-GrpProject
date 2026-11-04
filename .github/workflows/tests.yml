@@ -40,6 +40,9 @@ jobs:
       - name: Unit tests
         run: npm run test:unit
         working-directory: ChopeLess/client
+      - name: Unit and component tests (Vitest)
+        run: npm run test:vitest
+        working-directory: ChopeLess/client
       - name: End-to-end tests
         run: npm run test:e2e
         working-directory: ChopeLess/client
