@@ -49,10 +49,25 @@ test('two members join, vote yes on the same place, and both see the winner', as
 test('session form: checks the name and the code before joining', async ({ page }) => {
   await signUp(page, 'form')
   // No name -> friendly message, nothing created
-  await page.getByLabel('Name').fill('')
+  // Wait until the user's profile has finished loading.
+  
+
+  const nameInput = page.getByLabel('Name')
+
+  // Wait for the saved profile to populate the input.
+  await expect(nameInput).toHaveValue(/^form-/, {
+    timeout: 15000
+  })
+
+  // Allow the asynchronous profile initialization to settle.
+  await page.waitForTimeout(1000)
+
+  await nameInput.fill('')
+  await expect(nameInput).toHaveValue('')
+
   await page.getByTestId('create-session').click()
   await expect(page.getByText('Please enter your name.')).toBeVisible()
-  await expect(page).toHaveURL(/\/sessions$/, { timeout: 15000 })   // creating an account can take >5 s on GitHub's slower machines
+  await expect(page).toHaveURL(/\/sessions$/, { timeout: 15000 })
 
   // A code that doesn't exist
   await page.getByLabel('Name').fill('Tester')
