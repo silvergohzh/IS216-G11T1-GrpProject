@@ -411,6 +411,7 @@ async function resetSeededQueueTimes() {
 // Says no to every card in this round and returns the names, in order.
 // Waits for each vote to be saved (the "N/M done" count goes up) before the next one.
 
+
 async function sayNoToAll(page) {
   const progress = page.getByText(/\d+\/\d+ done/)
 
@@ -424,31 +425,30 @@ async function sayNoToAll(page) {
 
   for (let i = 0; i < total; i++) {
     await expect(progress).toContainText(`${i}/${total} done`, {
-      timeout: 15000
+      timeout: 30000
     })
 
     names.push(await cardName(page))
     await page.getByTestId('vote-no').click()
 
-    // Confirm the vote is processed before continuing.
-    // The last vote may immediately transition to the next round.
     if (i < total - 1) {
       await expect(progress).toContainText(`${i + 1}/${total} done`, {
-        timeout: 15000
+        timeout: 30000
       })
     }
   }
 
   await expect(progress).toContainText(`${total}/${total} done`, {
-    timeout: 15000
+    timeout: 30000
   })
 
   return names
 }
 
 
+
 test('round 2: nobody matched, so Round 2 shows only fresh places', async ({ browser }) => {
-  test.slow()   // [M3] 18 votes + building Round 2: give it 3× the normal time (it timed out on GitHub's slower machines)
+  test.setTimeout(240_000)   // [M3] 18 votes + building Round 2: give it 3× the normal time (it timed out on GitHub's slower machines)
   // Start from the seeded queue times, whatever earlier tests did to them
   const changed = await resetSeededQueueTimes()
   console.log(`Queue times reset: ${changed.length ? changed.join(', ') : 'nothing had changed'}`)

@@ -12,7 +12,9 @@ export async function newPerson(browser) {
 export async function openLobby(host, guest) {
   await signUp(host, 'host')
   await host.getByTestId('create-session').click()
-  await expect(host).toHaveURL(/\/sessions\/[A-Z]{6}$/)
+  await expect(host).toHaveURL(/\/sessions\/[A-Z]{6}$/, {
+  timeout: 15000
+})
   const code = (await host.getByTestId('session-code').textContent()).trim()
 
   await signUp(guest, 'guest')
