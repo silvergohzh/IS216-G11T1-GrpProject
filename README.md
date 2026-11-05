@@ -9,7 +9,7 @@ IS216 Web Application Development II · Section G11 · Team 1
 | **Live app** | https://chopeless.vercel.app |
 | **API (Render)** |https://chopeless-api.onrender.com/api/health|
 | **GitHub** | https://github.com/silvergohzh/IS216-G11T1-GrpProject |
-| **Video (YouTube, unlisted)** | _TODO: YouTube URL_ |
+| **Video (YouTube, unlisted)** |https://www.youtube.com/watch?v=wDnclbpYWIE|
 
 The app code is in the [`ChopeLess/`](ChopeLess) folder: `client/` (Vue website) and `server/` (Express API).
 
