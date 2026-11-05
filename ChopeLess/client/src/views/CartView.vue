@@ -8,7 +8,6 @@ import { useAuthStore } from '../stores/auth'
 import {
   watchOrder, watchProofs, addItem, changeQty, removeItem,
   cancelOrder, checkout, setSplitMode, markCollected, orderCode, STATUS_LABELS,
-  // [NAWAZ] Fastpass imports (next line)
   buyFastpass, getQueuePosition, getMyPoints
 } from '../services/orders'
 import { splitByItem, splitEqually, formatMoney } from '../lib/splitBill'
@@ -33,24 +32,19 @@ let stopOrder = null
 let stopProofs = null
 let stopStall = null
 
-// [NAWAZ] START: Fastpass & Makan Points in pre-orders (built by Myat, see HANDOVER.md)
 // ---------- Fastpass ----------
 // The group leader can spend Makan Points so the hawker prepares this order first.
 // (The server checks everything again: who you are, your points, and the order's status.)
 const fastpassCost = ref(null)       // the Fastpass price, sent by the server (so it's only written in one place)
 const myPoints = ref(null)           // my Makan Points balance (only loaded for the group leader)
 const queue = ref(null)              // { position, waiting } once the order is paid
-// [NAWAZ] END
 
-// Handy true/false values for the template
 const isMember = computed(() => order.value && order.value.memberUids.includes(auth.user.uid))
 const isOwner = computed(() => order.value && order.value.ownerUid === auth.user.uid)
 const isCart = computed(() => order.value && order.value.status === 'cart')
-// [NAWAZ] START: Fastpass & Makan Points in pre-orders (built by Myat, see HANDOVER.md)
 const canBuyFastpass = computed(() =>
   isOwner.value && !order.value.priority && ['cart', 'awaiting_payment', 'paid'].includes(order.value.status)
 )
-// [NAWAZ] END
 const justPaid = route.query.paid === '1' // Stripe sends people back here with ?paid=1
 const isPaid = computed(() => order.value && ['paid', 'preparing', 'ready', 'collected'].includes(order.value.status))
 
@@ -115,8 +109,7 @@ onMounted(() => {
   stopProofs = watchProofs(orderId, data => (proofs.value = data), () => {})
 })
 
-// [NAWAZ] START: Fastpass & Makan Points in pre-orders (built by Myat, see HANDOVER.md)
-// When the order changes: load my points and the Fastpass price (group leader), and my place in the queue (once paid)
+
 watch(order, async now => {
   if (!now) return
   if (now.ownerUid === auth.user.uid && myPoints.value === null) {
@@ -131,7 +124,7 @@ watch(order, async now => {
     queue.value = null
   }
 })
-// [NAWAZ] END
+
 onUnmounted(() => {
   if (stopOrder) stopOrder()
   if (stopProofs) stopProofs()
@@ -191,14 +184,13 @@ function chooseSplit(mode) {
 }
 const collect = photo => run(() => markCollected(orderId, photo))
 
-// [NAWAZ] START: Fastpass & Makan Points in pre-orders (built by Myat, see HANDOVER.md)
-// Spend points on a Fastpass, then show my new balance
+
 const fastpass = () => run(async () => {
   await buyFastpass(orderId)
   const account = await getMyPoints()
   myPoints.value = account.balance
 })
-// [NAWAZ] END
+
 
 // Pay: Stripe's payment page opens in a NEW TAB, and this page stays open.
 // When Stripe confirms the payment (webhook), this page turns "Paid" by itself.
@@ -288,9 +280,7 @@ async function copyLink() {
       Finish paying in the Stripe tab. This page will change to "Paid" by itself.
     </p>
 
-    <!-- [NAWAZ] START: Fastpass & Makan Points in pre-orders (built by Myat, see HANDOVER.md) -->
-    <!-- Fastpass: everyone in the group order sees it once it's on -->
-    <!-- Cancelled after buying a Fastpass: the server gave the points back -->
+
     <section v-if="order.status === 'cancelled' && order.fastpassRefunded" class="card" data-testid="fastpass-refunded">
       <p class="font-bold">⚡ Fastpass refunded</p>
       <p class="text-sm">The order was cancelled, so {{ order.fastpassRefunded }} Makan Points went back to {{ order.priorityBy }}.</p>
@@ -312,7 +302,7 @@ async function copyLink() {
     <p v-if="queue && queue.position > 0" class="card font-semibold" data-testid="queue-position">
       You're #{{ queue.position }} of {{ queue.waiting }} in the queue at this stall.
     </p>
-    <!-- [NAWAZ] END -->
+
 
     <!-- Ready: countdown, and the diner collects it with a photo -->
     <section v-if="order.status === 'ready'" class="card card-sun space-y-3">
