@@ -4,6 +4,12 @@ import { createRequire } from 'module'   // [NAWAZ] for resetSeededQueueTimes (R
 import { signUp, logIn } from './helpers.js'
 import { newPerson, openLobby, startVotingNoTimer, cardName, voteThrough, setMeetingPoint } from './session-helpers.js'
 
+// Close the extra browser windows this test opened (newPerson / browser.newContext),
+// so they stop listening to the database. Left open, ~100 windows pile up and slow down the last tests.
+test.afterEach(async ({ browser, context }) => {
+  await Promise.all(browser.contexts().filter(c => c !== context).map(c => c.close().catch(() => {})))
+})
+
 test('two members join, vote yes on the same place, and both see the winner', async ({ browser }) => {
   const host = await (await browser.newContext()).newPage()
   const guest = await (await browser.newContext()).newPage()

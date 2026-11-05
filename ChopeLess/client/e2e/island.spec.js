@@ -4,6 +4,12 @@ import { test, expect } from '@playwright/test'
 import { signUp, logIn } from './helpers.js'
 import { newPerson, openLobby, startVotingNoTimer } from './session-helpers.js'
 
+// Close the extra browser windows this test opened (newPerson / browser.newContext),
+// so they stop listening to the database. Left open, ~100 windows pile up and slow down the last tests.
+test.afterEach(async ({ browser, context }) => {
+  await Promise.all(browser.contexts().filter(c => c !== context).map(c => c.close().catch(() => {})))
+})
+
 // On the phone layout the top-bar buttons are inside the ☰ menu
 async function openMenuIfPhone(page) {
   const menu = page.getByTestId('menu-toggle')

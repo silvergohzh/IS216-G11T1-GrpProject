@@ -2,6 +2,12 @@
 import { test, expect } from '@playwright/test'
 import { signUp } from './helpers.js'
 
+// Close the extra browser windows this test opened (newPerson / browser.newContext),
+// so they stop listening to the database. Left open, ~100 windows pile up and slow down the last tests.
+test.afterEach(async ({ browser, context }) => {
+  await Promise.all(browser.contexts().filter(c => c !== context).map(c => c.close().catch(() => {})))
+})
+
 test('group: create, join by code, start a session, member joins live', async ({ browser }) => {
   const owner = await (await browser.newContext()).newPage()
   const friend = await (await browser.newContext()).newPage()
