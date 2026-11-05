@@ -8,31 +8,16 @@
 import { Router } from 'express'
 import { FieldValue } from 'firebase-admin/firestore'
 import { db, adminAuth } from '../firebase.js'
-import { requireAuth } from '../middleware/auth.js'
+import { requireAuth, requireRole } from '../middleware/auth.js'
 import { awardPoints, POINT_RULES } from '../services/points.js'   // Janani's Makan Points
+import { httpError, slugify, parseGem, IMAGE_PREFIX, MAX_IMAGE_CHARS } from '../services/gemRules.js'
 
 const router = Router()
 const gems = db.collection('gems')
 const places = db.collection('places')
 const UPVOTES_NEEDED = 3
 const MENU_POINTS = POINT_RULES.GEM_MENU_CONTRIBUTION
-const DIETARY = ['halal', 'vegetarian']
-const SERVICE_MODES = ['dine-in', 'takeaway']
-const IMAGE_PREFIX = 'data:image/jpeg;base64,'
-const MAX_IMAGE_CHARS = 400000   // keeps each photo well under Firestore's 1 MB document limit
 
-
-// Makes an error with an HTTP status code. The shared handler in index.js sends it to the browser.
-const httpError = (status, msg) => Object.assign(new Error(msg), { status })
-
-// Turns a name into a readable document ID: "Ba Buông Bánh Mì" -> "ba-buong-banh-mi"
-const slugify = s => String(s)
-  .normalize('NFD').replace(/[\u0300-\u036f]/g, '')   // strip accents
-  .replace(/đ/gi, 'd')
-  .toLowerCase()
-  .replace(/[^a-z0-9]+/g, '-')
-  .replace(/^-+|-+$/g, '')
-  .slice(0, 40)
 
 // Finds an unused ID for a new gem. It must be free in BOTH "gems" and "places",
 // because the gem's copy in "places" uses the same ID. Adds -2, -3 ... if the name is taken.
@@ -46,63 +31,6 @@ async function freeGemId(name) {
   }
 }
 
-// The photo arrives as a small JPEG data URL made by the browser
-function parseImage(imageUrl) {
-  if (typeof imageUrl !== 'string' || !imageUrl.startsWith(IMAGE_PREFIX)) {
-    throw httpError(400, 'Add a photo of the place')
-  }
-  if (imageUrl.length > MAX_IMAGE_CHARS) throw httpError(400, 'That photo is too big. Pick a smaller one.')
-  if (!/^[A-Za-z0-9+/=]+$/.test(imageUrl.slice(IMAGE_PREFIX.length))) throw httpError(400, 'That photo is not valid')
-  return imageUrl
-}
-
-// Check and clean the data the form sends. Used by both submit and edit.
-// A gem must have everything a place needs, so it can join the voting pool.
-function parseGem(body) {
-  const { name, mustTry, cuisine, address, lat, lng, priceMin, priceMax, dietary, serviceModes, waitMins, imageUrl } = body
-
-  if (!name?.trim()) throw httpError(400, 'Name is required')
-  if (!cuisine?.trim()) throw httpError(400, 'Cuisine is required')
-  if (!address?.trim()) throw httpError(400, 'Address is required')
-
-  const min = Number(priceMin)
-  const max = Number(priceMax)
-  if (priceMin === '' || priceMax === '' || priceMin == null || priceMax == null ||
-      !Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max < min) {
-    throw httpError(400, 'Enter a valid price range (min is 0 or more, max is not below min)')
-  }
-
-  const wait = Number(waitMins)
-  if (waitMins === '' || waitMins == null || !Number.isFinite(wait) || wait < 0 || wait > 180) {
-    throw httpError(400, 'Enter the typical wait in minutes (0 to 180)')
-  }
-
-  const modes = Array.isArray(serviceModes) ? serviceModes.filter(m => SERVICE_MODES.includes(m)) : []
-  if (!modes.length) throw httpError(400, 'Pick dine-in, takeaway or both')
-
-  const latNum = Number(lat)
-  const lngNum = Number(lng)
-  if (lat == null || lat === '' || lng == null || lng === '' ||
-      !Number.isFinite(latNum) || !Number.isFinite(lngNum) ||
-      Math.abs(latNum) > 90 || Math.abs(lngNum) > 180) {
-    throw httpError(400, 'Pick the location on the map (valid latitude and longitude required)')
-  }
-
-  return {
-    name: name.trim(),
-    mustTry: mustTry?.trim() || '',
-    cuisine: cuisine.trim(),
-    address: address.trim(),
-    lat: latNum,
-    lng: lngNum,
-    priceMin: min,
-    priceMax: max,
-    dietary: Array.isArray(dietary) ? dietary.filter(d => DIETARY.includes(d)) : [],
-    serviceModes: modes,
-    waitMins: wait,
-    imageUrl: parseImage(imageUrl)
-  }
-}
 
 // ---- Joining the voting pool = a copy of the gem in "places" (same fields as places.json) ----
 
@@ -169,6 +97,17 @@ async function syncPlaceMenu(id) {
 // A menu change must never make the request fail, so problems are only logged
 const safeSync = async id => {
   try { await syncPlaceMenu(id) } catch (err) { console.error('[Hidden Gems] Could not copy the menu into places:', err.message) }
+}
+
+// Deletes a gem with its reviews and menu, and takes its copy out of "places" (also the older gem-<id> naming).
+// Used by the owner's delete and by the admin's delete.
+async function removeGem(ref) {
+  await db.recursiveDelete(ref)
+  for (const pid of [ref.id, `gem-${ref.id}`]) {
+    const placeRef = places.doc(pid)
+    const snap = await placeRef.get()
+    if (snap.exists && snap.data().fromGem && snap.data().gemId === ref.id) await placeRef.delete()
+  }
 }
 
 // GET /api/gems - list gems, most upvoted first
@@ -243,14 +182,21 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
     const doc = await ref.get()
     if (!doc.exists) throw httpError(404, 'Gem not found')
     if (doc.data().submittedBy !== req.uid) throw httpError(403, 'You can only delete your own gems')
-    await db.recursiveDelete(ref)   // also deletes its reviews and menu
+    await removeGem(ref)
+    res.json({ ok: true })
+  } catch (err) {
+    next(err)
+  }
+})
 
-    // Remove this gem's copy from "places" (also the older gem-<id> naming)
-    for (const pid of [ref.id, `gem-${ref.id}`]) {
-      const placeRef = places.doc(pid)
-      const snap = await placeRef.get()
-      if (snap.exists && snap.data().fromGem && snap.data().gemId === ref.id) await placeRef.delete()
-    }
+// DELETE /api/gems/:id/admin - an admin removes any gem (moderation: spam, fake or wrong listings)
+router.delete('/:id/admin', requireRole('admin'), async (req, res, next) => {
+  try {
+    const ref = gems.doc(req.params.id)
+    const doc = await ref.get()
+    if (!doc.exists) throw httpError(404, 'Gem not found')
+    await removeGem(ref)
+    console.log(`[Hidden Gems] Admin ${req.uid} removed "${doc.data().name}" (${ref.id}), submitted by ${doc.data().submittedBy}`)
     res.json({ ok: true })
   } catch (err) {
     next(err)
