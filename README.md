@@ -215,7 +215,7 @@ To see what happened in a failed test, run `npx playwright show-report`. It show
 | **Janani** | `server/tests/winner.test.js` (Round 1 and 2 rules, Super Likes, vetoes, ties), `priorityQueue.test.js` (Fastpass order) | _Janani: add your component tests_ | Voting rules in `sessions.spec.js` (shared with Silver) |
 | **Nawaz** | `lib/__tests__/walkingTime.spec.js`, `server/tests/shortlist.test.js`, `osrm.test.js`, `geocode.test.js` | `MapView.spec.js`, `GemsAddressLookup.spec.js` | `geocode.spec.js` ("Find on map"); meeting point and Round 2 tests in `sessions.spec.js` |
 | **Jonathan** | `queue.spec.js` (hourly averages, crowd level, "as of" time) | `PlaceDetailView.spec.js`, `QueueLessView.spec.js` | `queueless.spec.js` |
-| **Jan** | _Jan: add your unit test_ | _Jan: add your component tests_ | `gems.spec.js` (add, edit and delete a gem) |
+| **Jan** | `server/tests/gemRules.test.js`: how a gem's ID is made from its name (`slugify`) and which gems are refused (`parseGem`: no photo, no location, bad price range, no service mode) | `GemMenu.spec.js` (accuracy disclaimer, community dishes, adding a dish shows the Makan Points reward), `GemsView.spec.js` (average rating, "in voting pool" label, upvote and take the vote back) | `gems.spec.js`: **2 tests**. A gem needs a photo and a map location, then can be added, edited and deleted. Upvote and un-upvote, and two reviews update the average rating |
 | **Myat** | `lib/splitBill.test.js` (split by item and equally) | `PickupTimer.spec.js`, `ProofUpload.spec.js` | `home.spec.js`, `orders.spec.js`, `hawkers.spec.js` (full pay → ready → collect journey with photos, fake payment rejected, Fastpass, group pre-order, split bill, hawker sign-up and approval, role checks) |
  
 **How the tests are written:**

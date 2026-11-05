@@ -33,7 +33,8 @@ async function submit() {
   try {
     if (isSignUp.value) await auth.register(email.value, password.value)
     else await auth.login(email.value, password.value)
-    router.push(route.query.next || '/sessions')
+    // Hawkers start on their Order board, everyone else on Makan Session
+    router.push(route.query.next || (auth.isHawker ? '/hawker' : '/sessions'))
   } catch (err) {
     error.value = messages[err.code] || err.message
   }

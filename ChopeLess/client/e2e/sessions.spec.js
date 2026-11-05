@@ -48,6 +48,8 @@ test('two members join, vote yes on the same place, and both see the winner', as
 
 test('session form: checks the name and the code before joining', async ({ page }) => {
   await signUp(page, 'form')
+  // wait until the profile has filled in the name, or it arrives late and overwrites our blank name
+  await expect(page.getByLabel('Name')).toHaveValue(/^form-/)
   // No name -> friendly message, nothing created
   // Wait until the user's profile has finished loading.
   

@@ -5,7 +5,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import {
   watchGems, addGem, updateGem, deleteGem, upvoteGem, unvoteGem,
-  getReviews, saveReview, updateReview, deleteReview, photoToDataUrl, UPVOTES_NEEDED
+  getReviews, saveReview, updateReview, deleteReview, photoToDataUrl, UPVOTES_NEEDED, adminDeleteGem
 } from '../services/gems'
 import MapView from '../components/MapView.vue'
 import GemMenu from '../components/GemMenu.vue'
@@ -122,6 +122,12 @@ const save = () => run(async () => {
   else await addGem(form.value)
   resetForm()
 })
+
+// Admin moderation: remove any gem (spam, fake or wrong listings), with its reviews and menu
+   const removeAsAdmin = g => {
+     if (!window.confirm(`Remove "${g.name}" from Hidden Gems? Its reviews and menu are deleted too.`)) return
+     return run(() => adminDeleteGem(g.id))
+   }
 
 const priceText = g => {
   if (g.priceMin == null) return `$${g.price}`   // older gems have a single price
@@ -307,6 +313,7 @@ async function removeReview(g, r) {
               <button class="btn text-sm" @click="edit(g)">Edit</button>
               <button class="btn text-sm text-red-600" @click="run(() => deleteGem(g.id))">Delete</button>
             </template>
+               <button v-if="auth.user.role === 'admin' && g.submittedBy !== auth.user.uid" class="btn text-sm text-red-600" @click="removeAsAdmin(g)">Remove (admin)</button>
           </div>
         </div>
 

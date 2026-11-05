@@ -20,5 +20,5 @@ export async function logIn(page, email, password = 'test1234') {
   await page.getByLabel('Email').fill(email)
   await page.getByLabel('Password').fill(password)
   await page.getByRole('button', { name: 'Log in' }).click()
-  await expect(page).toHaveURL(/\/sessions$/)
+  await expect(page).toHaveURL(/\/(sessions|hawker)$/) // hawkers start on their Order board
 }

@@ -30,10 +30,17 @@ async function pick(event) {
 <template>
   <div class="space-y-2">
     <label class="label">{{ label }}</label>
-    <!-- capture="environment" opens the back camera on phones -->
-    <input type="file" accept="image/*" capture="environment" class="text-sm" @change="pick" data-testid="proof-input" />
+    <!-- A big photo button instead of the browser's small "Choose file" box.
+         The real file input is inside it, hidden: clicking the button opens it.
+         capture="environment" opens the back camera on phones. -->
+    <label class="btn flex w-full cursor-pointer items-center justify-center gap-2 text-sm focus-within:outline focus-within:outline-[3px] focus-within:outline-coral"
+           data-testid="proof-picker">
+      <span aria-hidden="true">📷</span> {{ photo ? 'Change photo' : 'Take or choose a photo' }}
+      <input type="file" accept="image/*" capture="environment" class="sr-only" @change="pick" data-testid="proof-input" />
+    </label>
     <img v-if="photo" :src="photo" alt="Photo preview" class="h-32 rounded-lg object-cover" />
     <p v-if="error" class="error">{{ error }}</p>
-    <button class="btn-primary text-sm" :disabled="!photo || busy" @click="emit('send', photo)">{{ buttonText }}</button>
+    <button class="btn-primary w-full text-sm" :disabled="!photo || busy" @click="emit('send', photo)">{{ buttonText }}</button>
+    <p v-if="!photo" class="text-xs text-slate-500">Add a photo first, then press "{{ buttonText }}".</p>
   </div>
 </template>

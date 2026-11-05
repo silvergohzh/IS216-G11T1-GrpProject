@@ -54,6 +54,9 @@ router.beforeEach(async to => {
 
   // 2. Wrong role? (e.g. a diner opening the hawker board) Go back to the home page
   if (to.meta.role && auth.user.role !== to.meta.role) return { name: 'home' }
+
+  // 3. A hawker's home is their Order board (the island and voting are for diners)
+  if (to.name === 'home' && auth.user?.role === 'hawker') return { name: 'hawker' }
 })
 
 // Browser tab title, e.g. "QueueLess · ChopeLess"

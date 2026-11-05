@@ -67,3 +67,4 @@ export const updateMenuItem = (id, itemId, item) => api(`/${id}/menu/items/${ite
 export const deleteMenuItem = (id, itemId) => api(`/${id}/menu/items/${itemId}`, 'DELETE')
 export const addMenuPhoto = (id, imageUrl) => api(`/${id}/menu/photos`, 'POST', { imageUrl })
 export const deleteMenuPhoto = (id, photoId) => api(`/${id}/menu/photos/${photoId}`, 'DELETE')
+export const adminDeleteGem = id => api(`/${id}/admin`, 'DELETE')

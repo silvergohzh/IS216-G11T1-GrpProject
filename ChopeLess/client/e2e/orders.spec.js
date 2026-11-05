@@ -69,16 +69,27 @@ test('full journey: pay, hawker readies with a photo, diner collects with a phot
   expect(res.ok()).toBeTruthy()
   await expect(page.getByTestId('order-status')).toHaveText('Paid') // updates live, no refresh
 
-  // The hawker starts preparing, then marks it ready with a photo
+  // The hawker lands on the Order board, and the top bar only has their stall's pages
   const hawker = await (await browser.newContext()).newPage()
   await logIn(hawker, 'hawker@chopeless.test')
-  await hawker.goto('/hawker')
+  await expect(hawker).toHaveURL(/\/hawker$/)
+  const nav = hawker.locator('header')
+  await expect(nav.getByRole('link', { name: 'Order board', includeHidden: true })).toHaveCount(1)
+  await expect(nav.getByRole('link', { name: 'QueueLess', includeHidden: true })).toHaveCount(0)
+  await expect(nav.getByRole('link', { name: 'Makan Session', includeHidden: true })).toHaveCount(0)
+
+  // The hawker starts preparing (yellow card turns blue), then marks it ready with a photo (green)
   const card = hawker.getByTestId('board-order').filter({ hasText: codeOf(orderId) })
+  await expect(card).toHaveAttribute('data-colour', 'order-waiting')
   await card.getByRole('button', { name: 'Start preparing' }).click()
   await expect(card).toContainText('Preparing')
+  await expect(card).toHaveAttribute('data-colour', 'order-preparing')
+  await expect(card.getByTestId('proof-picker')).toContainText('Take or choose a photo')
   await card.getByTestId('proof-input').setInputFiles(PHOTO)
+  await expect(card.getByTestId('proof-picker')).toContainText('Change photo')
   await card.getByRole('button', { name: 'Mark ready' }).click()
   await expect(card).toContainText('left to collect') // the 15-minute timer started
+  await expect(card).toHaveAttribute('data-colour', 'order-ready')
 
   // The diner gets a pop-up, sees the timer, and collects it with a photo
   await expect(page.getByTestId('toast')).toContainText('is ready')
@@ -215,6 +226,7 @@ test('Fastpass: the group leader spends points and the order jumps the queue', a
   const first = hawker.getByTestId('board-order').first()
   await expect(first).toContainText(codeOf(orderId))
   await expect(first.getByTestId('fastpass-badge')).toBeVisible()
+  await expect(first).toHaveAttribute('data-colour', 'order-fastpass') // red card: cook first
 
   // The hawker starts it, so it leaves the waiting queue
   await first.getByRole('button', { name: 'Start preparing' }).click()

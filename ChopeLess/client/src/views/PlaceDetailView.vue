@@ -164,7 +164,11 @@ const toggleHour = (h) =>
 
     <div v-if="place.fromGem" class="space-y-2">
       <p class="chip">Hidden Gem · community listing</p>
-      <GemMenu v-if="place.gemId" :gem-id="place.gemId" preorder-note />
+      <!-- [M3] in a white card like the other sections (the menu has no background of its own) -->
+      <div v-if="place.gemId" class="card">
+        <h2 class="mb-2">Community menu</h2>
+        <GemMenu :gem-id="place.gemId" preorder-note class="!border-0 !p-0" />
+      </div>
     </div>
 
     <div class="card card-navy" data-testid="latest">
