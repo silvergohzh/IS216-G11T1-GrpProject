@@ -1,6 +1,5 @@
 /* QueueLessView.spec.js  Owner: M4 (Jon)
- Type: Component test (one Vue page in a pretend browser, with Firestore and the router faked)
- Component tests for QueueLessView.vue (the list of places with their wait and crowd level).
+ Type: Component test 
  Run: npm run test:vitest   (from ChopeLess/client)
 
  Test setup:

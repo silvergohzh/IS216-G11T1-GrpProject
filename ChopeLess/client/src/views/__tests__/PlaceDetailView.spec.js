@@ -1,6 +1,5 @@
 /* PlaceDetailView.spec.js  Owner: M4 (Jon)
- Type: Component test (one Vue page in a pretend browser, with the server, Firestore and router faked)
- Component tests for PlaceDetailView.vue (one place: Average Wait Time, the hourly chart and See Live Queue).
+ Type: Component test 
  Run: npm run test:vitest   (from ChopeLess/client)
 
  Test setup:
