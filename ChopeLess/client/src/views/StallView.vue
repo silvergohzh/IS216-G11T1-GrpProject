@@ -109,11 +109,11 @@ async function preOrder() {
 
     <div class="grid gap-4 md:grid-cols-2">
       <!-- Hidden Gem: community menu, view only -->
-      <GemMenu
-        v-if="stall.fromGem && stall.gemId"
-        :gem-id="stall.gemId"
-        preorder-note
-      />
+      <!-- [M3] in a white card like the normal Menu card next to it -->
+      <section v-if="stall.fromGem && stall.gemId" class="card">
+        <h2 class="mb-2 font-bold">Community menu</h2>
+        <GemMenu :gem-id="stall.gemId" preorder-note class="!border-0 !p-0" />
+      </section>
 
       <section v-else class="card">
         <h2 class="mb-2 font-bold">Menu</h2>
