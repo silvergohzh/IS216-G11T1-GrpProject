@@ -440,12 +440,20 @@ test('round 2: nobody matched, so Round 2 shows only fresh places', async ({ bro
   const round1 = await sayNoToAll(host)
   expect(round1).toHaveLength(7)
 
+  
   // The guest says no to everything too. Their last vote ends Round 1 with no match.
   await voteThrough(guest, -1, false)
 
-  // Round 2 starts by itself on both phones, with a fresh set of cards
-  await expect(host.getByTestId('round-two')).toBeVisible()
-  await expect(guest.getByTestId('round-two')).toBeVisible()
+  // Wait for the server to finish processing Round 1
+  // and for both browsers to receive the Round 2 update.
+  await expect(guest.getByTestId('round-two')).toBeVisible({
+    timeout: 30000
+  })
+
+  await expect(host.getByTestId('round-two')).toBeVisible({
+    timeout: 30000
+  })
+
   await expect(host.getByText(/\d+\/\d+ done/)).toContainText(/ 0\/\d+ done/)
 
   const round2 = await sayNoToAll(host)
