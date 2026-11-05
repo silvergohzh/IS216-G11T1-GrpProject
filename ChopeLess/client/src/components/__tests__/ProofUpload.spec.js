@@ -3,7 +3,7 @@
  and the diner's "Collected" photo).
  The component receives buttonText, label and busy via props and:
    1. Shows the label and the button text from its props
-   2. Keeps the button disabled until a photo is picked
+   2. Shows a big photo button, and keeps the send button disabled until a photo is picked
    3. Shrinks the picked photo, shows a preview, and sends it with the "send" event
    4. Keeps the button disabled while busy (so nobody presses it twice)
    5. Shows an error if the photo can't be read
@@ -50,6 +50,18 @@ describe('ProofUpload', () => {
 
     expect(wrapper.find('button').element.disabled).toBe(true)
     expect(wrapper.find('img').exists()).toBe(false)
+  })
+
+  // Verify the big photo button says what to do, and changes once a photo is picked
+  it('shows a photo button that changes to "Change photo" after picking', async () => {
+    const wrapper = mount(ProofUpload, { props: { buttonText: 'Mark ready' } })
+    const picker = wrapper.find('[data-testid="proof-picker"]')
+    expect(picker.text()).toContain('Take or choose a photo')
+    expect(wrapper.text()).toContain('Add a photo first')
+
+    await pickFile(wrapper)
+    expect(picker.text()).toContain('Change photo')
+    expect(wrapper.text()).not.toContain('Add a photo first')
   })
 
   // Verify a picked photo is shrunk, previewed, and sent with the "send" event

@@ -21,7 +21,15 @@ const open = ref(false)      // phone/tablet menu (☰)
 const account = ref(null)    // [M3] the desktop "account" dropdown (<details>)
 
 // Everyone sees these. Logged-in users also see links for their role.
+// Hawkers run a stall, so they only see their stall's pages (no voting, QueueLess or Hidden Gems).
 const links = computed(() => {
+  if (auth.isHawker) {
+    return [
+      { to: '/hawker', label: 'Order board' },
+      { to: '/hawker/menu', label: 'My menu' },
+      { to: '/payments', label: 'Earnings' }
+    ]
+  }
   const list = [
     { to: '/sessions', label: 'Makan Session' },
     { to: '/groups', label: 'Makan Kakis' },
@@ -36,8 +44,8 @@ const links = computed(() => {
 // so the top bar never gets wider than the screen (hawkers and admins have extra links).
 // On phones and tablets they are listed in the ☰ menu as before.
 const accountLinks = computed(() => {
+  if (auth.isHawker) return [{ to: '/profile', label: 'Profile' }] // their stall's pages are in the main bar
   const list = [{ to: '/points', label: 'Points' }, { to: '/payments', label: 'Payments' }]
-  if (auth.isHawker) list.push({ to: '/hawker', label: 'Order board' }, { to: '/hawker/menu', label: 'My menu' })
   if (auth.isAdmin) list.push({ to: '/admin', label: 'Admin' })
   list.push({ to: '/profile', label: 'Profile' })
   return list
@@ -68,7 +76,7 @@ async function logout() {
   <header class="sticky top-0 z-[1000] border-b-4 border-[#0e1528] bg-ink text-white">
     <nav class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
       <!-- [M3] logo: a rubber stamp, slightly slanted, about to "chope" the name ChopeLess -->
-      <RouterLink to="/" class="relative flex shrink-0 flex-col items-center font-display leading-none"
+      <RouterLink :to="auth.isHawker ? '/hawker' : '/'" class="relative flex shrink-0 flex-col items-center font-display leading-none"
                   :aria-label="APP_NAME + ' home'" @click="closeMenus">
         <img src="/chop.svg" alt="" class="-mb-1 h-10 w-10 -rotate-12" />
         <span class="text-2xl">Chope<span class="text-accent">Less</span></span>

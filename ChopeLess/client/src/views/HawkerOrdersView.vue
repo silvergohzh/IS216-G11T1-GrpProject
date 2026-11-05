@@ -31,6 +31,14 @@ const activeOrders = computed(() => {
   return [...fastpass, ...normal, ...preparing, ...ready]
 })
 // [JJYAYY] END
+// The colour of an order card, so the hawker can see at a glance what to do next:
+// yellow = waiting, red = waiting with Fastpass (cook it first), blue = preparing, green = ready
+function cardColour(order) {
+  if (order.status === 'paid') return order.priority ? 'order-fastpass' : 'order-waiting'
+  if (order.status === 'preparing') return 'order-preparing'
+  return 'order-ready'
+}
+
 // History: collected orders
 const historyOrders = computed(() =>
   orders.value.filter(o => o.status === 'collected').reverse() // newest first
@@ -74,10 +82,17 @@ const ready = (order, photo) => run(() => markReady(order.id, photo))
 
   <!-- Active orders -->
   <template v-if="tab === 'active'">
+    <!-- What the colours mean -->
+    <ul class="mb-3 flex flex-wrap gap-2 text-sm font-extrabold" data-testid="board-legend">
+      <li class="chip order-waiting">Waiting</li>
+      <li class="chip order-fastpass">⚡ Fastpass: cook first</li>
+      <li class="chip order-preparing">Preparing</li>
+      <li class="chip order-ready">Ready for pickup</li>
+    </ul>
     <p v-if="activeOrders.length === 0" class="card text-slate-500">No orders right now.</p>
     <ul class="grid gap-3 md:grid-cols-2">
       <li v-for="o in activeOrders" :key="o.id" class="card space-y-2" data-testid="board-order"
-          :class="{ 'card-sun': o.status === 'paid', '!bg-amber-100': o.status === 'preparing', '!bg-green-200': o.status === 'ready' }">
+          :class="cardColour(o)" :data-colour="cardColour(o)">
         <div class="flex items-center justify-between">
           <!-- [NAWAZ] the ⚡ Fastpass badge on the next line -->
           <p class="font-display text-3xl">{{ orderCode(o.id) }} <span v-if="o.priority" class="chip !bg-accent !text-sm" data-testid="fastpass-badge">⚡ Fastpass</span></p>
@@ -124,3 +139,11 @@ const ready = (order, photo) => run(() => markReady(order.id, photo))
     </ul>
   </template>
 </template>
+
+<style scoped>
+/* Order card colours (the legend above the board uses the same ones) */
+.order-waiting { background-color: var(--color-accent); }   /* sun yellow */
+.order-fastpass { background-color: #ff8a80; }              /* red: cook first */
+.order-preparing { background-color: var(--color-sea); }    /* blue */
+.order-ready { background-color: #9be29b; }                 /* green */
+</style>
