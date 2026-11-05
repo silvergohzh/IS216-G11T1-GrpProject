@@ -48,11 +48,13 @@ test('two members join, vote yes on the same place, and both see the winner', as
 
 test('session form: checks the name and the code before joining', async ({ page }) => {
   await signUp(page, 'form')
+  // wait until the profile has filled in the name, or it arrives late and overwrites our blank name
+  await expect(page.getByLabel('Name')).toHaveValue(/^form-/)
   // No name -> friendly message, nothing created
   await page.getByLabel('Name').fill('')
   await page.getByTestId('create-session').click()
   await expect(page.getByText('Please enter your name.')).toBeVisible()
-  await expect(page).toHaveURL(/\/sessions$/, { timeout: 15000 })   // creating an account can take >5 s on GitHub's slower machines
+  await expect(page).toHaveURL(/\/sessions$/)   // still on the form: nothing was created
 
   // A code that doesn't exist
   await page.getByLabel('Name').fill('Tester')
