@@ -10,6 +10,7 @@
 //     items: [{ lineId, itemId, name, price, qty, addedBy, addedByName }],   price is in CENTS
 //     (a dish's qty can't go over the stall's stock, see checkStock)
 //     total,                         in cents, worked out by the server
+//     splitMode,                     'item' or 'equal': how the group leader chose to split the bill
 //     status,                        see the steps below
 //     readyAt, pickupBy,             when it was ready, and the pickup deadline (milliseconds)
 //     collectedAt, collectedByName,  who picked it up, and when
@@ -28,7 +29,7 @@ import { db } from '../firebase.js'
 import { requireAuth, requireRole } from '../middleware/auth.js'
 import { stripe, stripeEnabled, markOrderPaid } from '../services/payments.js'
 // [NAWAZ] START: Fastpass & Makan Points in pre-orders (built by Myat, see HANDOVER.md)
-import { awardPoints, spendPointsInTx, POINT_RULES } from '../services/points.js'   // Janani's Makan Points
+import { awardPoints, spendPointsInTx, reversePoints, POINT_RULES } from '../services/points.js'   // Janani's Makan Points
 import { sortPriorityQueue } from '../services/priorityQueue.js'                    // Janani's priority queue
 // [NAWAZ] END
 
@@ -161,11 +162,13 @@ router.use(requireAuth)
 //
 // From a Makan Session: send its sessionCode, and EVERYONE in the session is added to the order
 // straight away (no join code needed). The stall must be the session's winner, or a stall inside it.
+// Only the host can start it. The order is saved on the session (preorder), so everyone else
+// is taken to that same order instead of making their own.
 router.post('/', async (req, res, next) => {
   try {
     const place = await db.collection('places').doc(req.body.placeId || 'none').get()
     if (!place.exists) throw httpError(400, 'Choose a stall to order from')
-    
+
     // Hidden Gems are listed by the community, so they can be viewed but not pre-ordered
     if (place.data().fromGem) {
       throw httpError(400, 'Hidden Gems are community listings, so pre-orders are not available. You can still view the menu.')
@@ -175,62 +178,144 @@ router.post('/', async (req, res, next) => {
       throw httpError(400, 'This place has no menu. If it is a hawker centre, choose one of its stalls.')
     }
 
-    const open = await orders
-      .where('ownerUid', '==', req.uid)
-      .where('placeId', '==', place.id)
-      .where('status', '==', 'cart')
-      .limit(1)
-      .get()
-    if (!open.empty) return res.json({ id: open.docs[0].id })
+     // [JANANIJ] START: Match existing carts to the correct Makan Session
+     // Prevent an unrelated cart from bypassing re-vote checks.
+     const requestedSessionCode = req.body.sessionCode
+       ? String(req.body.sessionCode).trim().toUpperCase()
+       : null
 
-    // Who is in the order: just me, or my whole Makan Session group
-    const myName = await getName(req.uid)
-    let members = [{ uid: req.uid, name: myName }]
-    let sessionCode = null
+     const open = await orders
+       .where('ownerUid', '==', req.uid)
+       .where('placeId', '==', place.id)
+       .where('status', '==', 'cart')
+       .get()
 
-    if (req.body.sessionCode) {
-      const session = await db.collection('sessions').doc(req.body.sessionCode).get()
-      if (!session.exists) throw httpError(404, 'Makan Session not found')
-      const s = session.data()
-      if (!s.members[req.uid]) throw httpError(403, 'You are not in this Makan Session')
-      if (!s.winner) throw httpError(409, 'This Makan Session has no winner yet')
+     const existingCart = open.docs.find(doc =>
+       (doc.data().sessionCode || null) === requestedSessionCode
+     )
+     // [JANANIJ] END
 
-      // You can only pre-order from the place the group picked (or a stall inside it)
-      const isWinner = place.id === s.winner.id
-      const isInsideWinner = place.data().parentId === s.winner.id
-      if (!isWinner && !isInsideWinner) throw httpError(400, 'Your group picked a different place')
+     // Who is in the order: just me, or my whole Makan Session group
+     const myName = await getName(req.uid)
+     let members = [{ uid: req.uid, name: myName }]
+     let sessionCode = null
 
-      // Me first (I'm the group leader), then everyone else in the session
-      for (const uid in s.members) {
-        if (uid !== req.uid) members.push({ uid: uid, name: s.members[uid].name })
-      }
-      sessionCode = req.body.sessionCode
-    }
+     // [JANANIJ] START: Lock group ordering against QueueLess re-voting
+     // Read and update the same session document used by the re-vote route.
+     // Firestore transactions prevent ordering and re-voting from starting together.
+     if (requestedSessionCode) {
+       const sessionRef = db.collection('sessions').doc(requestedSessionCode)
+       const orderRef = orders.doc()
+       const joinCode = await makeJoinCode()
 
-    const order = {
-      placeId: place.id,
-      placeName: place.data().name,
-      ownerUid: req.uid,
-      joinCode: await makeJoinCode(),
-      members: members,
-      memberUids: members.map(m => m.uid),
-      sessionCode: sessionCode,
-      // [NAWAZ] the Fastpass flag on every new order
-      priority: false,   // true after the group leader buys a Fastpass
-      items: [],
-      total: 0,
-      status: 'cart',
-      createdAt: FieldValue.serverTimestamp()
-    }
-    const ref = await orders.add(order)
-    res.status(201).json({ id: ref.id })
-  } catch (err) {
-    next(err)
-  }
-})
+       const result = await db.runTransaction(async tx => {
+         const session = await tx.get(sessionRef)
+         if (!session.exists) throw httpError(404, 'Makan Session not found')
 
-// JOIN: POST /api/orders/join   body: { code }
-// A friend types the 6-letter code (or opens the shared link) to join the group cart.
+         const s = session.data()
+         if (!s.members?.[req.uid]) throw httpError(403, 'You are not in this Makan Session')
+         if (!s.winner) throw httpError(409, 'This Makan Session has no winner yet')
+
+         // [JANANIJ] START: Block ordering while voting or re-voting
+         if (s.status !== 'done') {
+           throw httpError(409, 'Please wait until group voting is complete')
+         }
+         // [JANANIJ] END
+
+         // You can only pre-order from the place the group picked (or a stall inside it)
+         const isWinner = place.id === s.winner.id
+         const isInsideWinner = place.data().parentId === s.winner.id
+         if (!isWinner && !isInsideWinner) throw httpError(400, 'Your group picked a different place')
+
+         // [M6] START: one group order per stall, started by the host
+         // The host starts the group pre-order. Anyone else in the session gets that same order
+         // (the winner page sends them there automatically), instead of making their own.
+         const sharedId = s.preorders?.[place.id]
+         if (sharedId) {
+           const shared = await tx.get(orders.doc(sharedId))
+           if (shared.exists && shared.data().status === 'cart') return { id: sharedId, created: false }
+         }
+         if (req.uid !== s.hostUid && !existingCart) {
+           throw httpError(403, "Only the host can start the group pre-order. You'll be taken to the order when they do.")
+         }
+         // [M6] END
+
+         // [JANANIJ] START: Preserve existing cart reuse
+         // A cart already created for this session can still be reopened.
+         if (existingCart) {
+           return { id: existingCart.id, created: false }
+         }
+         // [JANANIJ] END
+
+         // Me first (I'm the group leader), then everyone else in the session
+         for (const uid in s.members) {
+           if (uid !== req.uid) members.push({ uid: uid, name: s.members[uid].name })
+         }
+         sessionCode = requestedSessionCode
+
+         const order = {
+           placeId: place.id,
+           placeName: place.data().name,
+           ownerUid: req.uid,
+           joinCode: joinCode,
+           members: members,
+           memberUids: members.map(m => m.uid),
+           sessionCode: sessionCode,
+           // [NAWAZ] the Fastpass flag on every new order
+           priority: false,   // true after the group leader buys a Fastpass
+           items: [],
+           total: 0,
+           status: 'cart',
+           createdAt: FieldValue.serverTimestamp()
+         }
+
+         // [JANANIJ] START: Mark ordering as started atomically
+         // The re-vote backend must reject sessions with orderingStarted=true.
+         // Multiple stalls can still have their own carts.
+         tx.update(sessionRef, {
+           orderingStarted: true,
+           orderingStartedAt: s.orderingStartedAt || Date.now(),
+           // [M6] where everyone in the session is sent (WinnerView watches this),
+           // and which order belongs to which stall (so nobody makes a second one)
+           preorder: { orderId: orderRef.id, placeId: place.id, placeName: place.data().name },
+           preorders: { ...(s.preorders || {}), [place.id]: orderRef.id }
+         })
+         tx.create(orderRef, order)
+         // [JANANIJ] END
+
+         return { id: orderRef.id, created: true }
+       })
+
+       return res.status(result.created ? 201 : 200).json({ id: result.id })
+     }
+     // [JANANIJ] END
+
+     // [JANANIJ] START: Keep standalone cart reuse separate from group carts
+     if (existingCart) return res.json({ id: existingCart.id })
+     // [JANANIJ] END
+
+     const order = {
+       placeId: place.id,
+       placeName: place.data().name,
+       ownerUid: req.uid,
+       joinCode: await makeJoinCode(),
+       members: members,
+       memberUids: members.map(m => m.uid),
+       sessionCode: sessionCode,
+       // [NAWAZ] the Fastpass flag on every new order
+       priority: false,   // true after the group leader buys a Fastpass
+       items: [],
+       total: 0,
+       status: 'cart',
+       createdAt: FieldValue.serverTimestamp()
+     }
+     const ref = await orders.add(order)
+     res.status(201).json({ id: ref.id })
+   } catch (err) {
+     next(err)
+   }
+ })
+
 router.post('/join', async (req, res, next) => {
   try {
     const code = String(req.body.code || '').trim().toUpperCase()
@@ -330,16 +415,53 @@ router.delete('/:id/items/:lineId', async (req, res, next) => {
 })
 
 // CANCEL: POST /api/orders/:id/cancel
-// [NAWAZ] TODO: if this order had a Fastpass, give the points back (JJyayy's reversePoints in services/points.js)
 // Only the owner, and only before paying. We keep the order (status "cancelled") instead of deleting it.
 router.post('/:id/cancel', async (req, res, next) => {
   try {
-    await updateOrder(req.params.id, order => {
+    const order = await updateOrder(req.params.id, order => {
       if (order.ownerUid !== req.uid) throw httpError(403, 'Only the person who started the order can cancel it')
       if (order.status !== 'cart' && order.status !== 'awaiting_payment') {
         throw httpError(409, 'Paid orders cannot be cancelled')
       }
       order.status = 'cancelled'
+    })
+
+    // [NAWAZ] START: Fastpass refund when a Fastpass order is cancelled
+    // Buying the Fastpass saved one entry in the points ledger: "fastpass_<orderId>_<leaderUid>", worth -150.
+    // Janani's reversePoints undoes that entry: the 150 points go back into the leader's balance,
+    // and the entry is marked "reversed". A reversed entry can't be reversed again, so the points
+    // can never come back twice. (Badges don't change, because buying the Fastpass never lowered them.)
+    // We also save fastpassRefunded on the order, so everyone in the group sees the refund live.
+    let refunded = 0
+    if (order.priority) {
+      try {
+        await reversePoints(`fastpass_${req.params.id}_${order.ownerUid}`, 'Fastpass refund: the order was cancelled', req.uid)
+        await orders.doc(req.params.id).update({ fastpassRefunded: FASTPASS_COST })
+        refunded = FASTPASS_COST
+      } catch (err) {
+        // The order is already cancelled, so we only log the problem (same as the points on collect)
+        console.error('[Makan Points] Could not refund the Fastpass:', err.message)
+      }
+    }
+    res.json({ ok: true, refunded: refunded })
+    // [NAWAZ] END
+  } catch (err) {
+    next(err)
+  }
+})
+
+// UPDATE: the group leader picks how to split the bill: 'item' (what you added) or 'equal'
+// PATCH /api/orders/:id/split   body: { mode }
+// The split is only a guide (the leader pays the whole bill), but it is saved on the order
+// so every friend sees the same "you owe" amount.
+router.patch('/:id/split', async (req, res, next) => {
+  try {
+    const mode = req.body.mode
+    if (mode !== 'item' && mode !== 'equal') throw httpError(400, 'Choose to split by item or equally')
+    await updateOrder(req.params.id, order => {
+      if (order.ownerUid !== req.uid) throw httpError(403, 'Only the person who started the order can choose how to split it')
+      if (order.status === 'cancelled') throw httpError(409, 'This order was cancelled')
+      order.splitMode = mode
     })
     res.json({ ok: true })
   } catch (err) {
@@ -506,9 +628,10 @@ router.post('/:id/fastpass', async (req, res, next) => {
 })
 
 // ---------- Where am I in the queue? ----------
-// GET /api/orders/:id/queue  ->  { position, waiting }
+// GET /api/orders/:id/queue  ->  { position, waiting, fastpassCost }
 // Uses Janani's priority queue (services/priorityQueue.js): Fastpass orders first,
 // then first come, first served. Only paid orders that are waiting to be prepared are in the queue.
+// It also sends the Fastpass price, so the price is only written here on the server (CartView reads it).
 router.get('/:id/queue', async (req, res, next) => {
   try {
     const snap = await orders.doc(req.params.id).get()
@@ -524,7 +647,7 @@ router.get('/:id/queue', async (req, res, next) => {
 
     // findIndex gives 0 for the first one, so add 1 (0 means "not in the queue")
     const position = queue.findIndex(o => o.id === req.params.id) + 1
-    res.json({ position: position, waiting: queue.length })
+    res.json({ position: position, waiting: queue.length, fastpassCost: FASTPASS_COST })
   } catch (err) {
     next(err)
   }

@@ -2,6 +2,7 @@
 import { test, expect } from '@playwright/test'
 import { createHmac } from 'crypto'
 import { signUp, logIn } from './helpers.js'
+import { setMeetingPoint } from './session-helpers.js'
 
 const CENTRE = 'Albert Centre Market & Food Centre' // a hawker centre with stalls inside
 const STALL = 'Ah Seng Chicken Rice'                 // a stall inside it, run by hawker@chopeless.test
@@ -219,9 +220,33 @@ test('Fastpass: the group leader spends points and the order jumps the queue', a
   await first.getByRole('button', { name: 'Start preparing' }).click()
   await expect(page.getByTestId('order-status')).toHaveText('Preparing')
 })
+
+test('Fastpass refund: cancelling a Fastpass order gives the points back, once', async ({ page }) => {
+  // Ben is seeded with Makan Points, and no other test spends them
+  await logIn(page, 'ben@chopeless.test')
+  await startOrder(page)
+  await page.getByRole('button', { name: 'Add Chicken rice' }).click()
+  const offer = page.getByTestId('fastpass-offer')
+  await expect(offer.getByTestId('my-points')).toHaveText(/^\d+$/)   // wait for the balance to load
+  const before = Number(await offer.getByTestId('my-points').textContent())
+
+  // He buys a Fastpass (the button's price comes from the server)
+  await offer.getByRole('button', { name: 'Use 150 points' }).click()
+  await expect(page.getByTestId('fastpass-on')).toContainText('Ben Lim')
+
+  // He cancels: the order says the points went back, and the Fastpass is no longer shown as on
+  await page.getByRole('button', { name: 'Cancel order' }).click()
+  await expect(page.getByTestId('order-status')).toHaveText('Cancelled')
+  await expect(page.getByTestId('fastpass-refunded')).toContainText('150 Makan Points went back to Ben Lim')
+  await expect(page.getByTestId('fastpass-on')).toHaveCount(0)
+
+  // A new order at the same stall shows his balance: exactly what he started with (not 150 too many)
+  await startOrder(page)
+  await expect(page.getByTestId('my-points')).toHaveText(String(before))
+})
 // [NAWAZ] END
 
-test('Makan Session: pick a place together, then pre-order as a group', async ({ browser }) => {
+test('Makan Session: pick a place together, the host starts the pre-order, and everyone is taken to it', async ({ browser }) => {
   const host = await (await browser.newContext()).newPage()
   const guest = await (await browser.newContext()).newPage()
 
@@ -234,7 +259,8 @@ test('Makan Session: pick a place together, then pre-order as a group', async ({
   await guest.getByRole('button', { name: 'Join' }).click()
   await expect(host.getByTestId('member-list').locator('li')).toHaveCount(2)
 
-  // Confirm the food spot: both vote yes on the first card
+  // Confirm the food spot: the host picks the meeting point, then both vote yes on the first card
+  await setMeetingPoint(host)
   await host.getByRole('button', { name: 'Start voting' }).click()
   await expect(host).toHaveURL(/\/vote$/)
   await expect(guest).toHaveURL(/\/vote$/)
@@ -244,18 +270,30 @@ test('Makan Session: pick a place together, then pre-order as a group', async ({
   await host.getByRole('button', { name: 'Open the capsule' }).click({ timeout: 5000 }).catch(() => {})
   await expect(host.getByTestId('winner-name')).toBeVisible()
 
+  // Only the host can start the group pre-order. The guest is told to wait.
+  await guest.getByRole('button', { name: 'Open the capsule' }).click({ timeout: 5000 }).catch(() => {})
+  await expect(guest.getByTestId('preorder-waiting')).toBeVisible()
+  await expect(guest.getByTestId('group-preorder')).toHaveCount(0)
+
   // Then order: "Pre-order as a group" shows only the place the group picked
   await host.getByTestId('group-preorder').click()
   await expect(host.getByTestId('session-banner')).toContainText('2 of you')
   await host.getByRole('button', { name: 'Order here' }).first().click()
   await expect(host).toHaveURL(/\/orders\/\w+$/)
+  const orderId = host.url().split('/').pop()
 
-  // The guest is already in the order (no join code needed)
+  // The guest is taken to the same order automatically, and is already in it (no join code needed)
+  await expect(guest).toHaveURL(new RegExp(`/orders/${orderId}$`))
+  await expect(guest.getByTestId('join-code')).toBeVisible()
+
+  // Opening the group pre-order again also lands on that order, never a second one
+  await guest.goto(`/orders?session=${code}`)
+  await expect(guest).toHaveURL(new RegExp(`/orders/${orderId}$`))
   await guest.goto('/orders')
   await expect(guest.getByTestId('active-order')).toHaveCount(1)
 })
 
-test('group order: a friend joins with the code, the bill splits, and both get a split receipt after paying', async ({ page, browser, request }) => {
+test('group order: a friend joins with the code, the leader splits the bill, and the friend sees what to transfer', async ({ page, browser, request }) => {
   // Alice starts the order and adds chicken rice ($4.50)
   await signUp(page, 'alice')
   const orderId = await startOrder(page)
@@ -280,8 +318,15 @@ test('group order: a friend joins with the code, the bill splits, and both get a
 
   // By item: Alice $4.50, Ben $5.00.  Equally: $4.75 each.
   await expect(page.getByTestId('share')).toHaveText([/\$4\.50/, /\$5\.00/])
+  await expect(ben.getByTestId('my-share')).toContainText('$5.00')
   await page.getByRole('button', { name: 'Equally' }).click()
   await expect(page.getByTestId('share')).toHaveText([/\$4\.75/, /\$4\.75/])
+
+  // Only Alice can split. Ben just sees his own share, split the way Alice chose (saved live).
+  await expect(ben.getByRole('button', { name: 'Equally' })).toHaveCount(0)
+  await expect(ben.getByTestId('share')).toHaveCount(0)
+  await expect(ben.getByTestId('my-share')).toContainText('$4.75')
+  await expect(ben.getByTestId('my-share')).toContainText('splits it equally')
 
   // The split is only a guide: Alice pays the whole bill
   await expect(page.getByTestId('split-guide')).toContainText('You pay the whole bill ($9.50)')
@@ -296,9 +341,12 @@ test('group order: a friend joins with the code, the bill splits, and both get a
   await page.getByTestId('split-receipt').getByRole('button', { name: 'By item' }).click()
   await expect(page.getByTestId('receipt-share')).toHaveText([/\$4\.50/, /\$5\.00/])
 
-  // Ben sees how much he owes Alice
-  await expect(ben.getByTestId('receipt-summary')).toContainText('You owe')
-  await expect(ben.getByTestId('receipt-summary')).toContainText('$5.00')
+  // Ben's receipt: his own dish, the total Alice paid, and how much to transfer to her.
+  // Alice switched back to By item, so Ben's amount follows: $5.00.
+  await expect(ben.getByTestId('receipt-item')).toHaveText([/Roast pork rice.*\$5\.00/])
+  await expect(ben.getByTestId('split-receipt')).toContainText('$9.50')
+  await expect(ben.getByTestId('receipt-summary')).toContainText(/Transfer \$5\.00 to/)
+  await expect(ben.getByTestId('receipt-share')).toHaveCount(0)
 })
 
 test('the share link joins the group order', async ({ page, browser }) => {

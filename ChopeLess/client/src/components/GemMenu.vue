@@ -2,7 +2,7 @@
      Usage: <GemMenu :gem-id="id" :gem-owner-uid="uid" editable />        (Hidden Gems board: add, edit, delete)
             <GemMenu :gem-id="id" preorder-note />                         (pre-order pages: view only)
      Leave out "editable" for a view-only menu. -->
-     
+
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'

@@ -3,6 +3,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { APP_NAME } from '../config'
 import { sfx } from '../lib/sfx'
+import { stationFor, markVisited } from '../lib/visited'   // [M3] island ticks
 
 const routes = [
   // M6: Foundation
@@ -60,6 +61,13 @@ router.afterEach((to, from) => {
   document.title = to.meta.title ? `${to.meta.title} · ${APP_NAME}` : APP_NAME
   // [M3] bubble sound, but not on the very first page load (from.name is empty then)
   if (from.name && to.path !== from.path) sfx.bubble()
+})
+
+// [M3] Island ticks: opening a station's page from ANYWHERE (nav bar, buttons, links) ticks it,
+// not only the island button. Not right after logging in: that page wasn't your choice.
+router.afterEach((to, from) => {
+  if (from.name === 'login') return
+  markVisited(useAuthStore().user?.uid, stationFor(to.path))
 })
 
 export default router

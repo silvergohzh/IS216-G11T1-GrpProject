@@ -2,6 +2,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { listPlaces } from '../services/places'
+import { crowdLevel, asOf } from '../lib/queue'
 
 const places = ref([])
 const error = ref('')
@@ -15,10 +16,7 @@ onMounted(async () => {
   try { places.value = await listPlaces() } catch (err) { error.value = err.message }
 })
 
-function level(p) {
-  const occ = p.latest?.seatOccupancy ?? 0
-  return occ >= 75 ? 'Packed' : occ >= 45 ? 'Busy' : 'Quiet'
-}
+const level = p => crowdLevel(p.latest?.seatOccupancy)
 // Quiet / Busy / Packed colours for the wait badge and the crowd meter
 const badge = { Quiet: 'bg-green-200', Busy: 'bg-amber-200', Packed: 'bg-red-200' }
 const bar = { Quiet: 'bg-green-600', Busy: 'bg-amber-400', Packed: 'bg-red-600' }
@@ -52,7 +50,7 @@ const bar = { Quiet: 'bg-green-600', Busy: 'bg-amber-400', Packed: 'bg-red-600' 
               :class="badge[level(p)]">{{ p.latest?.waitMins ?? '?' }}<small class="-mt-2 font-sans text-[11px] font-black">min</small></span>
         <div class="min-w-0 flex-[1_1_200px]">
           <h2 class="font-sans text-lg font-black">{{ p.name }}</h2>
-          <p class="text-sm font-bold">{{ p.latest?.seatOccupancy ?? '?' }}% seats taken</p>
+          <p class="text-sm font-bold">{{ p.latest?.seatOccupancy ?? '?' }}% seats taken<template v-if="p.latest?.at"> as of {{ asOf(p.latest.at) }}</template></p>
         </div>
         <!-- crowd meter: the word says it too, so it doesn't rely on colour -->
         <div class="flex w-48 flex-col gap-1">

@@ -22,7 +22,7 @@
     "serviceModes": ["dine-in", "takeaway"],
     "latestWaitMins": 4,
     "imageUrl": "/places/bras-basah-complex.jpg"
-    
+
   },
   {
     "id": "waterloo-centre",

@@ -4,6 +4,7 @@
 import IslandMap from "../components/IslandMap.vue";
 import ForYou from "../components/ForYou.vue";
 import HomeLeaderboard from "../components/HomeLeaderboard.vue";
+import LiveSessions from "../components/LiveSessions.vue"; // [M3] shortcut back to a live session
 import { useAuthStore } from "../stores/auth";
 
 
@@ -12,6 +13,8 @@ const auth = useAuthStore();
 
 <template>
   <div class="flex flex-col gap-10 py-4">
+    <!-- [M3] "Live now": back to a session I'm in, or one my Makan Kakis group started -->
+    <LiveSessions />
     <!-- the two things most people come for, always one tap away -->
     <div class="flex flex-wrap gap-3">
       <RouterLink to="/sessions" class="btn-primary font-display text-xl font-normal">Start a Makan Session</RouterLink>

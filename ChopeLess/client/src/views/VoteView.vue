@@ -1,3 +1,4 @@
+
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
@@ -6,7 +7,9 @@ import { useAuthStore } from "../stores/auth";
 import {
   castVote,
   finishVoting,
-  buyExtraSuperLike
+  buyExtraSuperLike,
+  castRevote,
+  finishRevote
 } from "../services/sessions";
 import { listHistory } from "../services/history";
 import SwipeCard from "../components/SwipeCard.vue";
@@ -36,6 +39,10 @@ const myUid = computed(() => auth.user?.uid);
 
 const notMember = computed(
   () => store.session && !store.session.members?.[myUid.value]
+);
+
+const isRevoting = computed(
+  () => store.session?.status === "revoting"
 );
 
 // =====================================================
@@ -88,9 +95,11 @@ const vetoedIds = computed(
 );
 
 const activePlaces = computed(() =>
-  places.value.filter(
-    place => !vetoedIds.value.includes(place.id)
-  )
+  isRevoting.value
+    ? places.value
+    : places.value.filter(
+        place => !vetoedIds.value.includes(place.id)
+      )
 );
 
 const current = computed(() =>
@@ -122,7 +131,7 @@ const doneCount = computed(
 // =====================================================
 
 async function buySuperLike() {
-    if (buying.value || busy.value || timeUp.value) return false;
+  if (buying.value || busy.value || timeUp.value || isRevoting.value) return false;
 
   const confirmed = window.confirm(
     "You've used your free Super Like.\nUse 20 Makan Points to Super Like this place?"
@@ -161,9 +170,10 @@ async function vote(yes) {
 
   busy.value = true;
   error.value = "";
-  purchaseMessage.value = "";
 
   const special = pendingSpecial.value;
+  // [M3] keep "Super Like bought" on screen for the vote that uses it (it was wiped after a split second)
+  if (special !== "super") purchaseMessage.value = "";
   pendingSpecial.value = null;
 
   const placeId = current.value.id;
@@ -176,12 +186,37 @@ async function vote(yes) {
 
   try {
     // If the server doesn't answer in 15 s (e.g. it's waking up), stop waiting so the buttons work again
-    await Promise.race([
-      castVote(code, placeId, yes, special),
-      new Promise((_, reject) => setTimeout(() => reject(new Error(
-        "The server is slow to answer, so your vote wasn't saved. Please vote on this card again."
-      )), 15000)),
-    ]);
+    // =====================================================
+// [JANANIJ] START: Automatically finish group re-vote
+// =====================================================
+
+const result = await Promise.race([
+  isRevoting.value
+    ? castRevote(code, placeId, yes)
+    : castVote(code, placeId, yes, special),
+
+  new Promise((_, reject) =>
+    setTimeout(() => reject(new Error(
+      "The server is slow to answer. Please check whether your vote was saved."
+    )), 15000)
+  ),
+]);
+
+if (isRevoting.value && result?.allVoted) {
+  try {
+    await finishRevote(code);
+  } catch (err) {
+    error.value =
+      err.response?.data?.error ||
+      err.response?.data?.message ||
+      err.message ||
+      "Your vote was saved, but the re-vote could not be finalised.";
+  }
+}
+
+// =====================================================
+// [JANANIJ] END
+// =====================================================
   } catch (err) {
     // The slow vote arrived after all: keep going, nothing to undo
     if (/already voted/i.test(err.message || "")) {
@@ -205,7 +240,7 @@ async function vote(yes) {
 // ⭐ button: uses a free or bought Super Like. If you have none left,
 // it offers to buy one (20 points) and uses it straight away on this card.
 async function superLike() {
-  if (busy.value || buying.value || timeUp.value || !card.value) {
+  if (busy.value || buying.value || timeUp.value || !card.value || isRevoting.value) {
     return;
   }
 
@@ -221,6 +256,7 @@ async function superLike() {
 function veto() {
   if (
     usedVeto.value ||
+    isRevoting.value ||
     busy.value ||
     buying.value ||
     timeUp.value ||
@@ -251,7 +287,7 @@ function onKey(e) {
     card.value?.fling(false);
   }
 
-  if (e.key === "ArrowUp") {
+  if (e.key === "ArrowUp" && !isRevoting.value) {
     superLike();
   }
 }
@@ -301,16 +337,30 @@ watch(timeUp, async up => {
     i < 3 &&
     up &&
     timeUp.value &&
-    store.session?.status === "voting";
+    ["voting", "revoting"].includes(store.session?.status);
     i++
   ) {
-    await finishVoting(code).catch(() => {});
+    if (isRevoting.value) {
+      await finishRevote(code).catch(() => {});
+    } else {
+      await finishVoting(code).catch(() => {});
+    }
 
     await new Promise(resolve =>
       setTimeout(resolve, 2000)
     );
   }
 });
+
+watch(
+  () => [store.session?.status, timeUp.value],
+  async ([status, expired]) => {
+    if (status === "revoting" && expired) {
+      await finishRevote(code).catch(() => {});
+    }
+  },
+  { immediate: true }
+);
 
 // =====================================================
 // ROUND 2 AND WINNER NAVIGATION
@@ -323,6 +373,11 @@ watch(
     pendingSpecial.value = null;
   }
 );
+
+watch(isRevoting, () => {
+  votedHere.value = [];
+  pendingSpecial.value = null;
+});
 
 watch(
   () => store.session?.status,
@@ -383,7 +438,7 @@ const superCount = placeId => {
   const free = Object.values(superLikes.value).filter(
     id => id === placeId
   ).length;
-  
+
   const bought = Object.values(store.session?.extraSuperLikeVotes || {})
     .flat()
     .filter(id => id === placeId).length;
@@ -433,19 +488,19 @@ function voteClass(placeId, uid) {
   <template v-else>
     <p class="kicker">Station 4 · Voting Arena</p>
     <h1 class="page-title">
-      Swipe to vote
+      {{ isRevoting ? "QueueLess re-vote" : "Swipe to vote" }}
     </h1>
 
     <p class="mb-3 text-sm text-slate-500">
       Drag right for yes, left for no, or use
-      ← → ↑ on your keyboard ·
+      {{ isRevoting ? "← →" : "← → ↑" }} on your keyboard ·
       {{ doneCount }}/{{ activePlaces.length }} done
     </p>
 
     <!-- ROUND 2 -->
 
     <p
-      v-if="store.session?.round === 2"
+      v-if="store.session?.round === 2 && !isRevoting"
       class="mb-3 rounded-2xl border-[3px] border-ink bg-amber-100 p-3 text-sm font-bold"
       data-testid="round-two"
     >
@@ -544,9 +599,11 @@ function voteClass(placeId, uid) {
 
         <div
           v-if="currentCard && !timeUp"
-          class="mt-4 grid grid-cols-4 gap-2"
+          class="mt-4 grid gap-2"
+          :class="isRevoting ? 'grid-cols-2' : 'grid-cols-4'"
         >
           <button
+            v-if="!isRevoting"
             class="vote-btn bg-red-600 text-white"
             aria-label="Veto"
             title="Veto: removes this place for everyone"
@@ -585,6 +642,7 @@ function voteClass(placeId, uid) {
           </button>
 
           <button
+            v-if="!isRevoting"
             class="vote-btn bg-accent"
             aria-label="Super Like"
             title="Super Like: counts double"
@@ -598,13 +656,14 @@ function voteClass(placeId, uid) {
         </div>
 
         <p
+          v-if="!isRevoting"
           class="mt-2 text-center text-sm font-black"
         >
           ⭐ {{ totalSuperLikesLeft > 0 ? `${totalSuperLikesLeft} Super Like(s) left` : "Next ⭐ costs 20 pts" }} ·
           🚫 Veto
           {{ usedVeto ? "used" : "available" }}
         </p>
-        <p v-if="purchaseMessage" class="mt-1 text-center text-sm font-black text-green-800">
+        <p v-if="purchaseMessage && !isRevoting" class="mt-1 text-center text-sm font-black text-green-800">
           {{ purchaseMessage }} Unused bought ⭐ are refunded at the end.
         </p>
 
@@ -629,7 +688,7 @@ function voteClass(placeId, uid) {
             :key="p.id"
             class="py-3"
             :class="
-              vetoedBy(p.id)
+              !isRevoting && vetoedBy(p.id)
                 ? 'opacity-50'
                 : ''
             "
@@ -641,7 +700,7 @@ function voteClass(placeId, uid) {
               <span
                 class="font-semibold"
                 :class="
-                  vetoedBy(p.id)
+                  !isRevoting && vetoedBy(p.id)
                     ? 'line-through'
                     : ''
                 "
@@ -649,7 +708,7 @@ function voteClass(placeId, uid) {
                 {{ p.name }}
 
                 <span
-                  v-if="superCount(p.id)"
+                  v-if="!isRevoting && superCount(p.id)"
                   class="ml-1"
                 >
                   ⭐×{{ superCount(p.id) }}
@@ -657,7 +716,7 @@ function voteClass(placeId, uid) {
               </span>
 
               <span
-                v-if="vetoedBy(p.id)"
+                v-if="!isRevoting && vetoedBy(p.id)"
                 class="text-xs text-red-600"
               >
                 Vetoed by {{ vetoedBy(p.id) }}

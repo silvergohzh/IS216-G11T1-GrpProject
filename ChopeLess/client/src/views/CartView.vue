@@ -7,7 +7,7 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import {
   watchOrder, watchProofs, addItem, changeQty, removeItem,
-  cancelOrder, checkout, markCollected, orderCode, STATUS_LABELS,
+  cancelOrder, checkout, setSplitMode, markCollected, orderCode, STATUS_LABELS,
   // [NAWAZ] Fastpass imports (next line)
   buyFastpass, getQueuePosition, getMyPoints
 } from '../services/orders'
@@ -27,7 +27,6 @@ const stall = ref(null)              // { name, address, lat, lng, menu }
 const proofs = ref({})               // { ready: { photo, byName, at }, collected: {...} }
 const error = ref('')
 const busy = ref(false)              // true while a button is waiting for the server
-const splitMode = ref('item')        // 'item' or 'equal'
 const copied = ref(false)
 const linkBox = ref(null)            // the text box with the share link
 let stopOrder = null
@@ -35,11 +34,10 @@ let stopProofs = null
 let stopStall = null
 
 // [NAWAZ] START: Fastpass & Makan Points in pre-orders (built by Myat, see HANDOVER.md)
-// [NAWAZ] TODO: FASTPASS_COST is typed in twice (here and the server); return it from the server instead
 // ---------- Fastpass ----------
 // The group leader can spend Makan Points so the hawker prepares this order first.
 // (The server checks everything again: who you are, your points, and the order's status.)
-const FASTPASS_COST = 150
+const fastpassCost = ref(null)       // the Fastpass price, sent by the server (so it's only written in one place)
 const myPoints = ref(null)           // my Makan Points balance (only loaded for the group leader)
 const queue = ref(null)              // { position, waiting } once the order is paid
 // [NAWAZ] END
@@ -63,6 +61,10 @@ const shareLink = computed(() => order.value ? `${window.location.origin}/orders
 const directionsLink = computed(() =>
   stall.value ? `https://www.google.com/maps/dir/?api=1&destination=${stall.value.lat},${stall.value.lng}` : ''
 )
+
+// How the bill is split: 'item' or 'equal'. Only the group leader chooses, and it is saved
+// on the order, so every friend sees the same amount. By item until the leader picks.
+const splitMode = computed(() => order.value?.splitMode || 'item')
 
 // Who owes what. Recalculated automatically whenever the cart or the split mode changes.
 // The split is only a GUIDE: the group leader pays the whole bill on Stripe,
@@ -91,6 +93,9 @@ const owedToLeader = computed(() => {
 // My own share, for the "you owe" line
 const myShare = computed(() => shares.value.find(s => s.uid === auth.user.uid))
 
+// The dishes I added myself (shown on a friend's receipt)
+const myItems = computed(() => order.value ? order.value.items.filter(i => i.addedBy === auth.user.uid) : [])
+
 // When the order was paid. paidAt is a Firestore timestamp, so turn it into a normal date first.
 const paidTime = computed(() => {
   const paidAt = order.value?.paidAt
@@ -111,12 +116,14 @@ onMounted(() => {
 })
 
 // [NAWAZ] START: Fastpass & Makan Points in pre-orders (built by Myat, see HANDOVER.md)
-// When the order changes: load my points (group leader), and my place in the queue (once paid)
+// When the order changes: load my points and the Fastpass price (group leader), and my place in the queue (once paid)
 watch(order, async now => {
   if (!now) return
   if (now.ownerUid === auth.user.uid && myPoints.value === null) {
     const account = await getMyPoints()
     myPoints.value = account.balance
+    const info = await getQueuePosition(orderId)   // the queue reply also has the Fastpass price
+    fastpassCost.value = info.fastpassCost
   }
   if (now.status === 'paid' && now.memberUids.includes(auth.user.uid)) {
     queue.value = await getQueuePosition(orderId)
@@ -168,6 +175,20 @@ function canAddMore(itemId) {
 const plus = item => run(() => changeQty(orderId, item.lineId, item.qty + 1))
 const minus = item => run(() => (item.qty > 1 ? changeQty(orderId, item.lineId, item.qty - 1) : removeItem(orderId, item.lineId)))
 const cancel = () => run(() => cancelOrder(orderId))
+
+// Group leader: change the split. It shows straight away, then the server saves it for everyone.
+function chooseSplit(mode) {
+  const before = order.value.splitMode
+  order.value.splitMode = mode
+  run(async () => {
+    try {
+      await setSplitMode(orderId, mode)
+    } catch (err) {
+      order.value.splitMode = before // didn't save, so go back
+      throw err
+    }
+  })
+}
 const collect = photo => run(() => markCollected(orderId, photo))
 
 // [NAWAZ] START: Fastpass & Makan Points in pre-orders (built by Myat, see HANDOVER.md)
@@ -269,16 +290,21 @@ async function copyLink() {
 
     <!-- [NAWAZ] START: Fastpass & Makan Points in pre-orders (built by Myat, see HANDOVER.md) -->
     <!-- Fastpass: everyone in the group order sees it once it's on -->
-    <section v-if="order.priority" class="card card-sun" data-testid="fastpass-on">
+    <!-- Cancelled after buying a Fastpass: the server gave the points back -->
+    <section v-if="order.status === 'cancelled' && order.fastpassRefunded" class="card" data-testid="fastpass-refunded">
+      <p class="font-bold">⚡ Fastpass refunded</p>
+      <p class="text-sm">The order was cancelled, so {{ order.fastpassRefunded }} Makan Points went back to {{ order.priorityBy }}.</p>
+    </section>
+    <section v-else-if="order.priority && order.status !== 'cancelled'" class="card card-sun" data-testid="fastpass-on">
       <p class="font-bold">⚡ Fastpass on</p>
       <p class="text-sm">{{ order.priorityBy }} used Makan Points, so the hawker prepares this group order first.</p>
     </section>
     <section v-else-if="canBuyFastpass" class="card space-y-2" data-testid="fastpass-offer">
       <p class="font-bold">⚡ Skip the queue with a Fastpass</p>
-      <p class="text-sm">Use {{ FASTPASS_COST }} Makan Points and the hawker prepares your order first. Everyone in this group order gets it.</p>
-      <p class="text-sm">You have <b>{{ myPoints ?? '...' }}</b> points.</p>
-      <button class="btn-primary" :disabled="busy || myPoints === null || myPoints < FASTPASS_COST" @click="fastpass">
-        {{ myPoints !== null && myPoints < FASTPASS_COST ? 'Not enough points' : `Use ${FASTPASS_COST} points` }}
+      <p class="text-sm">Use {{ fastpassCost ?? '...' }} Makan Points and the hawker prepares your order first. Everyone in this group order gets it.</p>
+      <p class="text-sm">You have <b data-testid="my-points">{{ myPoints ?? '...' }}</b> points.</p>
+      <button class="btn-primary" :disabled="busy || myPoints === null || fastpassCost === null || myPoints < fastpassCost" @click="fastpass">
+        {{ myPoints !== null && fastpassCost !== null && myPoints < fastpassCost ? 'Not enough points' : `Use ${fastpassCost ?? '...'} points` }}
       </button>
     </section>
 
@@ -357,18 +383,19 @@ async function copyLink() {
       </section>
     </div>
 
-    <!-- Split the bill (before paying): only a guide, nobody is charged their share -->
-    <section v-if="order.items.length > 0 && !isPaid && order.status !== 'cancelled'" class="card">
+    <!-- Split the bill (before paying): only a guide, nobody is charged their share.
+         The group leader sees everyone's share and picks how to split. -->
+    <section v-if="isOwner && order.items.length > 0 && !isPaid && order.status !== 'cancelled'" class="card">
       <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h2>Split the bill</h2>
         <div class="flex gap-2">
-          <button class="btn text-sm" :class="{ '!bg-ink !text-white': splitMode === 'item' }" @click="splitMode = 'item'">By item</button>
-          <button class="btn text-sm" :class="{ '!bg-ink !text-white': splitMode === 'equal' }" @click="splitMode = 'equal'">Equally</button>
+          <button class="btn text-sm" :class="{ '!bg-ink !text-white': splitMode === 'item' }" @click="chooseSplit('item')">By item</button>
+          <button class="btn text-sm" :class="{ '!bg-ink !text-white': splitMode === 'equal' }" @click="chooseSplit('equal')">Equally</button>
         </div>
       </div>
       <p class="mb-3 rounded-lg bg-brand-light px-3 py-2 text-sm text-brand" data-testid="split-guide">
-        <b>{{ isOwner ? 'You pay' : `${leaderName} pays` }} the whole bill ({{ formatMoney(order.total) }})</b> to the stall with Stripe.
-        The split doesn't charge anyone. It shows how much each person spent, so friends know how much to pay {{ isOwner ? 'you' : leaderName }} back.
+        <b>You pay the whole bill ({{ formatMoney(order.total) }})</b> to the stall with Stripe.
+        The split doesn't charge anyone. It shows how much each person spent, so friends know how much to pay you back.
       </p>
       <ul>
         <li v-for="share in shares" :key="share.uid" class="stat mb-2 flex justify-between !text-left" data-testid="share">
@@ -378,28 +405,32 @@ async function copyLink() {
       </ul>
     </section>
 
-    <!-- Split receipt (after paying): who paid, and how much each friend owes the group leader -->
-    <section v-if="isPaid && isMember" class="card space-y-3" data-testid="split-receipt">
+    <!-- A friend (not the leader) only sees their own share, split the way the leader chose -->
+    <section v-else-if="isMember && myShare && order.items.length > 0 && !isPaid && order.status !== 'cancelled'" class="card" data-testid="my-share">
+      <h2>Your share</h2>
+      <p class="font-display text-4xl">{{ formatMoney(myShare.amount) }}</p>
+      <p class="text-sm text-slate-600">
+        {{ leaderName }} pays the whole bill ({{ formatMoney(order.total) }}) and splits it {{ splitMode === 'equal' ? 'equally' : 'by item' }}.
+        Pay {{ leaderName }} back after the order is paid.
+      </p>
+    </section>
+
+    <!-- Split receipt (after paying), for the group leader: who paid, and how much each friend owes -->
+    <section v-if="isPaid && isOwner" class="card space-y-3" data-testid="split-receipt">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2>🧾 Split receipt</h2>
           <p class="text-xs text-slate-500">{{ order.placeName }} · Order {{ orderCode(order.id) }}<span v-if="paidTime"> · {{ paidTime }}</span></p>
         </div>
         <div class="flex gap-2">
-          <button class="btn text-sm" :class="{ '!bg-ink !text-white': splitMode === 'item' }" @click="splitMode = 'item'">By item</button>
-          <button class="btn text-sm" :class="{ '!bg-ink !text-white': splitMode === 'equal' }" @click="splitMode = 'equal'">Equally</button>
+          <button class="btn text-sm" :class="{ '!bg-ink !text-white': splitMode === 'item' }" @click="chooseSplit('item')">By item</button>
+          <button class="btn text-sm" :class="{ '!bg-ink !text-white': splitMode === 'equal' }" @click="chooseSplit('equal')">Equally</button>
         </div>
       </div>
 
       <p class="rounded-lg bg-brand-light px-3 py-2 text-sm text-brand" data-testid="receipt-summary">
-        <template v-if="isOwner">
-          <b>You paid {{ formatMoney(order.total) }}</b> for everyone.
-          <span v-if="owedToLeader > 0">Your friends owe you {{ formatMoney(owedToLeader) }} altogether.</span>
-        </template>
-        <template v-else>
-          <b>{{ leaderName }} paid {{ formatMoney(order.total) }}</b> for everyone.
-          <span v-if="myShare">You owe {{ leaderName }} {{ formatMoney(myShare.amount) }}.</span>
-        </template>
+        <b>You paid {{ formatMoney(order.total) }}</b> for everyone.
+        <span v-if="owedToLeader > 0">Your friends owe you {{ formatMoney(owedToLeader) }} altogether.</span>
       </p>
 
       <ul class="border-y-[3px] border-dashed border-ink py-2">
@@ -407,7 +438,7 @@ async function copyLink() {
           <span>
             {{ share.name }}
             <span v-if="share.uid === order.ownerUid" class="text-xs text-slate-500">(paid the stall)</span>
-            <span v-else class="text-xs text-slate-500">(pays {{ leaderName }} back)</span>
+            <span v-else class="text-xs text-slate-500">(pays you back)</span>
           </span>
           <span class="font-semibold">{{ formatMoney(share.amount) }}</span>
         </li>
@@ -417,6 +448,32 @@ async function copyLink() {
       </p>
 
       <button class="btn text-sm" @click="copyReceipt">{{ receiptCopied ? 'Copied!' : 'Copy receipt for the group chat' }}</button>
+    </section>
+
+    <!-- Receipt (after paying), for a friend: what I ordered, and how much to send the leader -->
+    <section v-else-if="isPaid && isMember" class="card space-y-3" data-testid="split-receipt">
+      <div>
+        <h2>🧾 Your receipt</h2>
+        <p class="text-xs text-slate-500">{{ order.placeName }} · Order {{ orderCode(order.id) }}<span v-if="paidTime"> · {{ paidTime }}</span></p>
+      </div>
+
+      <ul v-if="myItems.length > 0" class="border-y-[3px] border-dashed border-ink py-2">
+        <li v-for="item in myItems" :key="item.lineId" class="flex justify-between py-1" data-testid="receipt-item">
+          <span>{{ item.qty }} × {{ item.name }}</span>
+          <span>{{ formatMoney(item.price * item.qty) }}</span>
+        </li>
+      </ul>
+      <p class="flex justify-between text-sm">
+        <span>{{ leaderName }} paid the whole bill</span><span>{{ formatMoney(order.total) }}</span>
+      </p>
+
+      <div class="rounded-lg bg-brand-light px-3 py-3 text-brand" data-testid="receipt-summary">
+        <template v-if="myShare && myShare.amount > 0">
+          <p class="font-display text-3xl">Transfer {{ formatMoney(myShare.amount) }} to {{ leaderName }}</p>
+          <p class="text-sm">{{ leaderName }} split the bill {{ splitMode === 'equal' ? 'equally' : 'by item' }}.</p>
+        </template>
+        <p v-else class="font-bold">You don't owe {{ leaderName }} anything.</p>
+      </div>
     </section>
 
     <!-- Pay / cancel -->

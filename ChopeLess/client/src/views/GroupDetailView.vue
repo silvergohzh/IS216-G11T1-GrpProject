@@ -18,6 +18,10 @@ const live = ref(null)     // the group's live Makan Session, if there is one (P
 const error = ref('')
 const busy = ref(false)
 const copied = ref(false)
+// [M3] My details for this meal (budget + diet), filled from my Profile and editable here,
+// so every kaki's own diet is used when the shortlist is built
+const DIETS = ['halal', 'vegetarian']
+const me = ref({ name: '', budget: 8, dietary: [] })
 let stopGroup = null
 let stopLive = null
 
@@ -27,8 +31,9 @@ const members = computed(() => Object.entries(group.value?.members || {}))
 const liveCount = computed(() => Object.keys(live.value?.members || {}).length)
 const inLive = computed(() => !!live.value?.members?.[auth.user?.uid])   // am I already in the live session?
 const kickedFromLive = computed(() => !!live.value?.kicked?.[auth.user?.uid])   // the host removed me from it
-onMounted(() => {
+onMounted(async () => {
  stopGroup = watchGroup(code, g => { group.value = g; loaded.value = true }, err => { error.value = err.message })
+ me.value = await profileDetails()
 })
 onUnmounted(() => { stopGroup?.(); stopLive?.() })
 
@@ -40,11 +45,17 @@ watch(() => group.value?.activeSession, sessionCode => {
 })
 
 // My name, budget and diet from my Profile, so nobody has to type them again
-async function myDetails() {
+async function profileDetails() {
   const p = await getProfile(auth.user.uid).catch(() => null)
   // only diets places are tagged with (an old 'no-beef' would filter out every place)
-  const dietary = (p?.dietary || []).filter(d => ['halal', 'vegetarian'].includes(d))
+  const dietary = (p?.dietary || []).filter(d => DIETS.includes(d))
   return { name: p?.name || auth.user.name, budget: p?.defaultBudget ?? 8, dietary }
+}
+// [M3] what I send when starting or joining: my edits on this page (a copy, so later edits don't leak in)
+async function myDetails() {
+  if (!me.value.name) me.value = await profileDetails()
+  if (!(me.value.budget >= 1)) throw new Error('Budget must be at least $1.')
+  return { name: me.value.name, budget: Number(me.value.budget), dietary: [...me.value.dietary] }
 }
 
 async function run(action) {  // small helper: shows errors and stops double clicks
@@ -68,7 +79,7 @@ const joinLive = () => run(async () => {
 const joinThisGroup = () => run(async () => joinGroup(code, (await myDetails()).name))
 const rename = () => run(async () => {
   const name = prompt('New group name', group.value.name)
-  if (name?.trim()) await renameGroup(code, name.trim())
+  if (name?.trim()) await renameGroup(code, name.trim().slice(0, 40))   // [M3] max 40 letters, same as a new group
 })
 const remove = (uid, name) => run(async () => {
   if (confirm(`Remove ${name} from the group?`)) await removeMember(code, uid)
@@ -89,6 +100,7 @@ async function copyCode() {
   copied.value = true
   setTimeout(() => (copied.value = false), 2000)
 }
+
 </script>
 
 <template>
@@ -110,9 +122,12 @@ async function copyCode() {
     <p class="kicker">Station 1 · Kopitiam Table</p>
     <div class="mb-4 flex flex-wrap items-center gap-2">
       <h1 class="page-title mb-0">{{ group.name }}</h1>
+      <!-- [M3] labelled, so a Kaki code isn't mixed up with a session code -->
+      <span class="text-xs font-black tracking-widest">KAKI CODE</span>
       <span class="chip font-display text-lg !font-normal tracking-widest" data-testid="group-code">{{ code }}</span>
-      <button class="btn text-sm" @click="copyCode">{{ copied ? 'Code copied ✓' : 'Copy code' }}</button>
-      <button v-if="isOwner" class="btn text-sm" @click="rename">Rename</button>
+      <button class="btn text-sm" @click="copyCode">{{ copied ? 'Kaki code copied ✓' : 'Copy kaki code' }}</button>
+      <!-- [M3] any kaki in the group can rename it (not only the owner) -->
+      <button class="btn text-sm" data-testid="rename-group" @click="rename">Rename</button>
     </div>
     <p v-if="error" class="error mb-3">{{ error }}</p>
 
@@ -123,13 +138,28 @@ async function copyCode() {
       <button v-else class="btn-primary" :disabled="busy" @click="joinLive">{{ inLive ? 'Back to the lobby' : 'Join live session' }}</button>
     </div>
 
-      <div v-else-if="live && live.status === 'voting' && live.expiresAt?.toMillis() > Date.now()" class="card card-sun mb-4">
-      Voting is in progress for this group.
+      <!-- [M3] also during a QueueLess re-vote (status "revoting"), not only the first vote -->
+      <div v-else-if="live && ['voting', 'revoting'].includes(live.status) && live.expiresAt?.toMillis() > Date.now()" class="card card-sun mb-4">
+      {{ live.status === 'revoting' ? 'A QueueLess re-vote' : 'Voting' }} is in progress for this group.
       <RouterLink :to="`/sessions/${group.activeSession}/vote`" class="font-bold text-brand">Open</RouterLink>
     </div>
       <button v-else class="btn-primary mb-4 w-full font-display text-2xl font-normal md:w-auto" :disabled="busy" @click="startSession">
       Start a Makan Session
     </button>
+
+    <!-- [M3] my budget and diet for this meal (from my Profile, change them here if needed) -->
+    <div class="card mb-4" data-testid="my-details">
+      <h2 class="mb-1">My details for this meal</h2>
+      <p class="mb-2 text-sm font-bold">Used when you start or join the group's session. Everyone's diet is checked when the shortlist is built.</p>
+      <div class="flex flex-wrap items-end gap-3">
+        <div><label class="label" for="g-budget">My budget ($)</label>
+          <input id="g-budget" v-model.number="me.budget" type="number" min="1" class="input w-28" /></div>
+        <fieldset><legend class="label">My dietary needs</legend>
+          <label v-for="d in DIETS" :key="d" class="mr-2 inline-flex min-h-11 items-center gap-2 rounded-full border-[3px] border-ink bg-white px-3 font-extrabold has-[:checked]:bg-accent">
+            <input type="checkbox" :value="d" v-model="me.dietary" /> {{ d }}</label>
+        </fieldset>
+      </div>
+    </div>
 
     <div class="card">
       <h2 class="mb-2">Kakis ({{ members.length }})</h2>
@@ -145,7 +175,8 @@ async function copyCode() {
       </ul>
     </div>
 
-    <button v-if="isOwner" class="mt-4 text-sm text-red-600" @click="del">Delete group</button>
-    <button v-else class="mt-4 text-sm text-red-600" @click="leave">Leave group</button>
+    <!-- [M3] same style as the Leave / Delete buttons on the Makan Kakis list -->
+    <button v-if="isOwner" class="btn mt-4 text-sm !text-red-700" @click="del">Delete group</button>
+    <button v-else class="btn mt-4 text-sm !text-red-700" @click="leave">Leave group</button>
   </div>
 </template>

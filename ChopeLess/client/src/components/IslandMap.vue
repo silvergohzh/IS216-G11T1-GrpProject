@@ -19,7 +19,7 @@ const STATIONS = [
   { id: 'kakis',    n: 1, x: 110, y: 470, name: 'Makan Kakis',   to: '/groups',    cta: 'Open my groups',
     text: 'Your regular lunch groups. One tap calls everyone to the table.', rewards: [['Host a session from a group', '+5 pts']] },
   { id: 'queues',   n: 2, x: 310, y: 400, name: 'QueueLess',     to: '/queueless', cta: 'Check queues',
-    text: 'Live crowd levels from photos. Know the wait before you walk over.', rewards: [['Verified crowd report', '+15 pts']] },
+    text: 'Live crowd levels from photos. Know the wait before you walk over.', rewards: [['Check a queue photo', 'free'], ['Crowd report (Makan Points page)', '+15 pts']] },
   { id: 'gems',     n: 3, x: 470, y: 350, name: 'Hidden Gems',   to: '/gems',      cta: 'Explore gems',
     text: 'Stalls only locals know. 3 upvotes and a gem joins everyone’s vote.', rewards: [['Add or upvote a gem', 'helps the town']] },
   { id: 'session',  n: 4, x: 620, y: 250, name: 'Makan Session', to: '/sessions',  cta: 'Start a session',
@@ -27,7 +27,7 @@ const STATIONS = [
   { id: 'preorder', n: 5, x: 700, y: 120, name: 'Pre-order',     to: '/orders',    cta: 'Order ahead',
     text: 'Order as a group, split the bill, collect when the stall says ready.', rewards: [['Skip the queue', 'priority at 150 pts']] },
   { id: 'points',   n: 6, x: 200, y: 150, name: 'Makan Points',  to: '/points',    cta: 'See my points',
-    text: 'Your points, badges and this week’s leaderboard.', rewards: [['Extra Super Like', '-20 pts']] }
+    text: 'Your points, badges and this week’s leaderboard.', rewards: [['Earn: finish a session', '+10 pts'], ['Spend: extra ⭐ Super Like', '20 pts']] }
 ]
 
 // ---------- visited ticks: saved to your ACCOUNT, reset every day ----------

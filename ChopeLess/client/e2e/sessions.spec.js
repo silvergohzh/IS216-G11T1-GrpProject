@@ -1,7 +1,8 @@
 // Owner: M3 (front-end) and M1 (back-end rules). Two people, two browsers, one live session.
 import { test, expect } from '@playwright/test'
+import { createRequire } from 'module'   // [NAWAZ] for resetSeededQueueTimes (Round 2 test)
 import { signUp, logIn } from './helpers.js'
-import { newPerson, openLobby, startVotingNoTimer, cardName, voteThrough } from './session-helpers.js'
+import { newPerson, openLobby, startVotingNoTimer, cardName, voteThrough, setMeetingPoint } from './session-helpers.js'
 
 test('two members join, vote yes on the same place, and both see the winner', async ({ browser }) => {
   const host = await (await browser.newContext()).newPage()
@@ -18,7 +19,8 @@ test('two members join, vote yes on the same place, and both see the winner', as
   await guest.getByRole('button', { name: 'Join' }).click()
   await expect(host.getByTestId('member-list').locator('li')).toHaveCount(2)
 
-  // Host starts voting; both phones move to the vote page
+  // Host picks the meeting point and starts voting; both phones move to the vote page
+  await setMeetingPoint(host)
   await host.getByRole('button', { name: 'Start voting' }).click()
   await expect(host).toHaveURL(/\/vote$/)
   await expect(guest).toHaveURL(/\/vote$/)
@@ -50,7 +52,7 @@ test('session form: checks the name and the code before joining', async ({ page 
   await page.getByLabel('Name').fill('')
   await page.getByTestId('create-session').click()
   await expect(page.getByText('Please enter your name.')).toBeVisible()
-  await expect(page).toHaveURL(/\/sessions$/)
+  await expect(page).toHaveURL(/\/sessions$/, { timeout: 15000 })   // creating an account can take >5 s on GitHub's slower machines
 
   // A code that doesn't exist
   await page.getByLabel('Name').fill('Tester')
@@ -79,6 +81,7 @@ test('lobby: only the host changes the rules, and everyone sees them live', asyn
   await guest.getByTestId('join-code').fill(code)
   await guest.getByRole('button', { name: 'Join', exact: true }).click()
   await expect(host.getByTestId('member-list').locator('li')).toHaveCount(2)
+  await setMeetingPoint(host)
   await expect(host.getByRole('button', { name: 'Start voting' })).toBeEnabled()
 
   // Host switches to takeaway and a 15-minute walk: the guest's lobby updates by itself
@@ -216,30 +219,47 @@ test('vote: a second Super Like costs 20 points and the tally counts both (and n
   await expect(host.getByTestId('tally-row').filter({ hasText: first })).toContainText('⭐×1')
 })
 
-test('tie: two places with the same score go to the gacha machine, and both phones get the same winner', async ({ browser }) => {
-  test.setTimeout(120_000)   // two full rounds of voting
+test('tie: highest scoring places go to gacha in Round 1, and both phones get the same winner', async ({ browser }) => {
+  test.setTimeout(120_000)
+
   const host = await newPerson(browser)
   const guest = await newPerson(browser)
+
   await openLobby(host, guest)
   await startVotingNoTimer(host, guest)
 
-  // Round 1: host likes only card 1, guest likes only card 2 -> no place everyone likes
-  await voteThrough(host, 0)
-  await voteThrough(guest, 1, false)
-  await expect(host.getByTestId('round-two')).toBeVisible()
-  await expect(guest.getByTestId('round-two')).toBeVisible()
-
-  // Round 2: same again -> card 1 and card 2 have 1 vote each -> tie
+  // Host likes card 1, guest likes card 2.
+  // Both receive one Yes, so both are eligible
+  // under the new Round 1 rules.
   await voteThrough(host, 0)
   await voteThrough(guest, 1, false)
 
-  await expect(host.getByRole('heading', { name: "It's a tie!" })).toBeVisible({ timeout: 15000 })
-  await expect(host.getByTestId('spin-wheel').locator('ol li')).toHaveCount(2)
-  // The machine runs by itself, then the capsule pops and the winner shows on both phones
-  await expect(host.getByTestId('winner-name')).toBeVisible({ timeout: 30000 })
-  await expect(guest.getByTestId('winner-name')).toBeVisible({ timeout: 30000 })
-  const winner = (await host.getByTestId('winner-name').textContent()).trim()
-  await expect(guest.getByTestId('winner-name')).toHaveText(winner)
+  // Both restaurants tie for the highest score.
+  // Round 1 should proceed directly to gacha.
+  await expect(
+    host.getByRole('heading', { name: "It's a tie!" })
+  ).toBeVisible({ timeout: 30000 })
+
+  await expect(
+    host.getByTestId('spin-wheel').locator('ol li')
+  ).toHaveCount(2)
+
+  // Both users should receive the same final winner.
+  await expect(
+    host.getByTestId('winner-name')
+  ).toBeVisible({ timeout: 30000 })
+
+  await expect(
+    guest.getByTestId('winner-name')
+  ).toBeVisible({ timeout: 30000 })
+
+  const winner = (
+    await host.getByTestId('winner-name').textContent()
+  ).trim()
+
+  await expect(
+    guest.getByTestId('winner-name')
+  ).toHaveText(winner)
 })
 
 test('winner: walking directions, Meal History and starting again', async ({ browser }) => {
@@ -271,3 +291,152 @@ test('winner: walking directions, Meal History and starting again', async ({ bro
   await expect(host).toHaveURL(/\/sessions$/)
 })
  
+
+// [NAWAZ] START: the host must choose a meeting point before voting
+test('lobby: Start voting stays off until the host picks a meeting point', async ({ browser }) => {
+  const host = await newPerson(browser)
+  const guest = await newPerson(browser)
+  await openLobby(host, guest)
+
+  // Two people are here, but there is no meeting point yet
+  const start = host.getByRole('button', { name: 'Start voting' })
+  await expect(start).toBeDisabled()
+  await expect(host.getByTestId('meeting-point-required')).toBeVisible()
+  await expect(guest.getByTestId('meeting-point-required')).toHaveCount(0)   // only the host is told
+
+  // The host taps the map: the message goes away and voting can start
+  await host.getByTestId('map').click()
+  await expect(host.getByTestId('meeting-point-required')).toHaveCount(0)
+  await expect(start).toBeEnabled()
+})
+
+test('lobby: "Use my current location" sets the meeting point', async ({ browser }) => {
+  // The host's browser shares a made-up location (Bras Basah) without asking
+  const hostContext = await browser.newContext({
+    geolocation: { latitude: 1.2967, longitude: 103.8537 },
+    permissions: ['geolocation']
+  })
+  const host = await hostContext.newPage()
+  const guest = await newPerson(browser)
+  await openLobby(host, guest)
+
+  await expect(guest.getByTestId('use-my-location')).toHaveCount(0)   // only the host gets the button
+  await host.getByTestId('use-my-location').click()
+  await expect(host.getByTestId('meeting-point-required')).toHaveCount(0)
+  await expect(host.getByRole('button', { name: 'Start voting' })).toBeEnabled()
+})
+
+test('shortlist: a place further than the walk limit is left out', async ({ browser }) => {
+  const host = await newPerson(browser)
+  const guest = await newPerson(browser)
+  await openLobby(host, guest)
+
+  // A 7-minute walk limit. From SMU (the middle of the map), Bras Basah Complex is about 6 minutes away
+  // and Albert Centre about 10. Albert Centre fits everything else (cheap, short queue), so only
+  // the walk limit can take it off the list.
+  await host.getByLabel('Max walk (min)').fill('7')
+  await host.getByLabel('Max walk (min)').press('Tab')
+  await expect(guest.getByLabel('Max walk (min)')).toHaveValue('7')
+  await startVotingNoTimer(host, guest)
+
+  // Go through every card (say no to each) and write down the names
+  const progress = host.getByText(/\d+\/\d+ done/)
+  const total = Number((await progress.textContent()).match(/(\d+)\/(\d+) done/)[2])
+  const names = []
+  for (let i = 0; i < total; i++) {
+    await expect(progress).toContainText(`${i}/${total} done`)
+    names.push(await cardName(host))
+    await host.getByTestId('vote-no').click()
+  }
+
+  expect(names).toContain('Bras Basah Complex food court')
+  expect(names).not.toContain('Albert Centre Market & Food Centre')
+})
+// [NAWAZ] END
+
+// [NAWAZ] START: Round 2 shows only places the group hasn't seen
+
+// Puts every seeded place's queue estimate ("latest") back to its value in server/seed/places.json.
+// Why: all tests share one database, and other tests change these waits (the QueueLess photo upload
+// saves a random wait for Waterloo Centre). The Round 2 counts depend on them.
+// Only "latest" is rewritten, so accounts, points and everything else other tests use stay as they are.
+// Returns the places whose wait changed, e.g. ["waterloo-centre: 17 -> 8"].
+async function resetSeededQueueTimes() {
+  // Use the server's firebase-admin (the client has no copy), pointed at the emulator, never a real database
+  const requireFromServer = createRequire(new URL('../../server/package.json', import.meta.url))
+  const { initializeApp, getApps } = requireFromServer('firebase-admin/app')
+  const { getFirestore } = requireFromServer('firebase-admin/firestore')
+  process.env.FIRESTORE_EMULATOR_HOST = '127.0.0.1:8080'
+  const app = getApps().find(a => a.name === 'e2e-reset') || initializeApp({ projectId: 'demo-hiddengems' }, 'e2e-reset')
+  const db = getFirestore(app)
+
+  const seeded = requireFromServer('./seed/places.json')
+  const changed = []
+  const batch = db.batch()
+  for (const p of seeded) {
+    const ref = db.collection('places').doc(p.id)
+    const before = (await ref.get()).data()?.latest?.waitMins
+    if (before !== p.latestWaitMins) changed.push(`${p.id}: ${before} -> ${p.latestWaitMins}`)
+    // The same shape server/seed/seed.js writes
+    batch.update(ref, {
+      latest: {
+        peopleInQueue: Math.round(p.latestWaitMins / 0.8),
+        waitMins: p.latestWaitMins,
+        seatOccupancy: p.latestWaitMins * 6,
+        confidence: 'medium',
+        at: new Date().toISOString()
+      }
+    })
+  }
+  await batch.commit()
+  return changed
+}
+// Says no to every card in this round and returns the names, in order.
+// Waits for each vote to be saved (the "N/M done" count goes up) before the next one.
+async function sayNoToAll(page) {
+  const progress = page.getByText(/\d+\/\d+ done/)
+  await expect(page.getByTestId('swipe-card')).toBeVisible()
+  const total = Number((await progress.textContent()).match(/(\d+)\/(\d+) done/)[2])
+  const names = []
+  for (let i = 0; i < total; i++) {
+    await expect(progress).toContainText(`${i}/${total} done`)
+    names.push(await cardName(page))
+    await page.getByTestId('vote-no').click()
+  }
+  await expect(progress).toContainText(`${total}/${total} done`)
+  return names
+}
+
+test('round 2: nobody matched, so Round 2 shows only fresh places', async ({ browser }) => {
+  test.slow()   // [M3] 18 votes + building Round 2: give it 3× the normal time (it timed out on GitHub's slower machines)
+  // Start from the seeded queue times, whatever earlier tests did to them
+  const changed = await resetSeededQueueTimes()
+  console.log(`Queue times reset: ${changed.length ? changed.join(', ') : 'nothing had changed'}`)
+
+  const host = await newPerson(browser)
+  const guest = await newPerson(browser)
+  await openLobby(host, guest)
+
+  // Meeting point at SMU and the default limits. Walking is worked out offline (straight lines),
+  // so Round 1 is the same 7 places every run.
+  await startVotingNoTimer(host, guest)
+  const round1 = await sayNoToAll(host)
+  expect(round1).toHaveLength(7)
+
+  // The guest says no to everything too. Their last vote ends Round 1 with no match.
+  await voteThrough(guest, -1, false)
+
+  // Round 2 starts by itself on both phones, with a fresh set of cards
+  await expect(host.getByTestId('round-two')).toBeVisible()
+  await expect(guest.getByTestId('round-two')).toBeVisible()
+  await expect(host.getByText(/\d+\/\d+ done/)).toContainText(/ 0\/\d+ done/)
+
+  const round2 = await sayNoToAll(host)
+  console.log(`Round 2 has ${round2.length} places: ${round2.join(', ')}`)
+  // 4 fresh places: Hot Spot, Taste Good, Ice Lab and Warung Leko. This number comes from the seeded places
+  // and the offline (straight-line) walking estimate, so update it if the seed data changes.
+  // (Before the Round 2 fix it was 3, because seen places used up some of the 8 slots.)
+  expect(round2).toHaveLength(4)
+  for (const name of round2) expect(round1).not.toContain(name)   // nothing from Round 1 comes back
+})
+// [NAWAZ] END
