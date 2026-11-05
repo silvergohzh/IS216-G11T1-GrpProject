@@ -16,6 +16,10 @@ jobs:
       # 1. Get our code
       - uses: actions/checkout@v4
 
+      # There is only one README, at the top of the repo
+      - name: Only one README
+        run: test ! -e ChopeLess/README.md || (echo "Delete ChopeLess/README.md. The README is at the top of the repo." && exit 1)
+
       # 2. Install Node.js (for our code) and Java (the Firebase emulator needs it)
       - uses: actions/setup-node@v4
         with:
