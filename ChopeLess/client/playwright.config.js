@@ -14,6 +14,7 @@ export default defineConfig({
   globalSetup: './e2e/global-setup.js',
   workers: 1, // tests share one emulator database
   retries: process.env.CI ? 1 : 0, // on GitHub only: re-run a failed test once, in case the slow machine timed out
+  reporter: 'list', // print every test's name with ✓ or ✘, so each person can see their tests ran
   use: { baseURL: 'http://localhost:5174' },
   projects: [
     { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
