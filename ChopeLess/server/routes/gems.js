@@ -8,7 +8,7 @@
 import { Router } from 'express'
 import { FieldValue } from 'firebase-admin/firestore'
 import { db, adminAuth } from '../firebase.js'
-import { requireAuth } from '../middleware/auth.js'
+import { requireAuth, requireRole } from '../middleware/auth.js'
 import { awardPoints, POINT_RULES } from '../services/points.js'   // Janani's Makan Points
 import { httpError, slugify, parseGem, IMAGE_PREFIX, MAX_IMAGE_CHARS } from '../services/gemRules.js'
 
@@ -99,6 +99,17 @@ const safeSync = async id => {
   try { await syncPlaceMenu(id) } catch (err) { console.error('[Hidden Gems] Could not copy the menu into places:', err.message) }
 }
 
+// Deletes a gem with its reviews and menu, and takes its copy out of "places" (also the older gem-<id> naming).
+// Used by the owner's delete and by the admin's delete.
+async function removeGem(ref) {
+  await db.recursiveDelete(ref)
+  for (const pid of [ref.id, `gem-${ref.id}`]) {
+    const placeRef = places.doc(pid)
+    const snap = await placeRef.get()
+    if (snap.exists && snap.data().fromGem && snap.data().gemId === ref.id) await placeRef.delete()
+  }
+}
+
 // GET /api/gems - list gems, most upvoted first
 router.get('/', async (req, res, next) => {
   try {
@@ -171,14 +182,21 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
     const doc = await ref.get()
     if (!doc.exists) throw httpError(404, 'Gem not found')
     if (doc.data().submittedBy !== req.uid) throw httpError(403, 'You can only delete your own gems')
-    await db.recursiveDelete(ref)   // also deletes its reviews and menu
+    await removeGem(ref)
+    res.json({ ok: true })
+  } catch (err) {
+    next(err)
+  }
+})
 
-    // Remove this gem's copy from "places" (also the older gem-<id> naming)
-    for (const pid of [ref.id, `gem-${ref.id}`]) {
-      const placeRef = places.doc(pid)
-      const snap = await placeRef.get()
-      if (snap.exists && snap.data().fromGem && snap.data().gemId === ref.id) await placeRef.delete()
-    }
+// DELETE /api/gems/:id/admin - an admin removes any gem (moderation: spam, fake or wrong listings)
+router.delete('/:id/admin', requireRole('admin'), async (req, res, next) => {
+  try {
+    const ref = gems.doc(req.params.id)
+    const doc = await ref.get()
+    if (!doc.exists) throw httpError(404, 'Gem not found')
+    await removeGem(ref)
+    console.log(`[Hidden Gems] Admin ${req.uid} removed "${doc.data().name}" (${ref.id}), submitted by ${doc.data().submittedBy}`)
     res.json({ ok: true })
   } catch (err) {
     next(err)

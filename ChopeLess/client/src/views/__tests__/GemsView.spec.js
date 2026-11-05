@@ -17,6 +17,7 @@ vi.mock('../../services/gems', () => ({
   addGem: vi.fn(),
   updateGem: vi.fn(),
   deleteGem: vi.fn(),
+  adminDeleteGem: vi.fn(),
   getReviews: vi.fn(),
   saveReview: vi.fn(),
   updateReview: vi.fn(),
