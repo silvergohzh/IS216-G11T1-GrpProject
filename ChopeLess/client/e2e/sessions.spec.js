@@ -51,10 +51,25 @@ test('session form: checks the name and the code before joining', async ({ page 
   // wait until the profile has filled in the name, or it arrives late and overwrites our blank name
   await expect(page.getByLabel('Name')).toHaveValue(/^form-/)
   // No name -> friendly message, nothing created
-  await page.getByLabel('Name').fill('')
+  // Wait until the user's profile has finished loading.
+  
+
+  const nameInput = page.getByLabel('Name')
+
+  // Wait for the saved profile to populate the input.
+  await expect(nameInput).toHaveValue(/^form-/, {
+    timeout: 15000
+  })
+
+  // Allow the asynchronous profile initialization to settle.
+  await page.waitForTimeout(1000)
+
+  await nameInput.fill('')
+  await expect(nameInput).toHaveValue('')
+
   await page.getByTestId('create-session').click()
   await expect(page.getByText('Please enter your name.')).toBeVisible()
-  await expect(page).toHaveURL(/\/sessions$/)   // still on the form: nothing was created
+  await expect(page).toHaveURL(/\/sessions$/, { timeout: 15000 })
 
   // A code that doesn't exist
   await page.getByLabel('Name').fill('Tester')
@@ -395,22 +410,45 @@ async function resetSeededQueueTimes() {
 }
 // Says no to every card in this round and returns the names, in order.
 // Waits for each vote to be saved (the "N/M done" count goes up) before the next one.
+
+
 async function sayNoToAll(page) {
   const progress = page.getByText(/\d+\/\d+ done/)
+
   await expect(page.getByTestId('swipe-card')).toBeVisible()
-  const total = Number((await progress.textContent()).match(/(\d+)\/(\d+) done/)[2])
+
+  const total = Number(
+    (await progress.textContent()).match(/(\d+)\/(\d+) done/)[2]
+  )
+
   const names = []
+
   for (let i = 0; i < total; i++) {
-    await expect(progress).toContainText(`${i}/${total} done`)
+    await expect(progress).toContainText(`${i}/${total} done`, {
+      timeout: 30000
+    })
+
     names.push(await cardName(page))
     await page.getByTestId('vote-no').click()
+
+    if (i < total - 1) {
+      await expect(progress).toContainText(`${i + 1}/${total} done`, {
+        timeout: 30000
+      })
+    }
   }
-  await expect(progress).toContainText(`${total}/${total} done`)
+
+  await expect(progress).toContainText(`${total}/${total} done`, {
+    timeout: 30000
+  })
+
   return names
 }
 
+
+
 test('round 2: nobody matched, so Round 2 shows only fresh places', async ({ browser }) => {
-  test.slow()   // [M3] 18 votes + building Round 2: give it 3× the normal time (it timed out on GitHub's slower machines)
+  test.setTimeout(240_000)   // [M3] 18 votes + building Round 2: give it 3× the normal time (it timed out on GitHub's slower machines)
   // Start from the seeded queue times, whatever earlier tests did to them
   const changed = await resetSeededQueueTimes()
   console.log(`Queue times reset: ${changed.length ? changed.join(', ') : 'nothing had changed'}`)
@@ -425,12 +463,20 @@ test('round 2: nobody matched, so Round 2 shows only fresh places', async ({ bro
   const round1 = await sayNoToAll(host)
   expect(round1).toHaveLength(7)
 
+  
   // The guest says no to everything too. Their last vote ends Round 1 with no match.
   await voteThrough(guest, -1, false)
 
-  // Round 2 starts by itself on both phones, with a fresh set of cards
-  await expect(host.getByTestId('round-two')).toBeVisible()
-  await expect(guest.getByTestId('round-two')).toBeVisible()
+  // Wait for the server to finish processing Round 1
+  // and for both browsers to receive the Round 2 update.
+  await expect(guest.getByTestId('round-two')).toBeVisible({
+    timeout: 30000
+  })
+
+  await expect(host.getByTestId('round-two')).toBeVisible({
+    timeout: 30000
+  })
+
   await expect(host.getByText(/\d+\/\d+ done/)).toContainText(/ 0\/\d+ done/)
 
   const round2 = await sayNoToAll(host)

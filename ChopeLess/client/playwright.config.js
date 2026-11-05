@@ -35,7 +35,18 @@ export default defineConfig({
       // STRIPE_SECRET_KEY and OPENAI_API_KEY: empty, so payments use demo mode and the AI returns sample data
       // (no cost, no internet needed, even if your server/.env has real keys)
       // OSRM_OFFLINE: walking times use the straight-line estimate, so shortlists are the same every run
-      env: { ...emulatorEnv, PORT: '3001', CLIENT_URL: 'http://localhost:5174', STRIPE_WEBHOOK_SECRET: 'whsec_test_chopeless', STRIPE_SECRET_KEY: '', OPENAI_API_KEY: '', OSRM_OFFLINE: 'true' }
+      env: {
+        ...emulatorEnv,
+        PORT: '3001',
+        CLIENT_URL: 'http://localhost:5174',
+        STRIPE_WEBHOOK_SECRET: 'whsec_test_chopeless',
+        STRIPE_SECRET_KEY: '',
+        OPENAI_API_KEY: '',
+        OSRM_OFFLINE: 'true',
+
+        // [JANANI] Authorized verifier for emulator E2E testing only
+        CROWD_REPORT_VERIFIER_UIDS: 'e2e-crowd-verifier'
+      }
     }
   ]
 })
