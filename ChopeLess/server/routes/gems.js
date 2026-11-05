@@ -190,7 +190,7 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
 })
 
 // DELETE /api/gems/:id/admin - an admin removes any gem (moderation: spam, fake or wrong listings)
-router.delete('/:id/admin', requireRole('admin'), async (req, res, next) => {
+router.delete('/:id/admin', requireAuth, requireRole('admin'), async (req, res, next) => {   //check who's logged in first, so requireRole knows req.uid
   try {
     const ref = gems.doc(req.params.id)
     const doc = await ref.get()
