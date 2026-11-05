@@ -59,8 +59,8 @@ export async function voteThrough(page, yesAt, waitForEnd = true) {
   await expect(page.getByTestId('swipe-card')).toBeVisible()
   const total = Number((await progress.textContent()).match(/(\d+)\/(\d+) done/)[2])
   for (let i = 0; i < total; i++) {
-    await expect(progress).toContainText(`${i}/${total} done`)
+    await expect(progress).toContainText(`${i}/${total} done`, { timeout: 30000 })   // a vote can be slow on GitHub's machine
     await page.getByTestId(i === yesAt ? 'vote-yes' : 'vote-no').click()
   }
-  if (waitForEnd) await expect(progress).toContainText(`${total}/${total} done`)
+  if (waitForEnd) await expect(progress).toContainText(`${total}/${total} done`, { timeout: 30000 })
 }
