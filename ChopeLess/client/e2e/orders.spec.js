@@ -4,6 +4,12 @@ import { createHmac } from 'crypto'
 import { signUp, logIn } from './helpers.js'
 import { setMeetingPoint } from './session-helpers.js'
 
+// Close the extra browser windows this test opened (newPerson / browser.newContext),
+// so they stop listening to the database. Left open, ~100 windows pile up and slow down the last tests.
+test.afterEach(async ({ browser, context }) => {
+  await Promise.all(browser.contexts().filter(c => c !== context).map(c => c.close().catch(() => {})))
+})
+
 const CENTRE = 'Albert Centre Market & Food Centre' // a hawker centre with stalls inside
 const STALL = 'Ah Seng Chicken Rice'                 // a stall inside it, run by hawker@chopeless.test
 const WEBHOOK_URL = 'http://localhost:3001/api/payments/webhook'
